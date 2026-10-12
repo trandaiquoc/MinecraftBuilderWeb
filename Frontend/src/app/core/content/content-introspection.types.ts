@@ -58,7 +58,10 @@ export interface NormalizedContentDescriptor {
   readonly diagnostics: readonly ContentIntrospectionDiagnostic[];
 }
 
-export type { NormalizedPredicate, NormalizedPropertyPredicate } from './resources/normalized-predicate';
+export type {
+  NormalizedPredicate,
+  NormalizedPropertyPredicate,
+} from './resources/normalized-predicate';
 export type {
   ResourceDependencyGraph,
   ResourceGraphEdge,

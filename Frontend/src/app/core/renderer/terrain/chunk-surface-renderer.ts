@@ -6,7 +6,10 @@ import type { CompiledTerrainChunk } from './meshing/chunk-surface-mesher';
 import type { TerrainClassificationEntry } from './terrain-classifier';
 import type { TerrainAtlasEvidence } from './atlas/terrain-texture-atlas';
 import type { TerrainAtlasMode } from './atlas/terrain-texture-atlas';
-import type { TerrainMeshWorkerPoolEvidence, TerrainWorkerLike } from './meshing/terrain-mesh-worker-pool';
+import type {
+  TerrainMeshWorkerPoolEvidence,
+  TerrainWorkerLike,
+} from './meshing/terrain-mesh-worker-pool';
 import type { TerrainCommitSchedulerEvidence } from './commits/terrain-commit-scheduler';
 import type { TerrainCommitDiagnosticsEvidence } from './commits/terrain-commit-diagnostics';
 import { TerrainChunkLogicalStore } from './chunks/terrain-chunk-logical-store';

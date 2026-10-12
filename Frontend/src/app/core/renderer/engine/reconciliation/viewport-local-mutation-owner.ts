@@ -7,7 +7,10 @@ import { groupIdsOf } from '../../../editor/groups/group-membership';
 import { planLocalRenderDelta } from '../../mutations/local-render-delta';
 import { applyLocalFluidDelta } from '../../mutations/local-fluid-render-delta';
 import { fluidChunkKey } from '../../fluids/geometry/fluid-mesh-core';
-import type { TerrainBlockChange, TerrainSurfaceRecord } from '../../terrain/chunk-surface-renderer';
+import type {
+  TerrainBlockChange,
+  TerrainSurfaceRecord,
+} from '../../terrain/chunk-surface-renderer';
 import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../../terrain/terrain-classifier';
 import type { TerrainHydrationCandidate } from '../../terrain/viewport-terrain-workflow-owner';
 import type { HydrationLane } from '../../scheduling/hydration/hydration-progress-tracker';

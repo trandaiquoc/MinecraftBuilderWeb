@@ -3,7 +3,10 @@ import type { ContentSourceProvider } from '../content-source/content-source.typ
 import { CONTENT_SOURCE_MINECRAFT_VERSION } from '../content-source/content-source.types';
 import { textureResourcePath } from '../../content/resources/resource-location';
 import { ExternalModCatalogBuilder } from './catalog/external-mod-catalog-builder';
-import type { ExternalCatalogProgress, ExternalModCatalog } from './catalog/external-mod-catalog-builder';
+import type {
+  ExternalCatalogProgress,
+  ExternalModCatalog,
+} from './catalog/external-mod-catalog-builder';
 import { evaluateMinecraftRequirement } from './import/minecraft-version-predicate';
 import { legacyFabricMetadata, normalizeFabricMetadata } from './import/mod-loader';
 import type {

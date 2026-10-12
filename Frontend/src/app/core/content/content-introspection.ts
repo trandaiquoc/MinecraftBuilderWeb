@@ -63,7 +63,10 @@ export {
 } from './evidence/semantic-manifest-evidence';
 export type { SemanticManifestParseResult } from './evidence/semantic-manifest-evidence';
 
-export type { NormalizedPredicate, NormalizedPropertyPredicate } from './resources/normalized-predicate';
+export type {
+  NormalizedPredicate,
+  NormalizedPropertyPredicate,
+} from './resources/normalized-predicate';
 
 /** Resource-backed introspection shared by vanilla and external content sources. */
 export class ContentIntrospectionEngine {

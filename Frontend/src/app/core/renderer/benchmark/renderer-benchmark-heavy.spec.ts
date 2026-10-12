@@ -8,7 +8,10 @@ import {
 } from './renderer-benchmark-fixtures';
 import * as THREE from 'three';
 import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
-import { RegistryFluidRenderResolver, vanillaFluidRenderResolver } from '../fluids/state/fluid-state';
+import {
+  RegistryFluidRenderResolver,
+  vanillaFluidRenderResolver,
+} from '../fluids/state/fluid-state';
 import {
   blockMutationHint,
   metadataMutationHint,

@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import type { ProjectDocument } from '../../domain/project.types';
 import type { GroupMovePreview } from '../../editor/groups/group-move-planner';
-import { createDecorationVisual, type DecorationTextureCache } from '../visuals/decorations/decoration-visuals';
+import {
+  createDecorationVisual,
+  type DecorationTextureCache,
+} from '../visuals/decorations/decoration-visuals';
 import type { ResolvedItemVisual } from '../visuals/items/item-visual-resolver';
 import type { ViewportThemePalette } from '../engine/appearance/viewport-theme';
 

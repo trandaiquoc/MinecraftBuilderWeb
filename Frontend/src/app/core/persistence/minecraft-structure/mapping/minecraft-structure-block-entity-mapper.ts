@@ -17,7 +17,13 @@ import { verifiedInventoryContainerSchema } from '../../../block-entities/item-d
 import { type ItemMaxStackResolver } from '../../../items/item-stack-validation';
 import { failure, hasUnknownRaw, isRecord } from './minecraft-structure-semantic-mapping-result';
 import type { SemanticMappingResult } from './minecraft-structure-semantic-mapping-result';
-import { byteTag, compound, intTag, list, stringTag } from '../codec/minecraft-structure-nbt-primitives';
+import {
+  byteTag,
+  compound,
+  intTag,
+  list,
+  stringTag,
+} from '../codec/minecraft-structure-nbt-primitives';
 import { mapItemStack } from './minecraft-structure-item-stack-mapper';
 
 const signColors = new Set([

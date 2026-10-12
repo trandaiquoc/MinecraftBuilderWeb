@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import type { FluidChunkVisualProvider, FluidLayerPresentation } from '../state/fluid-render-contracts';
+import type {
+  FluidChunkVisualProvider,
+  FluidLayerPresentation,
+} from '../state/fluid-render-contracts';
 import { fluidMaterialCacheKey, fluidMaterialDescriptor } from '../state/fluid-material-key';
 import type { FluidMeshBuildResult } from '../geometry/fluid-mesh-core';
 

@@ -1,5 +1,8 @@
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
-import { precompileTerrainTemplates, type PrecompiledTerrainFace } from './meshing/chunk-surface-mesher';
+import {
+  precompileTerrainTemplates,
+  type PrecompiledTerrainFace,
+} from './meshing/chunk-surface-mesher';
 import { TerrainTextureAtlas, type TerrainAtlasMode } from './atlas/terrain-texture-atlas';
 import type { TerrainSurfaceRecord } from './terrain-render-contracts';
 

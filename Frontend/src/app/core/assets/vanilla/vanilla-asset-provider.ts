@@ -19,7 +19,10 @@ import {
   evaluateCommonBehavior,
 } from '../../block-behavior/compatibility/common-behavior';
 import type { TargetItemEvidence } from './format/item-evidence';
-import { classifyContent, isDecorationEntityId } from '../../content/classification/content-classifier';
+import {
+  classifyContent,
+  isDecorationEntityId,
+} from '../../content/classification/content-classifier';
 import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vanilla-capability-profiles';
 import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catalog';
 import { textureResourcePath } from '../../content/resources/resource-location';

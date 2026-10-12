@@ -13,7 +13,10 @@ import { fluidChunkKey } from '../../fluids/geometry/fluid-mesh-core';
 import type { ViewportInteriorCullingOwner } from '../../visibility/viewport-interior-culling-owner';
 import type { StaticModelBatchRenderer } from '../../batching/static-model-batch-renderer';
 import type { SurfaceFaceBatchRenderer } from '../../batching/surface-face-batch-renderer';
-import type { ChunkSurfaceRenderer, TerrainBlockChange } from '../../terrain/chunk-surface-renderer';
+import type {
+  ChunkSurfaceRenderer,
+  TerrainBlockChange,
+} from '../../terrain/chunk-surface-renderer';
 import type {
   ViewportTerrainWorkflowOwner,
   TerrainHydrationCandidate,

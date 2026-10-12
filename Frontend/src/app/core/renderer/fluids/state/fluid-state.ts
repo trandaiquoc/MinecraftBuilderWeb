@@ -1,7 +1,10 @@
 import { BlockDefinition } from '../../../blocks/catalog/block-definition.types';
 import { PlacedBlock, VoxelCoordinate } from '../../../domain/project.types';
 import type { OcclusionClass } from '../../visibility/interior-occlusion';
-import { fluidHorizontalVelocity, sampleFluidCornerHeights } from '../geometry/fluid-surface-sampler';
+import {
+  fluidHorizontalVelocity,
+  sampleFluidCornerHeights,
+} from '../geometry/fluid-surface-sampler';
 export { calculateFluidHeight } from '../geometry/fluid-surface-sampler';
 
 export type FluidKind = 'water' | 'lava';
