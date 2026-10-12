@@ -169,9 +169,13 @@ A full copy of the vanilla asset tree is not required in the repository.
 
 Runtime resources are addressed through a generic `AssetResourceProvider` and
 the explicit `CompositeAssetResourceProvider`. Each active content source has a
-stable source identity and declares its owned namespaces; resources are routed
-directly to that owner. The Vanilla source owns `minecraft`, and external
-sources may reference Vanilla parents or textures without replacing it.
+stable source identity and declares its namespaces. A namespace is not
+exclusive ownership: providers may contribute different exact paths in the
+same namespace. Explicit resource paths determine routing; namespace fallback
+is used only for providers without an explicit path list. Conflicting exact
+resource paths are rejected, while additive tags use the documented merge
+rules. External sources can therefore reference Vanilla parents or textures
+without copying or replacing those resources.
 
 The normalized Vanilla cache is stored in IndexedDB by Minecraft version and is
 never part of a project file. Imported Fabric resource-only mods are cached
