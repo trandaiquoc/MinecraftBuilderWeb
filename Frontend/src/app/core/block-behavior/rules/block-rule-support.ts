@@ -257,10 +257,16 @@ function compatibleWallHanging(
   facing: string,
   definitions: BlockDefinitionLookup,
 ): boolean {
+  if (!block) return false;
+  const behavior = definitions(block.id)?.behavior;
+  if (behavior?.kind === 'wall-hanging-sign')
+    return axis(block.state[behavior.facingProperty]) === axis(facing);
+  if (behavior?.kind !== 'hanging-sign') return false;
+  const rotation = Number(block.state[behavior.rotationProperty]);
+  if (!Number.isInteger(rotation) || rotation < 0 || rotation > 15) return false;
   return (
-    !!block &&
-    definitions(block.id)?.behavior?.kind === 'wall-hanging-sign' &&
-    axis(block.state['facing']) === axis(facing)
+    axis((['south', 'west', 'north', 'east'] as const)[Math.round(rotation / 4) & 3]) ===
+    axis(facing)
   );
 }
 

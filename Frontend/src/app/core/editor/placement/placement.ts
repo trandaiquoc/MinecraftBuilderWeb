@@ -80,6 +80,7 @@ export function resolveAttachmentPlacement(
   hitPoint: { readonly y: number } | undefined,
   blocks: readonly PlacedBlock[] | ReadonlyBlockLookup,
   definition?: (id: string) => BlockDefinition | undefined,
+  faceNormal?: FaceNormal,
 ): AttachmentPlacementResult | undefined {
   const hit = blockAt(blocks, hitPosition);
   const activeBehavior = activeBlockId ? definition?.(activeBlockId)?.behavior : undefined;
@@ -95,7 +96,11 @@ export function resolveAttachmentPlacement(
       stateOverride: {},
       snapType: 'hanging-sign-chain',
     };
-  if (isHangingSign && isHangingSignBlock)
+  if (
+    isHangingSign &&
+    isHangingSignBlock &&
+    !(faceNormal && faceNormal.y === 0 && Math.abs(faceNormal.x) + Math.abs(faceNormal.z) > 0)
+  )
     return {
       target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z },
       stateOverride: {},
