@@ -12,6 +12,12 @@ describe('block thumbnail renderer', () => {
     const createBlockVisual = vi.fn(() => new Promise<any>((resolve) => (resolveVisual = resolve)));
     const render = vi.fn();
     const dispose = vi.fn();
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshBasicMaterial();
+    const geometryDisposed = vi.fn();
+    const materialDisposed = vi.fn();
+    geometry.addEventListener('dispose', geometryDisposed);
+    material.addEventListener('dispose', materialDisposed);
     const fakeRenderer = {
       domElement: document.createElement('canvas'),
       setSize: vi.fn(),
@@ -42,13 +48,15 @@ describe('block thumbnail renderer', () => {
     renderer.dispose();
     resolveVisual({
       mode: 'real',
-      object: new THREE.Group().add(new THREE.Mesh(new THREE.BoxGeometry())),
+      object: new THREE.Group().add(new THREE.Mesh(geometry, material)),
       dispose: vi.fn(),
     });
 
     await expect(pending).resolves.toBeUndefined();
     expect(render).not.toHaveBeenCalled();
     expect(dispose).toHaveBeenCalledOnce();
+    expect(geometryDisposed).toHaveBeenCalledOnce();
+    expect(materialDisposed).toHaveBeenCalledOnce();
   });
 
   it('does not create an object URL when a pending canvas blob resolves after disposal', async () => {
@@ -73,6 +81,127 @@ describe('block thumbnail renderer', () => {
 
     await expect(pending).resolves.toBeUndefined();
     expect(createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('disposes generated-layer GPU objects without disposing shared textures', async () => {
+    const geometryDisposed = vi.fn();
+    const materialDisposed = vi.fn();
+    const textureDisposed = vi.fn();
+    const texture = new THREE.Texture();
+    texture.addEventListener('dispose', textureDisposed);
+    const fakeRenderer = {
+      domElement: { toDataURL: () => 'data:image/png;base64,preview' },
+      setSize: vi.fn(),
+      setClearColor: vi.fn(),
+      render: (scene: THREE.Scene) => {
+        scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          object.geometry.addEventListener('dispose', geometryDisposed);
+          object.material.addEventListener('dispose', materialDisposed);
+        });
+      },
+      dispose: vi.fn(),
+    };
+    const assets = {
+      readJson: (path: string) =>
+        path === 'assets/example/models/item/gem.json'
+          ? { textures: { layer0: 'example:item/gem' } }
+          : undefined,
+      readBinary: () => undefined,
+    } as any;
+    const renderer = new BlockThumbnailRenderer(assets, new SpecialBlockVisualRegistry(), {
+      createBlockVisual: vi.fn(),
+      resolveBlockModel: vi.fn(),
+      resolveItemModel: vi.fn(),
+      createModelPart: vi.fn(),
+      loadTexture: vi.fn().mockResolvedValue(texture),
+    });
+    (renderer as any).getRenderer = () => fakeRenderer;
+
+    await expect(renderer.perspectiveItemVisualThumbnail('example:gem')).resolves.toMatchObject({
+      quality: 'enhanced',
+      url: 'data:image/png;base64,preview',
+    });
+
+    expect(geometryDisposed).toHaveBeenCalledOnce();
+    expect(materialDisposed).toHaveBeenCalledOnce();
+    expect(textureDisposed).not.toHaveBeenCalled();
+  });
+
+  it('keeps provider-owned model geometry while releasing its thumbnail material', async () => {
+    const geometryDisposed = vi.fn();
+    const materialDisposed = vi.fn();
+    const geometry = new THREE.BoxGeometry();
+    geometry.userData['providerOwnedGeometry'] = true;
+    const material = new THREE.MeshBasicMaterial();
+    const part = new THREE.Group().add(new THREE.Mesh(geometry, material));
+    const fakeRenderer = {
+      domElement: { toDataURL: () => 'data:image/png;base64:preview' },
+      setSize: vi.fn(),
+      setClearColor: vi.fn(),
+      render: vi.fn(),
+      dispose: vi.fn(),
+    };
+    geometry.addEventListener('dispose', geometryDisposed);
+    material.addEventListener('dispose', materialDisposed);
+    const assets = { readJson: () => undefined, readBinary: () => undefined } as any;
+    const renderer = new BlockThumbnailRenderer(assets, new SpecialBlockVisualRegistry(), {
+      createBlockVisual: vi.fn(),
+      resolveBlockModel: vi.fn(),
+      resolveItemModel: () => ({ parts: [{ elements: [{}] }] }) as any,
+      createModelPart: vi.fn().mockResolvedValue(part),
+      loadTexture: vi.fn(),
+    });
+    (renderer as any).getRenderer = () => fakeRenderer;
+
+    await expect(
+      (renderer as any).renderStandaloneModel('example:gem', 'example:item/gem'),
+    ).resolves.toBe('data:image/png;base64:preview');
+
+    expect(geometryDisposed).not.toHaveBeenCalled();
+    expect(materialDisposed).toHaveBeenCalledOnce();
+  });
+
+  it('releases block thumbnail materials while preserving cached provider geometry', async () => {
+    const geometryDisposed = vi.fn();
+    const materialDisposed = vi.fn();
+    const geometry = new THREE.BoxGeometry();
+    geometry.userData['providerOwnedGeometry'] = true;
+    const material = new THREE.MeshBasicMaterial();
+    const object = new THREE.Group().add(new THREE.Mesh(geometry, material));
+    const fakeRenderer = {
+      domElement: { toDataURL: () => 'data:image/png;base64:preview' },
+      setSize: vi.fn(),
+      setClearColor: vi.fn(),
+      render: vi.fn(),
+      dispose: vi.fn(),
+    };
+    geometry.addEventListener('dispose', geometryDisposed);
+    material.addEventListener('dispose', materialDisposed);
+    const assets = { readJson: () => undefined, readBinary: () => undefined } as any;
+    const renderer = new BlockThumbnailRenderer(assets, new SpecialBlockVisualRegistry(), {
+      createBlockVisual: vi.fn().mockResolvedValue({ object }),
+      resolveBlockModel: vi.fn().mockReturnValue({ parts: [] }),
+      resolveItemModel: vi.fn(),
+      createModelPart: vi.fn(),
+      loadTexture: vi.fn(),
+    });
+    (renderer as any).getRenderer = () => fakeRenderer;
+
+    await expect(
+      (renderer as any).renderThumbnailBlocks([
+        {
+          kind: 'resolved',
+          id: 'minecraft:stone',
+          namespace: 'minecraft',
+          position: { x: 0, y: 0, z: 0 },
+          state: {},
+        },
+      ]),
+    ).resolves.toBe('data:image/png;base64:preview');
+
+    expect(geometryDisposed).not.toHaveBeenCalled();
+    expect(materialDisposed).toHaveBeenCalledOnce();
   });
 
   it('corrects only entity-head preview orientation while leaving generic previews unchanged', () => {

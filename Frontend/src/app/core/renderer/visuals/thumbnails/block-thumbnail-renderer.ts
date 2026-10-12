@@ -10,6 +10,7 @@ import type {
   PerspectiveThumbnailResult,
 } from '../block-visual-provider-contract';
 import { stableValueKey } from '../../../domain/stable-value-key';
+import { disposeObject } from '../../presentation/renderer-resource-disposal';
 
 export interface BlockThumbnailSource {
   createBlockVisual(block: PlacedBlock): Promise<BlockVisualResult>;
@@ -148,7 +149,10 @@ export class BlockThumbnailRenderer {
       )
     )
       .map(({ block, visual }) => {
-        if (this.disposed) return undefined;
+        if (this.disposed) {
+          if (visual.object) disposeObject(visual.object);
+          return undefined;
+        }
         if (!visual.object) return undefined;
         visual.object.position.set(
           visual.object.position.x + block.position.x,
@@ -166,17 +170,21 @@ export class BlockThumbnailRenderer {
     keyLight.position.set(4, 6, 5);
     scene.add(keyLight);
     for (const object of visuals) scene.add(object);
-    const bounds = new THREE.Box3();
-    for (const object of visuals) bounds.expandByObject(object);
-    if (!validBounds(bounds)) return undefined;
-    const center = bounds.getCenter(new THREE.Vector3());
-    const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), 0.5);
-    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
-    camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7));
-    camera.lookAt(center);
-    renderer.render(scene, camera);
-    for (const object of visuals) scene.remove(object);
-    return this.canvasUrl(renderer.domElement);
+    try {
+      const bounds = new THREE.Box3();
+      for (const object of visuals) bounds.expandByObject(object);
+      if (!validBounds(bounds)) return undefined;
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), 0.5);
+      const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
+      camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7));
+      camera.lookAt(center);
+      renderer.render(scene, camera);
+      for (const object of visuals) scene.remove(object);
+      return await this.canvasUrl(renderer.domElement);
+    } finally {
+      for (const object of visuals) disposeObject(object);
+    }
   }
 
   private itemThumbnailResource(itemId: string): string | undefined {
@@ -223,55 +231,63 @@ export class BlockThumbnailRenderer {
     if (this.disposed) return { quality: 'fallback' };
     if (!textures.length || textures.some((texture) => !texture))
       return { quality: 'fallback', retryable: true };
-    const renderer = this.getRenderer();
-    renderer.setSize(96, 96, false);
-    renderer.setClearColor(0x000000, 0);
     const scene = new THREE.Scene();
     scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3));
     const root = new THREE.Group();
-    textures.forEach((texture, index) => {
-      if (!texture) return;
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
+    try {
+      textures.forEach((texture, index) => {
+        if (!texture) return;
+        const material = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 1.35), material);
+        mesh.position.z = index * 0.002;
+        root.add(mesh);
       });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 1.35), material);
-      mesh.position.z = index * 0.002;
-      root.add(mesh);
-    });
-    scene.add(root);
-    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
-    camera.position.set(0, 0, 3.2);
-    camera.lookAt(0, 0, 0);
-    renderer.render(scene, camera);
-    scene.remove(root);
-    return { url: await this.canvasUrl(renderer.domElement), quality: 'enhanced' };
+      scene.add(root);
+      const renderer = this.getRenderer();
+      renderer.setSize(96, 96, false);
+      renderer.setClearColor(0x000000, 0);
+      const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
+      camera.position.set(0, 0, 3.2);
+      camera.lookAt(0, 0, 0);
+      renderer.render(scene, camera);
+      scene.remove(root);
+      return { url: await this.canvasUrl(renderer.domElement), quality: 'enhanced' };
+    } finally {
+      disposeObject(root);
+    }
   }
 
   private async renderStandaloneObject(root: THREE.Object3D): Promise<string | undefined> {
     if (this.disposed) return undefined;
-    const renderer = this.getRenderer();
-    renderer.setSize(96, 96, false);
-    renderer.setClearColor(0x000000, 0);
-    root.updateMatrixWorld(true);
-    const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3));
-    const key = new THREE.DirectionalLight(0xffffff, 1.45);
-    key.position.set(4, 6, 5);
-    scene.add(key);
-    scene.add(root);
-    const bounds = new THREE.Box3().setFromObject(root);
-    if (!validBounds(bounds)) return undefined;
-    const center = bounds.getCenter(new THREE.Vector3());
-    const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), 0.5);
-    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
-    camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7));
-    camera.lookAt(center);
-    renderer.render(scene, camera);
-    scene.remove(root);
-    return this.canvasUrl(renderer.domElement);
+    try {
+      const renderer = this.getRenderer();
+      renderer.setSize(96, 96, false);
+      renderer.setClearColor(0x000000, 0);
+      root.updateMatrixWorld(true);
+      const scene = new THREE.Scene();
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3));
+      const key = new THREE.DirectionalLight(0xffffff, 1.45);
+      key.position.set(4, 6, 5);
+      scene.add(key);
+      scene.add(root);
+      const bounds = new THREE.Box3().setFromObject(root);
+      if (!validBounds(bounds)) return undefined;
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), 0.5);
+      const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
+      camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7));
+      camera.lookAt(center);
+      renderer.render(scene, camera);
+      scene.remove(root);
+      return await this.canvasUrl(renderer.domElement);
+    } finally {
+      disposeObject(root);
+    }
   }
 
   private async renderStandaloneModel(
@@ -281,31 +297,35 @@ export class BlockThumbnailRenderer {
     if (this.disposed) return undefined;
     const resolved = this.source.resolveItemModel(modelId);
     if (!resolved.parts.some((part) => part.elements.length)) return undefined;
-    const renderer = this.getRenderer();
-    renderer.setSize(96, 96, false);
-    renderer.setClearColor(0x000000, 0);
     const root = new THREE.Group();
-    for (const part of resolved.parts) {
-      root.add(await this.source.createModelPart(part, itemId));
-      if (this.disposed) return undefined;
+    try {
+      for (const part of resolved.parts) {
+        root.add(await this.source.createModelPart(part, itemId));
+        if (this.disposed) return undefined;
+      }
+      const renderer = this.getRenderer();
+      renderer.setSize(96, 96, false);
+      renderer.setClearColor(0x000000, 0);
+      root.updateMatrixWorld(true);
+      const scene = new THREE.Scene();
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3));
+      const key = new THREE.DirectionalLight(0xffffff, 1.45);
+      key.position.set(4, 6, 5);
+      scene.add(key);
+      scene.add(root);
+      const bounds = new THREE.Box3().setFromObject(root);
+      if (!validBounds(bounds)) return undefined;
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), 0.5);
+      const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
+      camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7));
+      camera.lookAt(center);
+      renderer.render(scene, camera);
+      scene.remove(root);
+      return await this.canvasUrl(renderer.domElement);
+    } finally {
+      disposeObject(root);
     }
-    root.updateMatrixWorld(true);
-    const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3));
-    const key = new THREE.DirectionalLight(0xffffff, 1.45);
-    key.position.set(4, 6, 5);
-    scene.add(key);
-    scene.add(root);
-    const bounds = new THREE.Box3().setFromObject(root);
-    if (!validBounds(bounds)) return undefined;
-    const center = bounds.getCenter(new THREE.Vector3());
-    const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), 0.5);
-    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
-    camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7));
-    camera.lookAt(center);
-    renderer.render(scene, camera);
-    scene.remove(root);
-    return this.canvasUrl(renderer.domElement);
   }
 
   private getRenderer(): THREE.WebGLRenderer {
