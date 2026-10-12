@@ -1,13 +1,17 @@
 export function stableValueKey(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableValueKey).join(',')}]`;
+  return stableValuePart(value) ?? 'undefined';
+}
+
+function stableValuePart(value: unknown): string | undefined {
+  if (Array.isArray(value)) return `[${value.map(stableValuePart).join(',')}]`;
   if (value && typeof value === 'object') {
     return `{${Object.keys(value as Record<string, unknown>)
       .sort()
       .map(
         (key) =>
-          `${JSON.stringify(key)}:${stableValueKey((value as Record<string, unknown>)[key])}`,
+          `${JSON.stringify(key)}:${stableValuePart((value as Record<string, unknown>)[key])}`,
       )
       .join(',')}}`;
   }
-  return JSON.stringify(value) as string;
+  return JSON.stringify(value);
 }
