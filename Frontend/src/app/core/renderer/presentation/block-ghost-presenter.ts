@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import type { PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
+import { stableValueKey } from '../../domain/stable-value-key';
 import type { PlacementStatus } from '../../editor/placement/placement';
 import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 import type { ViewportThemePalette } from '../engine/appearance/viewport-theme';
@@ -134,11 +135,11 @@ export class BlockGhostPresenter {
       plan?.blocks
         .map(
           (block) =>
-            `${block.id}@${block.position.x - request.x},${block.position.y - request.y},${block.position.z - request.z}|${JSON.stringify(block.state)}`,
+            `${block.id}@${block.position.x - request.x},${block.position.y - request.y},${block.position.z - request.z}|${stableValueKey(block.state)}`,
         )
         .join(';') ?? '';
     const key = active
-      ? `${this.callbacks.providerGeneration()}|${active.id}|${JSON.stringify(active.state)}|${relativeBlocks}`
+      ? `${this.callbacks.providerGeneration()}|${active.id}|${stableValueKey(active.state)}|${relativeBlocks}`
       : '';
     if (key === this.ghostModelKey) {
       if (active) this.callbacks.record('ghostVisualReuses');
@@ -169,11 +170,32 @@ export class BlockGhostPresenter {
         ];
     const lookup = this.callbacks.blockLookup();
     const worldContext = lookup ? { getBlock: lookup } : undefined;
+    let failed = false;
+    const attemptVisuals = new Set<THREE.Group>();
+    const releaseAttemptVisuals = (): void => {
+      for (const object of attemptVisuals) {
+        attemptVisuals.delete(object);
+        disposeObject(object);
+      }
+    };
     void Promise.all(
-      blocks.map(async (block) => ({
-        block,
-        visual: await provider.create({ ...block, position: { x: 0, y: 0, z: 0 } }, worldContext),
-      })),
+      blocks.map(async (block) => {
+        const visual = await provider.create(
+          { ...block, position: { x: 0, y: 0, z: 0 } },
+          worldContext,
+        );
+        if (visual.object) {
+          if (
+            failed ||
+            generation !== this.ghostGeneration ||
+            providerGeneration !== this.callbacks.providerGeneration() ||
+            provider !== this.callbacks.provider()
+          )
+            disposeObject(visual.object);
+          else attemptVisuals.add(visual.object);
+        }
+        return { block, visual };
+      }),
     )
       .then((results) => {
         if (
@@ -182,7 +204,7 @@ export class BlockGhostPresenter {
           provider !== this.callbacks.provider() ||
           !results.length
         ) {
-          for (const { visual } of results) if (visual.object) disposeObject(visual.object);
+          releaseAttemptVisuals();
           return;
         }
         const root = new THREE.Group();
@@ -196,6 +218,7 @@ export class BlockGhostPresenter {
           root.add(visual.object);
         }
         if (!root.children.length) return;
+        attemptVisuals.clear();
         this.ghostModel = root;
         this.ghostModel.visible = false;
         this.ghostModel.renderOrder = 999;
@@ -220,6 +243,8 @@ export class BlockGhostPresenter {
         this.callbacks.scheduleRender();
       })
       .catch((error: unknown) => {
+        failed = true;
+        releaseAttemptVisuals();
         if (
           generation !== this.ghostGeneration ||
           providerGeneration !== this.callbacks.providerGeneration() ||
@@ -238,6 +263,7 @@ export class BlockGhostPresenter {
   }
 
   dispose(): void {
+    this.ghostGeneration += 1;
     this.scene.remove(this.ghost);
     if (this.ghostModel) {
       this.scene.remove(this.ghostModel);
