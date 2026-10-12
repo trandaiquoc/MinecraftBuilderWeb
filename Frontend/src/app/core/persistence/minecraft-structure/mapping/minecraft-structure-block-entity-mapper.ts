@@ -1,6 +1,7 @@
 /** Verified semantic block-entity to Minecraft NBT mappings. */
 
 import { isValidNamespacedResourceLocation } from '../../../content/resources/resource-location';
+import { isSignId } from '../../../block-entities/sign/sign-id';
 import type {
   DecoratedPotBlockEntityData,
   SignBlockEntityData,
@@ -95,7 +96,7 @@ function mapSign(
   data: SignBlockEntityData,
   index: number,
 ): SemanticMappingResult<MinecraftNbtCompound> {
-  if (!isVanillaSignBlockId(blockId))
+  if (!isSignId(blockId))
     return failure(
       'invalid-block-entity',
       'Sign data is attached to a block without a verified vanilla sign mapping.',
@@ -337,14 +338,6 @@ function validateContainerSlots(
     seen.add(entry.slot);
   }
   return { ok: true, value };
-}
-
-function isVanillaSignBlockId(id: string): boolean {
-  return (
-    id.startsWith('minecraft:') &&
-    (/(?:^|_)(?:wall_)?sign$/.test(id.slice('minecraft:'.length)) ||
-      /(?:^|_)(?:wall_)?hanging_sign$/.test(id.slice('minecraft:'.length)))
-  );
 }
 
 function validateContainerRaw(
