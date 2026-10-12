@@ -1,4 +1,5 @@
 import { SerializedVanillaAssets, VanillaAssetProvider } from '../vanilla/vanilla-asset-provider';
+import { DEFAULT_MINECRAFT_VERSION } from '../../domain/project.types';
 
 /** Portable normalized asset payload. The same shape can be stored for a future mod JAR. */
 export interface VanillaAssetBundle extends SerializedVanillaAssets {
@@ -18,7 +19,7 @@ export interface AssetBundleSource {
 export class JarImportSource {
   async load(
     file: File,
-    minecraftVersion = '1.21.1',
+    minecraftVersion: string = DEFAULT_MINECRAFT_VERSION,
     signal?: AbortSignal,
   ): Promise<VanillaAssetBundle> {
     return vanillaBundle(

@@ -221,6 +221,18 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('reports the active project version in runtime trace metadata', () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    engine.update(
+      { ...base, metadata: { ...base.metadata, minecraftVersion: '1.20.1' } },
+      undefined,
+    );
+
+    expect(engine.runtimeTraceMetadata()['minecraftVersion']).toBe('1.20.1');
+    engine.dispose();
+  });
+
   it('adopts a suspended editor-settings snapshot without reconciling unchanged representations on resume', () => {
     const engine = new ThreeViewportEngine();
     const base = rendererBenchmarkProject('small');

@@ -1,4 +1,5 @@
 import type { RenderableAssetResourceProvider } from '../../../assets/content-source/content-source.types';
+import { DEFAULT_MINECRAFT_VERSION } from '../../../domain/project.types';
 import {
   resolveResourceLocation,
   resourcePath,
@@ -140,7 +141,7 @@ export function resolveItemVisual(
 }
 
 function itemModelEntryPath(provider: ItemResourceReader, namespace: string, name: string): string {
-  return isLegacyItemModelVersion(provider.gameVersion ?? '1.21.1')
+  return isLegacyItemModelVersion(provider.gameVersion ?? DEFAULT_MINECRAFT_VERSION)
     ? `assets/${namespace}/models/item/${name}.json`
     : `assets/${namespace}/items/${name}.json`;
 }

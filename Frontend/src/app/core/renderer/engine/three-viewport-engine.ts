@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import {
+  DEFAULT_MINECRAFT_VERSION,
   PlacedBlock,
   ProjectDocument,
   ProjectSize,
@@ -2551,7 +2552,7 @@ export class ThreeViewportEngine {
     const project = this.project;
     const capabilities = this.renderer?.capabilities;
     return {
-      minecraftVersion: '1.21.1',
+      minecraftVersion: project?.metadata.minecraftVersion ?? DEFAULT_MINECRAFT_VERSION,
       projectId: project?.id,
       projectBlocks: project?.blocks.length ?? 0,
       visibleLogicalBlocks: this.expectedVisibleBlockCount(),

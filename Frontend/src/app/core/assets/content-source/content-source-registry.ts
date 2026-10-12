@@ -2,6 +2,7 @@ import { BlockCatalog, BlockCatalogSource } from '../../blocks/catalog/block-cat
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
 import type { PaintingVariant } from '../../decorations/decoration.types';
 import {
+  CONTENT_SOURCE_MINECRAFT_VERSION,
   ContentSourceDescriptor,
   ContentSourceProvider,
   ContentSourceResourceReader,
@@ -65,7 +66,7 @@ export class ContentSourceRegistry implements ContentSourceReadView {
   private readonly contributions = new Map<string, BlockCatalogSource>();
   private readonly paintingContributions = new Map<string, readonly PaintingVariant[]>();
   private conflictsValue: SourceRegistrationDiagnostic[] = [];
-  constructor(activeVersion = '1.21.1') {
+  constructor(activeVersion: string = CONTENT_SOURCE_MINECRAFT_VERSION) {
     this.resources.setActiveVersion(activeVersion);
   }
 
@@ -384,7 +385,7 @@ export class ContentSourceRegistry implements ContentSourceReadView {
 
 export function assertCompatibleSource(
   source: Pick<ContentSourceDescriptor, 'minecraftVersion'>,
-  activeVersion = '1.21.1',
+  activeVersion: string = CONTENT_SOURCE_MINECRAFT_VERSION,
 ): void {
   if (source.minecraftVersion !== activeVersion)
     throw new Error(

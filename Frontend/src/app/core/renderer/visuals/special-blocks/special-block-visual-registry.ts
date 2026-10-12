@@ -1,4 +1,4 @@
-import { PlacedBlock } from '../../../domain/project.types';
+import { DEFAULT_MINECRAFT_VERSION, PlacedBlock } from '../../../domain/project.types';
 import { resolveResourceLocation } from '../../../content/resources/resource-location';
 import { createCommonSignAdapter, SignVisualProvider } from './sign-visual-provider';
 import { BedVisualProvider } from './bed-visual-provider';
@@ -25,7 +25,9 @@ export class SpecialBlockVisualRegistry {
   private readonly adapters: SpecialBlockVisualAdapter[];
   private readonly descriptorAdapters = new Map<string, SpecialBlockVisualAdapter>();
   private readonly resources?: SpecialVisualResourceProvider;
-  constructor(gameVersionOrResources: string | SpecialVisualResourceProvider = '1.21.1') {
+  constructor(
+    gameVersionOrResources: string | SpecialVisualResourceProvider = DEFAULT_MINECRAFT_VERSION,
+  ) {
     this.resources =
       typeof gameVersionOrResources === 'string' ? undefined : gameVersionOrResources;
     this.beds = new BedVisualProvider();

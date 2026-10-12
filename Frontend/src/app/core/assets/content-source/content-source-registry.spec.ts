@@ -1,4 +1,5 @@
 import { BlockModelResolver } from '../../blocks/resolver';
+import { DEFAULT_MINECRAFT_VERSION } from '../../domain/project.types';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { ContentSourceRegistry } from './content-source-registry';
 import type { ContentSourceReadView } from './content-source-registry';
@@ -118,6 +119,10 @@ const block = (id: string, sourceId: string) => ({
 });
 
 describe('ContentSourceRegistry', () => {
+  it('uses the canonical project version when no content version is supplied', () => {
+    expect(new ContentSourceRegistry().activeMinecraftVersion()).toBe(DEFAULT_MINECRAFT_VERSION);
+  });
+
   it('provides the runtime with a read-only source capability view', () => {
     const registry = new ContentSourceRegistry();
     const view: ContentSourceReadView = registry;

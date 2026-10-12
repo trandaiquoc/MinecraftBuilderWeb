@@ -8,6 +8,7 @@ import { yieldToBrowser } from '../../cooperative-yield';
 import { validateJarUpload } from './jar-upload-validation';
 import { throwIfAborted } from '../../asset-operation-cancellation';
 import { createPhaseWatchdog } from './mod-import-phase-watchdog';
+import { DEFAULT_MINECRAFT_VERSION } from '../../../domain/project.types';
 
 const RETAINED_RESOURCE_PATH =
   /^(?:assets|data)\/[^/]+\/(?:blockstates|models|items|textures|lang|atlases|tags\/block|tags\/item|tags\/painting_variant|painting_variant)\/.+\.(?:json|png|png\.mcmeta)$|^(?:[^/]+\/)*[^/]+\.class$/;
@@ -60,7 +61,7 @@ export interface PreparedModImport {
 
 export async function inspectModJar(
   file: File,
-  minecraftVersion = '1.21.1',
+  minecraftVersion: string = DEFAULT_MINECRAFT_VERSION,
   onProgress?: (progress: ModImportProgress) => void,
   signal?: AbortSignal,
 ): Promise<PreparedModImport> {

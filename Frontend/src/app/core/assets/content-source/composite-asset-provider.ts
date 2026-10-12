@@ -1,5 +1,6 @@
 import { AssetResourceProvider } from '../../blocks/resolver/resolver.types';
 import {
+  CONTENT_SOURCE_MINECRAFT_VERSION,
   ContentSourceDescriptor,
   ContentSourceProvider,
   RenderableAssetResourceProvider,
@@ -41,7 +42,7 @@ export class CompositeAssetResourceProvider
   private readonly providers = new Map<string, ContentSourceProvider>();
   private readonly providerPaths = new Map<string, readonly string[]>();
   private revisionValue = 0;
-  private activeVersion = '1.21.1';
+  private activeVersion: string = CONTENT_SOURCE_MINECRAFT_VERSION;
 
   setActiveVersion(version: string): void {
     if (
