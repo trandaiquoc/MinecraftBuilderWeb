@@ -29,7 +29,7 @@ import type {
   VisualCacheStats,
   VisualResourceCounts,
 } from '../visuals/block-visual-provider-contract';
-import { stableBlockVisualKey } from '../visuals/stable-block-visual-key';
+import { stableValueKey } from '../../domain/stable-value-key';
 
 export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly resolver: BlockModelResolver;
@@ -261,7 +261,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     if (this.specialVisuals.resolveCompatible(block)) return undefined;
     const resolved = this.resolve(block.id, block.state);
     if (!resolved.parts.some((part) => part.elements.length)) return undefined;
-    const key = `vanilla-template-v1|${stableBlockVisualKey({ id: block.id, state: block.state, parts: resolved.parts })}`;
+    const key = `vanilla-template-v1|${stableValueKey({ id: block.id, state: block.state, parts: resolved.parts })}`;
     this.reusableKeyCache.set(stateKey, key);
     return key;
   }

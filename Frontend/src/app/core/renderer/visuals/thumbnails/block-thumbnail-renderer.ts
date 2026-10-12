@@ -9,7 +9,7 @@ import type {
   BlockVisualResult,
   PerspectiveThumbnailResult,
 } from '../block-visual-provider-contract';
-import { stableBlockVisualKey } from '../stable-block-visual-key';
+import { stableValueKey } from '../../../domain/stable-value-key';
 
 export interface BlockThumbnailSource {
   createBlockVisual(block: PlacedBlock): Promise<BlockVisualResult>;
@@ -46,7 +46,7 @@ export class BlockThumbnailRenderer {
     blockId: string,
     state: Readonly<Record<string, string>>,
   ): Promise<string | undefined> {
-    const key = `thumbnail-v2|${blockId}|${stableBlockVisualKey(state)}`;
+    const key = `thumbnail-v2|${blockId}|${stableValueKey(state)}`;
     const cached = this.thumbnailCache.get(key);
     if (cached) return cached;
     const task = this.renderThumbnail(blockId, state).catch(() =>
@@ -57,7 +57,7 @@ export class BlockThumbnailRenderer {
   }
 
   perspectiveItemThumbnail(item: PlaceableItemDefinition): Promise<PerspectiveThumbnailResult> {
-    const key = `item-thumbnail-v2|${item.itemId}|${item.previewRecipe}|${item.previewBlocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${stableBlockVisualKey(block.state)}`).join(';')}`;
+    const key = `item-thumbnail-v2|${item.itemId}|${item.previewRecipe}|${item.previewBlocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${stableValueKey(block.state)}`).join(';')}`;
     const cached = this.itemThumbnailCache.get(key);
     if (cached) return cached;
     const task = this.renderThumbnailBlocks(item.previewBlocks)
@@ -87,7 +87,7 @@ export class BlockThumbnailRenderer {
     itemId: string,
     components?: Readonly<Record<string, unknown>>,
   ): Promise<PerspectiveThumbnailResult> {
-    const key = `item-visual-v1|${itemId}|${components ? stableBlockVisualKey(components) : ''}`;
+    const key = `item-visual-v1|${itemId}|${components ? stableValueKey(components) : ''}`;
     const cached = this.itemVisualPreviewCache.get(key);
     if (cached) return cached;
     const task = this.renderItemVisualThumbnail(itemId, components).then((result) => {
