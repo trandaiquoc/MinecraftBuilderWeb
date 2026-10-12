@@ -5,7 +5,7 @@ import {
   ModImportProgress,
   PreparedModImport,
 } from '../../../../core/assets/mod/import/external-mod-importer';
-import { ModImportTimeoutError } from '../../../../core/assets/asset-operation-cancellation';
+import { ModImportTimeoutError } from '../../../../core/assets/mod/import/mod-import-phase-watchdog';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import {
   JarUploadValidationError,
