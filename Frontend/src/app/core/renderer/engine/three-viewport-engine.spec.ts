@@ -6,7 +6,7 @@ import {
   VIEWPORT_VISUAL_CONCURRENCY,
   translateVisualToVoxel,
 } from './three-viewport-engine';
-import { SpecialBlockVisualRegistry } from '../visuals/special-block-visual-registry';
+import { SpecialBlockVisualRegistry } from '../visuals/special-blocks/special-block-visual-registry';
 import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 import {
   rendererBenchmarkProject,

@@ -1,4 +1,4 @@
-import type { DecorationRenderLifecycle } from '../visuals/decoration-render-lifecycle';
+import type { DecorationRenderLifecycle } from '../visuals/decorations/decoration-render-lifecycle';
 import type { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import type { YLayerRepresentationPrewarmOwner } from '../engine/y-layer-representation-prewarm-owner';
 import type { ViewportTerrainWorkflowOwner } from '../terrain/viewport-terrain-workflow-owner';

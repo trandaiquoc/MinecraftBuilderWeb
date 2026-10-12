@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { PlacedBlock } from '../../domain/project.types';
+import type { PlacedBlock } from '../../../domain/project.types';
 import type { SpecialBlockVisualAdapter } from './special-visual-contracts';
 
 /** Diagnostic fallback for vanilla barrels when usable generic JSON is unavailable. */

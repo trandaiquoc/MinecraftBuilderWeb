@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { stableValueKey } from '../../domain/stable-value-key';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
 import type { DecorationPlacementPlan } from '../../decorations/placement/decoration-placement';
-import { createDecorationVisual, type DecorationTextureCache } from '../visuals/decoration-visuals';
-import type { ResolvedItemVisual } from '../visuals/item-visual-resolver';
+import { createDecorationVisual, type DecorationTextureCache } from '../visuals/decorations/decoration-visuals';
+import type { ResolvedItemVisual } from '../visuals/items/item-visual-resolver';
 import type { ViewportThemePalette } from '../engine/viewport-theme';
 import { disposeObject } from './renderer-resource-disposal';
 

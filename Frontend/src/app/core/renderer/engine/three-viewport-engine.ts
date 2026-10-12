@@ -32,8 +32,8 @@ import type {
   BlockVisualResult,
   VisualCacheStats,
 } from '../visuals/block-visual-provider-contract';
-import type { ResolvedItemVisual } from '../visuals/item-visual-resolver';
-import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-visual-contracts';
+import type { ResolvedItemVisual } from '../visuals/items/item-visual-resolver';
+import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-blocks/special-visual-contracts';
 import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { PlacementPlan } from '../../block-behavior/placement/placement-plan';
@@ -44,8 +44,8 @@ import {
   facingFromNormal,
   planDecorationPlacement,
 } from '../../decorations/placement/decoration-placement';
-import { DecorationTextureCache } from '../visuals/decoration-visuals';
-import { DecorationRenderLifecycle } from '../visuals/decoration-render-lifecycle';
+import { DecorationTextureCache } from '../visuals/decorations/decoration-visuals';
+import { DecorationRenderLifecycle } from '../visuals/decorations/decoration-render-lifecycle';
 import { BlockRepresentationResourceOwner } from '../visuals/block-representation-resource-owner';
 import { BlockRepresentationHydrationOwner } from '../visuals/block-representation-hydration-owner';
 import {
@@ -53,7 +53,7 @@ import {
   type BlockRepresentationRenderTargets,
 } from '../visuals/block-representation-commit-owner';
 import type { BlockHydrationJob } from '../visuals/block-representation-contracts';
-import { decorationRenderSignature } from '../visuals/decoration-render-signature';
+import { decorationRenderSignature } from '../visuals/decorations/decoration-render-signature';
 import type { ItemStackData } from '../../items/item-stack.types';
 import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import { MouseAction } from '../../editor/input/mouse-bindings';

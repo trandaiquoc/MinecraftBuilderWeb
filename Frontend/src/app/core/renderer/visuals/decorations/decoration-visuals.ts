@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { PlacedDecoration } from '../../decorations/decoration.types';
-import { paintingTextureResource } from '../../decorations/decoration.types';
-import { decorationAabb, directionVector } from '../../decorations/placement/decoration-placement';
-import type { ResolvedItemVisual } from './item-visual-resolver';
+import { PlacedDecoration } from '../../../decorations/decoration.types';
+import { paintingTextureResource } from '../../../decorations/decoration.types';
+import { decorationAabb, directionVector } from '../../../decorations/placement/decoration-placement';
+import type { ResolvedItemVisual } from '../items/item-visual-resolver';
 
 const ITEM_FRAME_SPRITE_SIZE = 0.42;
 const ITEM_FRAME_LAYER_EPSILON = 0.001;

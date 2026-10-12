@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { PlacedBlock } from '../../domain/project.types';
+import type { PlacedBlock } from '../../../domain/project.types';
 import { createSpecialModel } from './special-model-geometry';
 import type {
   BedVisualDescriptor,

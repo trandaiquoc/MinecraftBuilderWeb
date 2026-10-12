@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import type { ProjectDocument } from '../../domain/project.types';
-import type { PlacedDecoration } from '../../decorations/decoration.types';
+import type { ProjectDocument } from '../../../domain/project.types';
+import type { PlacedDecoration } from '../../../decorations/decoration.types';
 import { DecorationRenderLifecycle } from './decoration-render-lifecycle';
 
 const decoration: PlacedDecoration = {

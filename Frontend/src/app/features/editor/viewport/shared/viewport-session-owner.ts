@@ -5,7 +5,7 @@ import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/projec
 import {
   itemVisualTextureResources,
   resolveItemVisual,
-} from '../../../../core/renderer/visuals/item-visual-resolver';
+} from '../../../../core/renderer/visuals/items/item-visual-resolver';
 import type { ItemStackData } from '../../../../core/items/item-stack.types';
 import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-theme';
 import type { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';

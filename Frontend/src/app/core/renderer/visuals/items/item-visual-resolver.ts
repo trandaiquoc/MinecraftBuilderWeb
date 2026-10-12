@@ -1,5 +1,5 @@
-import type { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
-import { resolveResourceLocation, resourcePath } from '../../content/resources/resource-location';
+import type { RenderableAssetResourceProvider } from '../../../assets/content-source/content-source.types';
+import { resolveResourceLocation, resourcePath } from '../../../content/resources/resource-location';
 
 export type ItemVisualKind = 'generated-layers' | 'block-model' | 'special-static' | 'unsupported';
 

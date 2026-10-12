@@ -2,10 +2,10 @@ import type * as THREE from 'three';
 import type { PlacedBlock } from '../../domain/project.types';
 import type { ResolvedBlockModel } from '../../blocks/resolver';
 import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
-import type { NormalizedSpecialVisualDescriptor } from './special-visual-contracts';
+import type { NormalizedSpecialVisualDescriptor } from './special-blocks/special-visual-contracts';
 import type { FluidRenderResolver, FluidWorldLookup } from '../fluids/fluid-state';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
-import type { ItemVisualKind } from './item-visual-resolver';
+import type { ItemVisualKind } from './items/item-visual-resolver';
 
 export type BlockRenderMode = 'real' | 'partial' | 'fallback';
 export type BlockRenderDiagnosticCode =

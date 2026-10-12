@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { representativeBlockFixture } from '../../blocks/catalog/block-catalog.fixture';
-import { BlockCatalog } from '../../blocks/catalog/block-catalog';
-import { buildPlaceableItems } from '../../blocks/placement-palette/placeable-item';
-import { SpecialBlockVisualRegistry } from './special-block-visual-registry';
+import { representativeBlockFixture } from '../../../blocks/catalog/block-catalog.fixture';
+import { BlockCatalog } from '../../../blocks/catalog/block-catalog';
+import { buildPlaceableItems } from '../../../blocks/placement-palette/placeable-item';
+import { SpecialBlockVisualRegistry } from '../special-blocks/special-block-visual-registry';
 import { BlockThumbnailRenderer, thumbnailPreviewRotationY } from './block-thumbnail-renderer';
 
 describe('block thumbnail renderer', () => {

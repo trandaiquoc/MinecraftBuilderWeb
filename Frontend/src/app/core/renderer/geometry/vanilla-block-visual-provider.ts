@@ -9,8 +9,8 @@ import {
 } from '../../blocks/resolver';
 import { textureResourcePath } from '../../content/resources/resource-location';
 import { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
-import { SpecialBlockVisualRegistry } from '../visuals/special-block-visual-registry';
-import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-visual-contracts';
+import { SpecialBlockVisualRegistry } from '../visuals/special-blocks/special-block-visual-registry';
+import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-blocks/special-visual-contracts';
 import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
 import { createFluidGeometry } from '../fluids/fluid-geometry';
 import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
@@ -18,7 +18,7 @@ import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { isGrassTintBlock, sampleGrassColormap, tintColorForFace } from './block-tint-resolver';
 import { staticFluidTextureView } from '../fluids/static-fluid-texture';
 import { faceGeometry, modelCoordinateVector, shadeDirectionFactor } from './block-model-geometry';
-import { BlockThumbnailRenderer } from '../visuals/block-thumbnail-renderer';
+import { BlockThumbnailRenderer } from '../visuals/thumbnails/block-thumbnail-renderer';
 import type {
   BlockRenderDiagnostic,
   BlockRenderMode,

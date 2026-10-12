@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
-import type { PlacedBlock } from '../../domain/project.types';
-import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
+import type { PlacedBlock } from '../../../domain/project.types';
+import type { ContentSpecialVisualDescriptor } from '../../../content/content-introspection';
 import type { SpecialModelDescriptor } from './special-model-descriptor';
 
 export interface SpecialVisualResourceProvider {

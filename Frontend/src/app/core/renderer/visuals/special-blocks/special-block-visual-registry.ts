@@ -1,5 +1,5 @@
-import { PlacedBlock } from '../../domain/project.types';
-import { resolveResourceLocation } from '../../content/resources/resource-location';
+import { PlacedBlock } from '../../../domain/project.types';
+import { resolveResourceLocation } from '../../../content/resources/resource-location';
 import { createCommonSignAdapter, SignVisualProvider } from './sign-visual-provider';
 import { BedVisualProvider } from './bed-visual-provider';
 import { HeadSkullVisualProvider } from './head-skull-visual-provider';

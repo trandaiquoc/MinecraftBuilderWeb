@@ -1,17 +1,17 @@
 import * as THREE from 'three';
-import type { ProjectDocument } from '../../domain/project.types';
-import { isDecorationVisible } from '../../editor/groups/decoration-membership';
-import type { YLayerVisibility } from '../../editor/viewport/y-layer';
-import type { ProjectMetadataDecorationChange } from '../../editor/mutations/project-mutation-hint';
-import type { PlacedDecoration } from '../../decorations/decoration.types';
-import type { ItemStackData } from '../../items/item-stack.types';
+import type { ProjectDocument } from '../../../domain/project.types';
+import { isDecorationVisible } from '../../../editor/groups/decoration-membership';
+import type { YLayerVisibility } from '../../../editor/viewport/y-layer';
+import type { ProjectMetadataDecorationChange } from '../../../editor/mutations/project-mutation-hint';
+import type { PlacedDecoration } from '../../../decorations/decoration.types';
+import type { ItemStackData } from '../../../items/item-stack.types';
 import {
   applyDecorationItemPreview,
   createDecorationVisual,
   DecorationTextureCache,
 } from './decoration-visuals';
-import type { ResolvedItemVisual } from './item-visual-resolver';
-import { disposeObject } from '../presentation/renderer-resource-disposal';
+import type { ResolvedItemVisual } from '../items/item-visual-resolver';
+import { disposeObject } from '../../presentation/renderer-resource-disposal';
 import { decorationRenderSignature } from './decoration-render-signature';
 
 export interface DecorationRenderEntry {

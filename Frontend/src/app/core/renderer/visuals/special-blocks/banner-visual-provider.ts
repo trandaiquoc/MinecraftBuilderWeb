@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { PlacedBlock } from '../../domain/project.types';
+import type { PlacedBlock } from '../../../domain/project.types';
 import type { SpecialBlockVisualAdapter } from './special-visual-contracts';
 
 /** Static banner fallback visuals for vanilla standing and wall banners. */

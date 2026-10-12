@@ -5,7 +5,7 @@ import {
   createDecorationVisual,
   DecorationTextureCache,
 } from './decoration-visuals';
-import { directionVector } from '../../decorations/placement/decoration-placement';
+import { directionVector } from '../../../decorations/placement/decoration-placement';
 
 describe('decoration texture cache lifecycle', () => {
   it('shares a provider-generation texture and disposes it once with the cache', () => {

@@ -2,7 +2,7 @@ import { BlockCatalog } from '../../../blocks/catalog/block-catalog';
 import type { BlockDefinition } from '../../../blocks/catalog/block-definition.types';
 import { BlockModelResolver } from '../../../blocks/resolver';
 import { evaluateCommonBehavior } from '../../../block-behavior/compatibility/common-behavior';
-import { SpecialBlockVisualRegistry } from '../../../renderer/visuals/special-block-visual-registry';
+import { SpecialBlockVisualRegistry } from '../../../renderer/visuals/special-blocks/special-block-visual-registry';
 import type { PlacedBlock } from '../../../domain/project.types';
 import {
   CompatibilityClassification,

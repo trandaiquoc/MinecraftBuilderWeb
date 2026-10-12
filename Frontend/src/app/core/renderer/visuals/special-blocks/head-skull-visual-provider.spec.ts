@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import type { PlacedBlock } from '../../domain/project.types';
+import type { PlacedBlock } from '../../../domain/project.types';
 import { HeadSkullVisualProvider } from './head-skull-visual-provider';
 
 const provider = new HeadSkullVisualProvider();
