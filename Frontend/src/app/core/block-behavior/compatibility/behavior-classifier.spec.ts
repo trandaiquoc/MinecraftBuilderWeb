@@ -89,7 +89,7 @@ describe('generic behavior fingerprint candidates', () => {
     ).toEqual(['low', 'tall', 'none']);
   });
 
-  it('requires face-attachment evidence for six-face behavior', () => {
+  it('keeps six-face orientation separate from verified attachment semantics', () => {
     const variants = Object.fromEntries(
       ['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [
         `facing=${facing}`,
@@ -106,12 +106,68 @@ describe('generic behavior fingerprint candidates', () => {
           path.includes('/models/') ? { parent: 'minecraft:block/cross' } : { variants },
       },
     );
-    expect(matchVanillaBehaviorCandidates(attached).behavior).toMatchObject({
+    expect(attached.traits).toContain('six-face-orientation');
+    expect(attached.traits).not.toContain('face-attachment');
+    expect(matchVanillaBehaviorCandidates(attached).behavior).toBeUndefined();
+
+    const verifiedAttachment = extractBehaviorFingerprint(
+      {
+        ...record('example:crystal', definitions, 'example:block/model', { variants }),
+        semanticEvidence: [
+          {
+            contractId: 'six-face-attachment',
+            provenance: 'trusted-data',
+            strength: 'strong',
+            supportingTags: [],
+            supportingProperties: ['facing'],
+            supportingResources: ['data/minecraftbuilder/semantic-manifest.json'],
+          },
+        ],
+      },
+      {
+        readJson: (path) =>
+          path.includes('/models/') ? { parent: 'minecraft:block/cross' } : { variants },
+      },
+    );
+    const verifiedResult = matchVanillaBehaviorCandidates(verifiedAttachment);
+    expect(verifiedResult.behavior).toMatchObject({
       kind: 'attached-six-face-placement',
     });
-    expect(matchVanillaBehaviorCandidates(attached).classification.selectionReason).toBe(
-      'evidence',
+    expect(verifiedResult.classification.selectionReason).toBe('evidence');
+    expect(verifiedResult.classification.supportingEvidence).toContainEqual(
+      expect.objectContaining({
+        source: 'support',
+        strength: 'strong',
+        provenance: 'trusted-data',
+        detail: 'semantic contract:six-face-attachment',
+      }),
     );
+
+    for (const semanticEvidence of [
+      {
+        contractId: 'six-face-attachment',
+        provenance: 'inferred' as const,
+        strength: 'strong' as const,
+        supportingTags: [],
+        supportingProperties: ['facing'],
+        supportingResources: [],
+      },
+      {
+        contractId: 'six-face-attachment',
+        provenance: 'trusted-data' as const,
+        strength: 'partial' as const,
+        supportingTags: [],
+        supportingProperties: ['facing'],
+        supportingResources: [],
+      },
+    ]) {
+      const unverified = extractBehaviorFingerprint({
+        ...record('example:crystal', definitions, 'example:block/model', { variants }),
+        semanticEvidence: [semanticEvidence],
+      });
+      expect(unverified.verifiedAttachmentContracts).toEqual([]);
+      expect(matchVanillaBehaviorCandidates(unverified).behavior).toBeUndefined();
+    }
 
     const directional = extractBehaviorFingerprint(
       record('example:directional', definitions, 'example:block/model', { variants }),
@@ -144,6 +200,13 @@ describe('generic behavior fingerprint candidates', () => {
         path.includes('/models/') ? { parent: 'minecraft:block/cube_all' } : { variants },
     });
     expect(matchVanillaBehaviorCandidates(fingerprint).behavior).toBeUndefined();
+
+    const unverifiedContract = extractBehaviorFingerprint({
+      ...value,
+      supportContracts: ['six-face-attachment'],
+    });
+    expect(unverifiedContract.verifiedAttachmentContracts).toEqual([]);
+    expect(matchVanillaBehaviorCandidates(unverifiedContract).behavior).toBeUndefined();
   });
 
   it('uses a name alias only to resolve an evidence tie between existing candidates', () => {

@@ -96,6 +96,9 @@ export function parseSemanticManifest(
     const supportContracts = Array.isArray(value['supportContracts'])
       ? value['supportContracts'].filter((item): item is string => typeof item === 'string')
       : undefined;
+    const behaviorContracts = Array.isArray(value['behaviorContracts'])
+      ? value['behaviorContracts'].filter((item): item is string => typeof item === 'string')
+      : [];
     const specialVisual = parseSpecialVisual(value['specialVisual']);
     if (value['specialVisual'] !== undefined && !specialVisual)
       diagnostics.push({
@@ -132,6 +135,16 @@ export function parseSemanticManifest(
           supportingProperties: properties.map((property) => property.name),
           supportingResources: [resource],
         },
+        ...behaviorContracts
+          .filter((contractId) => contractId === 'six-face-attachment')
+          .map((contractId) => ({
+            contractId,
+            provenance: 'trusted-data' as const,
+            strength: 'strong' as const,
+            supportingTags: [],
+            supportingProperties: properties.map((property) => property.name),
+            supportingResources: [resource],
+          })),
       ],
     });
   }

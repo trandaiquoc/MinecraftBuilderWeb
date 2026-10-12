@@ -421,7 +421,7 @@ describe('common resource behavior evaluation', () => {
     expect(result.classification?.selectionReason).toBe('none');
   });
 
-  it('classifies a six-face attached resource fingerprint without relying on its registry name', () => {
+  it('does not infer attachment from a six-face cross-model resource fingerprint', () => {
     const blockstate = {
       variants: Object.fromEntries(
         ['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [
@@ -444,10 +444,10 @@ describe('common resource behavior evaluation', () => {
             : blockstate,
       },
     );
-    expect(result.behavior).toMatchObject({
-      kind: 'attached-six-face-placement',
-      facingProperty: 'facing',
-    });
+    expect(result.behavior).toBeUndefined();
+    expect(result.classification?.traits).toContain('six-face-orientation');
+    expect(result.classification?.traits).not.toContain('face-attachment');
+    expect(result.classification?.selectionReason).toBe('none');
   });
 
   it('does not classify a six-face lookalike when the resource shape is not face-attached', () => {

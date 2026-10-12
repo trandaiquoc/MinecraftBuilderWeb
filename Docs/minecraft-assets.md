@@ -793,6 +793,18 @@ Verified item-host display transforms can be carried as
 `itemHostVisual.slots` (`index`, optional `position`, `rotation`, and `scale`);
 storage capability metadata without this contract remains visually partial.
 
+Behavior inference distinguishes orientation from attachment. Six-face state
+domains, blockstate predicates, and model geometry (including `block/cross`)
+prove orientation or visual form only; they do not prove a support requirement.
+An external attached-six-face behavior requires the exact
+`six-face-attachment` contract from strong `trusted-data` or
+`authoritative-registry` semantic evidence. Generic support contracts and names
+cannot substitute for that evidence. Without it, the block retains its observed
+state and resources but remains behavior-unknown unless another behavior is
+independently proven. In the optional semantic manifest, this placement contract
+is declared with `behaviorContracts`; `supportContracts` continues to describe
+contracts the block can provide to neighboring content.
+
 The corrective F2 pass keeps representative preview state separate from
 placement defaults, admits external Sign variants only from standard tag and
 static texture evidence, and retains class-file bytes only for the read-only

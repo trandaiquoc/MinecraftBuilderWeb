@@ -337,7 +337,7 @@ describe('ExternalModProvider', () => {
     });
   });
 
-  it('reuses the attached six-face contract for an external cross-model fingerprint', () => {
+  it('keeps an external six-face cross model Unknown through placement and cache restore', () => {
     const provider = ExternalModProvider.create({
       metadata: { id: 'attached-content', version: '1.0.0', depends: { minecraft: '1.21.1' } },
       json: new Map([
@@ -356,9 +356,144 @@ describe('ExternalModProvider', () => {
       ]),
       resources: new Map(),
     });
-    expect(provider.catalog().blocks[0]?.behavior).toMatchObject({
+    const initialDefinition = provider.catalog().blocks[0]!;
+    expect(initialDefinition.behavior).toBeUndefined();
+    expect(initialDefinition.behaviorClassification?.traits).toContain('six-face-orientation');
+    expect(initialDefinition.behaviorClassification?.traits).not.toContain('face-attachment');
+    expect(initialDefinition.stateDefinitions).toContainEqual({
+      name: 'facing',
+      values: ['down', 'east', 'north', 'south', 'up', 'west'],
+    });
+    expect(initialDefinition.resources.model).toBe('example:block/crystal');
+
+    const catalog = new BlockCatalog();
+    catalog.load(provider.catalog());
+    const definition = catalog.get('example:crystal')!;
+    expect(definition.capabilities).toContainEqual(
+      expect.objectContaining({ kind: 'directional', mode: 'six-face' }),
+    );
+    expect(definition.capabilities?.some((capability) => capability.kind === 'attachment')).toBe(
+      false,
+    );
+    const engine = new BlockRuleEngine((id) => catalog.get(id));
+    const project = {
+      schemaVersion: 2 as const,
+      id: 'unknown-directional-placement',
+      metadata: {
+        name: 'Unknown directional placement',
+        minecraftVersion: '1.21.1',
+        createdAt: '',
+        updatedAt: '',
+      },
+      size: { x: 8, y: 8, z: 8 },
+      structureMode: 'vanilla-structure-block' as const,
+      blocks: [],
+      groups: [],
+      editorSettings: {
+        currentY: 1,
+        layerVisibility: 'current-only' as const,
+        referenceLayerOpacity: 0.28,
+      },
+    };
+    const requested = {
+      kind: 'resolved' as const,
+      id: definition.id,
+      namespace: 'example',
+      position: { x: 3, y: 3, z: 3 },
+      state: { ...definition.defaultState, facing: 'west' },
+    };
+    const placement = engine.place(project, requested);
+    expect(placement.validation.status).toBe('unknown');
+    expect(placement.project?.blocks[0]?.state).toEqual(requested.state);
+
+    const restored = ExternalModProvider.deserialize(provider.serialize());
+    const restoredDefinition = restored.catalog().blocks[0]!;
+    expect(restoredDefinition.behavior).toBeUndefined();
+    expect(restoredDefinition.defaultState).toEqual(initialDefinition.defaultState);
+    expect(restoredDefinition.stateDefinitions).toEqual(initialDefinition.stateDefinitions);
+    expect(restoredDefinition.resources).toEqual(initialDefinition.resources);
+    const restoredCatalog = new BlockCatalog();
+    restoredCatalog.load(restored.catalog());
+    const restoredPlacement = new BlockRuleEngine((id) => restoredCatalog.get(id)).place(project, {
+      ...requested,
+      state: { ...restoredCatalog.get('example:crystal')!.defaultState, facing: 'west' },
+    });
+    expect(restoredPlacement.validation.status).toBe('unknown');
+    expect(restoredPlacement.project?.blocks[0]?.state).toEqual(requested.state);
+  });
+
+  it('classifies an external six-face block only with a trusted semantic attachment contract', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'verified-attachment', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        [
+          'assets/example/blockstates/crystal.json',
+          {
+            variants: Object.fromEntries(
+              ['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [
+                `facing=${facing}`,
+                { model: 'example:block/crystal' },
+              ]),
+            ),
+          },
+        ],
+        ['assets/example/models/block/crystal.json', { parent: 'minecraft:block/cross' }],
+        [
+          'data/minecraftbuilder/semantic-manifest.json',
+          {
+            schemaVersion: 1,
+            content: { 'example:crystal': { behaviorContracts: ['six-face-attachment'] } },
+          },
+        ],
+      ]),
+      resources: new Map(),
+    });
+    const definition = provider.catalog().blocks[0]!;
+    expect(definition.behavior).toMatchObject({
       kind: 'attached-six-face-placement',
       facingProperty: 'facing',
+    });
+    expect(definition.behaviorFingerprint?.verifiedAttachmentContracts).toEqual([
+      'six-face-attachment',
+    ]);
+    const catalog = new BlockCatalog();
+    catalog.load(provider.catalog());
+    expect(catalog.get('example:crystal')?.capabilities).toContainEqual(
+      expect.objectContaining({ kind: 'attachment' }),
+    );
+    const engine = new BlockRuleEngine((id) => catalog.get(id));
+    const project = {
+      schemaVersion: 2 as const,
+      id: 'verified-attachment-placement',
+      metadata: {
+        name: 'Verified attachment placement',
+        minecraftVersion: '1.21.1',
+        createdAt: '',
+        updatedAt: '',
+      },
+      size: { x: 8, y: 8, z: 8 },
+      structureMode: 'vanilla-structure-block' as const,
+      blocks: [],
+      groups: [],
+      editorSettings: {
+        currentY: 1,
+        layerVisibility: 'current-only' as const,
+        referenceLayerOpacity: 0.28,
+      },
+    };
+    const placement = engine.place(project, {
+      kind: 'resolved',
+      id: definition.id,
+      namespace: 'example',
+      position: { x: 3, y: 3, z: 3 },
+      state: { ...definition.defaultState, facing: 'north' },
+    });
+    expect(placement.validation).toMatchObject({ status: 'invalid', reason: 'missing-support' });
+    expect(placement.project).toBeUndefined();
+
+    const restored = ExternalModProvider.deserialize(provider.serialize());
+    expect(restored.catalog().blocks[0]?.behavior).toMatchObject({
+      kind: 'attached-six-face-placement',
     });
   });
 

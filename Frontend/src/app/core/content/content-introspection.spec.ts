@@ -386,6 +386,8 @@ describe('content introspection', () => {
         content: {
           'fixture:showcase': {
             properties: { facing: { values: ['north'], defaultValue: 'north' } },
+            behaviorContracts: ['six-face-attachment'],
+            supportContracts: ['floor'],
             capabilities: [{ kind: 'item-storage-display', slotCount: 1, evidence: 'verified' }],
             itemHostVisual: {
               slots: [{ index: 0, position: [0, 0.5, 0], scale: [0.5, 0.5, 0.5] }],
@@ -395,14 +397,28 @@ describe('content introspection', () => {
       },
     });
     const evidence = new SemanticManifestEvidenceProvider(provider, 'fixture');
-    expect(evidence.supplementsFor('fixture:showcase', 'fixture')[0]?.capabilities).toContainEqual({
+    const supplement = evidence.supplementsFor('fixture:showcase', 'fixture')[0]!;
+    expect(supplement.capabilities).toContainEqual({
       kind: 'item-storage-display',
       slotCount: 1,
       evidence: 'verified',
     });
-    expect(
-      evidence.supplementsFor('fixture:showcase', 'fixture')[0]?.itemHostVisual?.slots[0],
-    ).toEqual({ index: 0, position: [0, 0.5, 0], scale: [0.5, 0.5, 0.5] });
+    expect(supplement.supportContracts).toEqual(['floor']);
+    expect(supplement.semanticEvidence).toContainEqual(
+      expect.objectContaining({
+        contractId: 'six-face-attachment',
+        provenance: 'trusted-data',
+        strength: 'strong',
+      }),
+    );
+    expect(supplement.semanticEvidence).not.toContainEqual(
+      expect.objectContaining({ contractId: 'floor' }),
+    );
+    expect(supplement.itemHostVisual?.slots[0]).toEqual({
+      index: 0,
+      position: [0, 0.5, 0],
+      scale: [0.5, 0.5, 0.5],
+    });
     const malformed = new SemanticManifestEvidenceProvider(
       new Resources({
         'data/minecraftbuilder/semantic-manifest.json': { schemaVersion: 2, content: {} },

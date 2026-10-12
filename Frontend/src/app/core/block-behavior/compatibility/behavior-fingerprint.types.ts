@@ -1,4 +1,5 @@
 import type { BlockStateDefinition } from '../../blocks/catalog/block-contracts.types';
+import type { EvidenceProvenance } from '../../content/content-semantic-types';
 
 export type BehaviorTrait =
   | 'horizontal-connection'
@@ -17,6 +18,7 @@ export interface BehaviorEvidenceRecord {
   readonly source:
     'tag' | 'jvm' | 'state-schema' | 'blockstate' | 'model' | 'relationship' | 'support' | 'name';
   readonly strength: 'strong' | 'partial' | 'weak';
+  readonly provenance?: EvidenceProvenance;
   readonly detail: string;
 }
 
@@ -54,6 +56,7 @@ export interface BehaviorFingerprint {
   readonly itemBlockRelationship?: string;
   readonly capabilities: readonly string[];
   readonly supportContracts: readonly string[];
+  readonly verifiedAttachmentContracts: readonly string[];
   readonly supportRequirements: readonly string[];
   readonly evidence: readonly BehaviorEvidenceRecord[];
   readonly traits: readonly BehaviorTrait[];

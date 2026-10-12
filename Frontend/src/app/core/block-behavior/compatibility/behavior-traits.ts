@@ -55,12 +55,7 @@ export function inferBehaviorTraits(
 function hasFaceAttachmentEvidence(
   fingerprint: Omit<BehaviorFingerprint, 'traits'> | BehaviorFingerprint,
 ): boolean {
-  if (fingerprint.supportContracts.includes('six-face-attachment')) return true;
-  return (
-    fingerprint.predicates.includes('facing') &&
-    fingerprint.modelParents.some((parent) => parent.endsWith('block/cross')) &&
-    SIX_FACE_VALUES.every((value) => fingerprint.predicates.includes(`facing:${value}`))
-  );
+  return fingerprint.verifiedAttachmentContracts.includes('six-face-attachment');
 }
 
 export function hasWallResourceEvidence(

@@ -52,7 +52,7 @@ export function extractBehaviorFingerprint(
     ...(record.semanticEvidence ?? []).flatMap((entry) => entry.supportingTags),
     ...(descriptor?.semanticEvidence ?? []).flatMap((entry) => entry.supportingTags),
   ]);
-  const semanticAttachmentContracts = [
+  const verifiedAttachmentEvidence = [
     ...(record.semanticEvidence ?? []),
     ...(descriptor?.semanticEvidence ?? []),
   ]
@@ -61,12 +61,14 @@ export function extractBehaviorFingerprint(
         entry.strength === 'strong' &&
         (entry.provenance === 'trusted-data' || entry.provenance === 'authoritative-registry'),
     )
-    .map((entry) => entry.contractId)
-    .filter((contractId) => contractId === 'six-face-attachment');
+    .filter((entry) => entry.contractId === 'six-face-attachment');
+  const verifiedAttachmentContracts = uniqueStrings(
+    verifiedAttachmentEvidence.map((entry) => entry.contractId),
+  );
   const supportContracts = uniqueStrings([
     ...(record.supportContracts ?? []),
     ...(descriptor?.supportContracts ?? []),
-    ...semanticAttachmentContracts,
+    ...verifiedAttachmentContracts,
   ]);
   const supportRequirements = uniqueStrings([
     ...(record.supportRequirements ?? []).map(
@@ -103,15 +105,23 @@ export function extractBehaviorFingerprint(
     ...(tags.length
       ? [{ source: 'tag' as const, strength: 'strong' as const, detail: `tags:${tags.join(',')}` }]
       : []),
-    ...(supportContracts.length
+    ...(supportContracts.some((contract) => !verifiedAttachmentContracts.includes(contract))
       ? [
           {
             source: 'support' as const,
-            strength: 'strong' as const,
-            detail: `contracts:${supportContracts.join(',')}`,
+            strength: 'partial' as const,
+            detail: `unverified contracts:${supportContracts
+              .filter((contract) => !verifiedAttachmentContracts.includes(contract))
+              .join(',')}`,
           },
         ]
       : []),
+    ...verifiedAttachmentEvidence.map((entry) => ({
+      source: 'support' as const,
+      strength: 'strong' as const,
+      provenance: entry.provenance,
+      detail: `semantic contract:${entry.contractId}`,
+    })),
     ...(record.itemEvidence?.placeable
       ? [
           {
@@ -142,6 +152,7 @@ export function extractBehaviorFingerprint(
       ...(descriptor?.capabilities ?? []),
     ]),
     supportContracts,
+    verifiedAttachmentContracts,
     supportRequirements,
     evidence,
     nameTokens: nameTokens(record.id, record.displayName),

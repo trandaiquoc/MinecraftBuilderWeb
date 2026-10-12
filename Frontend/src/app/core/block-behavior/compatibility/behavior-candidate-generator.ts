@@ -87,7 +87,12 @@ export function generateBehaviorCandidates(
 
   const attachedProfile = GENERIC_BEHAVIOR_PROFILES.attachedSixFace;
   const sixFace = required(definitions, attachedProfile.requiredStates);
-  if (sixFace.present && sixFace.valid && fingerprint.traits.includes('face-attachment')) {
+  if (
+    sixFace.present &&
+    sixFace.valid &&
+    fingerprint.traits.includes('face-attachment') &&
+    fingerprint.verifiedAttachmentContracts.includes('six-face-attachment')
+  ) {
     const evidence = evidenceFor(fingerprint, [
       'state-schema',
       'blockstate',
@@ -101,9 +106,12 @@ export function generateBehaviorCandidates(
       defaults: validDefaults(definitions, attachedProfile.defaults),
       evidence,
       contradictions: [],
-      scoreAdjustment: fingerprint.supportContracts.length ? 4 : 0,
+      scoreAdjustment: 4,
     });
-  } else if (sixFace.present && fingerprint.supportContracts.includes('six-face-attachment'))
+  } else if (
+    sixFace.present &&
+    fingerprint.verifiedAttachmentContracts.includes('six-face-attachment')
+  )
     candidates.push(
       rejected(
         attachedProfile.family,
