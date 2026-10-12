@@ -49,23 +49,3 @@ export interface SpecialVisualCompatibility {
   readonly family?: string;
   readonly missingResources: readonly string[];
 }
-
-export const SPECIAL_VISUAL_COMPATIBILITY: Readonly<
-  Record<string, { readonly requiredState: readonly string[]; readonly requiredResource: string }>
-> = {
-  beds: { requiredState: ['part', 'facing', 'occupied'], requiredResource: 'entity/bed/<color>' },
-  chests: { requiredState: ['facing', 'type'], requiredResource: 'entity/chest/<variant>' },
-  containers: { requiredState: [], requiredResource: 'generic-or-fallback' },
-  signs: { requiredState: ['rotation|facing'], requiredResource: 'entity/signs/<wood>' },
-  banners: { requiredState: ['facing|rotation'], requiredResource: 'banner-or-generic-model' },
-  'heads-skulls': {
-    requiredState: ['rotation|facing'],
-    requiredResource: 'entity/<family>/<texture>',
-  },
-  'shulker-boxes': { requiredState: ['facing'], requiredResource: 'entity/shulker/<color>' },
-  'decorated-pots': {
-    requiredState: ['facing', 'waterlogged'],
-    requiredResource: 'entity/decorated_pot/*',
-  },
-  conduits: { requiredState: ['waterlogged'], requiredResource: 'entity/conduit/base' },
-};

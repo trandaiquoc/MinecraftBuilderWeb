@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { SpecialBlockVisualRegistry } from './special-block-visual-registry';
-import { SPECIAL_VISUAL_COMPATIBILITY } from './special-visual-contracts';
 
 const registry = new SpecialBlockVisualRegistry();
 const block = (id: string) => ({
@@ -12,21 +11,6 @@ const block = (id: string) => ({
 });
 
 describe('special block visuals', () => {
-  it('keeps an explicit compatibility contract for every registered special family', () => {
-    expect(Object.keys(SPECIAL_VISUAL_COMPATIBILITY).sort()).toEqual(
-      [
-        'banners',
-        'beds',
-        'chests',
-        'conduits',
-        'containers',
-        'decorated-pots',
-        'heads-skulls',
-        'shulker-boxes',
-        'signs',
-      ].sort(),
-    );
-  });
   it.each([
     ['minecraft:red_bed', 'beds'],
     ['minecraft:chest', 'chests'],
@@ -35,6 +19,8 @@ describe('special block visuals', () => {
     ['minecraft:red_banner', 'banners'],
     ['minecraft:skeleton_skull', 'heads-skulls'],
     ['minecraft:blue_shulker_box', 'shulker-boxes'],
+    ['minecraft:decorated_pot', 'decorated-pots'],
+    ['minecraft:conduit', 'conduits'],
   ])('creates a static visual for %s', (id, family) => {
     const adapter = registry.resolve(block(id));
     expect(adapter?.family).toBe(family);
