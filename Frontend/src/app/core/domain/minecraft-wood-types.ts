@@ -1,4 +1,4 @@
-export const MINECRAFT_SIGN_WOODS = [
+export const MINECRAFT_WOOD_TYPES = [
   'oak',
   'spruce',
   'birch',

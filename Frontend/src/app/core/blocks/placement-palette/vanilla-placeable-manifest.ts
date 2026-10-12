@@ -1,6 +1,6 @@
 import type { PlaceableManifestEntry } from './placeable-item.types';
 import { MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
-import { MINECRAFT_SIGN_WOODS } from '../../domain/minecraft-sign-woods';
+import { MINECRAFT_WOOD_TYPES } from '../../domain/minecraft-wood-types';
 
 const HEADS = [
   ['skeleton_skull', 'skeleton_wall_skull'],
@@ -12,19 +12,6 @@ const HEADS = [
   ['dragon_head', 'dragon_wall_head'],
 ] as const;
 const CORAL = ['tube', 'brain', 'bubble', 'fire', 'horn'] as const;
-const DOORS = [
-  'oak',
-  'spruce',
-  'birch',
-  'jungle',
-  'acacia',
-  'dark_oak',
-  'mangrove',
-  'cherry',
-  'bamboo',
-  'crimson',
-  'warped',
-] as const;
 const TALL_PLANTS = [
   'sunflower',
   'lilac',
@@ -56,7 +43,7 @@ function buildManifest(): readonly PlaceableManifestEntry[] {
       defaultState: { level: '0' },
     },
   ];
-  for (const wood of MINECRAFT_SIGN_WOODS) {
+  for (const wood of MINECRAFT_WOOD_TYPES) {
     entries.push({
       itemId: id(`${wood}_sign`),
       concreteBlockIds: [id(`${wood}_sign`), id(`${wood}_wall_sign`)],
@@ -113,7 +100,7 @@ function buildManifest(): readonly PlaceableManifestEntry[] {
       kind: 'bed',
       recipe: 'bed',
     });
-  for (const door of DOORS)
+  for (const door of MINECRAFT_WOOD_TYPES)
     entries.push({
       itemId: id(`${door}_door`),
       concreteBlockIds: [id(`${door}_door`)],

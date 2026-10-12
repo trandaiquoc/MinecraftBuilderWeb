@@ -11,7 +11,7 @@ import {
   type GenericBehaviorProfile,
 } from '../compatibility/behavior-profiles';
 import { MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
-import { MINECRAFT_SIGN_WOODS } from '../../domain/minecraft-sign-woods';
+import { MINECRAFT_WOOD_TYPES } from '../../domain/minecraft-wood-types';
 
 export interface VanillaBehaviorResourceProvider {
   readJson(path: string): unknown | undefined;
@@ -133,7 +133,7 @@ export class VanillaBehaviorRegistry {
     this.explicit.set('minecraft:conduit', conduitMetadata);
     this.explicit.set('minecraft:water', waterMetadata);
     this.explicit.set('minecraft:lava', lavaMetadata);
-    for (const wood of MINECRAFT_SIGN_WOODS) {
+    for (const wood of MINECRAFT_WOOD_TYPES) {
       this.explicit.set(`minecraft:${wood}_sign`, standingSignMetadata(wood));
       this.explicit.set(`minecraft:${wood}_wall_sign`, wallSignMetadata);
       this.explicit.set(`minecraft:${wood}_hanging_sign`, hangingSignMetadata(wood));
