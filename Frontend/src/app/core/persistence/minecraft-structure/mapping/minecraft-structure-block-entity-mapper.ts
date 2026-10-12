@@ -2,6 +2,7 @@
 
 import { isValidNamespacedResourceLocation } from '../../../content/resources/resource-location';
 import { isSignId } from '../../../block-entities/sign/sign-id';
+import { isVanillaSignColor } from '../../../block-entities/sign/sign-nbt';
 import type {
   DecoratedPotBlockEntityData,
   SignBlockEntityData,
@@ -26,25 +27,6 @@ import {
   stringTag,
 } from '../codec/minecraft-structure-nbt-primitives';
 import { mapItemStack } from './minecraft-structure-item-stack-mapper';
-
-const signColors = new Set([
-  'white',
-  'orange',
-  'magenta',
-  'light_blue',
-  'yellow',
-  'lime',
-  'pink',
-  'gray',
-  'light_gray',
-  'cyan',
-  'purple',
-  'blue',
-  'brown',
-  'green',
-  'red',
-  'black',
-]);
 
 export function mapBlockEntity(
   block: PlacedBlock,
@@ -145,7 +127,7 @@ function mapSignSide(value: unknown, path: string): SemanticMappingResult<Minecr
       'Sign messages must contain exactly four string lines.',
       `${path}.lines`,
     );
-  if (typeof side.color !== 'string' || !signColors.has(side.color))
+  if (typeof side.color !== 'string' || !isVanillaSignColor(side.color))
     return failure(
       'invalid-block-entity',
       `Unsupported sign color '${String(side.color)}'.`,
