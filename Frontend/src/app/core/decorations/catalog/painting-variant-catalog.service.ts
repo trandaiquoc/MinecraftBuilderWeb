@@ -2,6 +2,7 @@ import { Injectable, computed, signal } from '@angular/core';
 import type { PaintingVariant } from '../decoration.types';
 import {
   allPaintingVariants,
+  findPaintingVariant,
   PAINTING_VARIANTS,
   setActivePaintingVariants,
 } from './painting-catalog';
@@ -55,8 +56,7 @@ export class PaintingVariantCatalogService {
   }
 
   get(id: string | undefined): PaintingVariant | undefined {
-    if (!id) return undefined;
-    return this.variants().find((entry) => entry.id === id || `minecraft:${entry.id}` === id);
+    return findPaintingVariant(this.variants(), id);
   }
 
   private publish(entries: readonly PaintingVariant[]): void {

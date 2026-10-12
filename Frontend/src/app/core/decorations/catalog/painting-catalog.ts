@@ -50,8 +50,16 @@ export function allPaintingVariants(): readonly PaintingVariant[] {
   return activePaintingVariants;
 }
 
+export function findPaintingVariant(
+  variants: readonly PaintingVariant[],
+  id: string | undefined,
+): PaintingVariant | undefined {
+  if (!id) return undefined;
+  return variants.find((entry) => entry.id === id || `minecraft:${entry.id}` === id);
+}
+
 export function paintingVariant(id: string | undefined): PaintingVariant | undefined {
-  return allPaintingVariants().find((entry) => entry.id === id || `minecraft:${entry.id}` === id);
+  return findPaintingVariant(allPaintingVariants(), id);
 }
 
 export function placeablePaintingVariants(): readonly PaintingVariant[] {
