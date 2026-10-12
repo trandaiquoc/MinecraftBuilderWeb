@@ -7,7 +7,7 @@ import {
   ResolvedFace,
   ResolvedModelPart,
 } from '../../blocks/resolver';
-import { textureResourcePath } from '../../content/resource-location';
+import { textureResourcePath } from '../../content/resources/resource-location';
 import { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visual-registry';
 import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-visual-contracts';

@@ -10,8 +10,8 @@ import type {
   ContentSpecialVisualDescriptor,
 } from '../../../content/content-introspection';
 import { ContentIntrospectionEngine } from '../../../content/content-introspection';
-import { TagIndex } from '../../../content/tag-index';
-import { stateDefinitionsFromBlockstate } from '../../../content/normalized-predicate';
+import { TagIndex } from '../../../content/resources/tag-index';
+import { stateDefinitionsFromBlockstate } from '../../../content/resources/normalized-predicate';
 import { externalItemEvidence } from './external-mod-item-evidence';
 import { discoverPaintingVariants } from './external-mod-painting-catalog';
 import { buildExternalTrustedBehaviorEvidence } from './external-mod-behavior-evidence';

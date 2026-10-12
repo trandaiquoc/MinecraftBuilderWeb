@@ -12,7 +12,7 @@ import {
   CompositeAssetResourceProvider,
   ContentSourceCleanupError,
 } from './composite-asset-provider';
-import { TagIndex } from '../../content/tag-index';
+import { TagIndex } from '../../content/resources/tag-index';
 import { yieldToBrowser } from '../cooperative-yield';
 import { throwIfAborted } from '../mod/mod-import-cancellation';
 

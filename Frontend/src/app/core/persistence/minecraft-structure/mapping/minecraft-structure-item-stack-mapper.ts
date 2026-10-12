@@ -1,6 +1,6 @@
 /** Semantic ItemStack validation and typed NBT mapping. */
 
-import { isValidNamespacedResourceLocation } from '../../../content/resource-location';
+import { isValidNamespacedResourceLocation } from '../../../content/resources/resource-location';
 import type { ItemStackData } from '../../../items/item-stack.types';
 import type { MinecraftNbtCompound } from '../codec/minecraft-structure-types';
 import { validateItemStack, type ItemMaxStackResolver } from '../../../items/item-stack-validation';

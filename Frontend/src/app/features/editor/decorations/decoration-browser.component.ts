@@ -3,7 +3,7 @@ import { DecorationService } from '../../../core/decorations/decoration.service'
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
 import { DECORATION_BROWSER_SOURCES } from '../../../core/decorations/decoration.types';
-import { ALL_CONTENT_SOURCE } from '../../../core/content/content-source-selection';
+import { ALL_CONTENT_SOURCE } from '../../../core/content/source-selection/content-source-selection';
 import { PaintingPickerComponent } from './painting-picker.component';
 import {
   ContentSourceOption,

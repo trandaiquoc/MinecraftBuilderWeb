@@ -1,6 +1,6 @@
 /** Verified painting and item-frame entity mappings. */
 
-import { isValidNamespacedResourceLocation } from '../../../content/resource-location';
+import { isValidNamespacedResourceLocation } from '../../../content/resources/resource-location';
 import {
   decorationAabb,
   paintingEntityPosition,

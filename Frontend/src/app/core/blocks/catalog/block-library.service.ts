@@ -8,7 +8,7 @@ import type { PlaceableItemDefinition } from '../placement-palette/placeable-ite
 import {
   ALL_CONTENT_SOURCE,
   type ContentSourceSelection,
-} from '../../content/content-source-selection';
+} from '../../content/source-selection/content-source-selection';
 import { DecorationService } from '../../decorations/decoration.service';
 import type { BlockCatalogSource } from './block-catalog';
 

@@ -6,7 +6,7 @@ import type {
 } from '../catalog/block-definition.types';
 import type { BlockState, PlacedBlock } from '../../domain/project.types';
 import type { BlockCapabilityProfile } from '../capabilities/block-capability.types';
-import type { MinecraftContentKind } from '../../content/content-classifier';
+import type { MinecraftContentKind } from '../../content/classification/content-classifier';
 import type { LogicalPlacementMetadata } from '../../block-behavior/logical-objects/logical-placement';
 
 export type PlaceablePlacementKind =

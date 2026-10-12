@@ -1,4 +1,4 @@
-import { TagIndex } from '../../../content/tag-index';
+import { TagIndex } from '../../../content/resources/tag-index';
 
 export interface ExternalTrustedBehaviorEvidence {
   readonly families: ReadonlyMap<string, readonly string[]>;

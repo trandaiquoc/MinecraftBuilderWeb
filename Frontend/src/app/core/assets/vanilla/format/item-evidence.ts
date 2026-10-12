@@ -1,5 +1,5 @@
 import type { CatalogItemEvidence } from '../../../blocks/catalog/block-definition.types';
-import { resolveResourceLocation } from '../../../content/resource-location';
+import { resolveResourceLocation } from '../../../content/resources/resource-location';
 
 /** Normalized evidence extracted from a target-version item definition. */
 export type TargetItemEvidence = Omit<CatalogItemEvidence, 'sourceFormat'> & {

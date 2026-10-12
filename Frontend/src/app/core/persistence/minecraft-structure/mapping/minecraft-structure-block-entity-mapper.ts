@@ -1,6 +1,6 @@
 /** Verified semantic block-entity to Minecraft NBT mappings. */
 
-import { isValidNamespacedResourceLocation } from '../../../content/resource-location';
+import { isValidNamespacedResourceLocation } from '../../../content/resources/resource-location';
 import type {
   DecoratedPotBlockEntityData,
   SignBlockEntityData,

@@ -3,7 +3,7 @@ import {
   resolveItemVisual,
 } from '../../renderer/visuals/item-visual-resolver';
 import type { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
-import { textureResourcePath } from '../../content/resource-location';
+import { textureResourcePath } from '../../content/resources/resource-location';
 import type { ItemVisualInfo, ItemVisualTrace } from './item-catalog';
 import { itemIdentityEvidenceFromProvider } from '../../assets/vanilla/format/item-evidence';
 

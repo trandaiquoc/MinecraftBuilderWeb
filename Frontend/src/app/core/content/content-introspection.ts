@@ -10,7 +10,7 @@ import {
   blockStatePredicates,
   invalidPredicateReasons,
   type NormalizedPredicate,
-} from './normalized-predicate';
+} from './resources/normalized-predicate';
 import { extractBehaviorFingerprint } from '../block-behavior/compatibility/behavior-fingerprint';
 import {
   mergeBlockStateDefinitions,
@@ -23,7 +23,7 @@ import {
   mapResolverDiagnostic,
   resourceSourceMetadata,
   type ResourceDependencyGraph,
-} from './content-resource-graph';
+} from './resources/content-resource-graph';
 import { mergeContentEvidence, uniqueDiagnostics } from './content-evidence-merger';
 import type { ContentSemanticEvidenceProvider, EvidenceProvenance } from './content-semantic-types';
 import type {
@@ -56,14 +56,14 @@ export type {
   ResourceDependencyGraph,
   ResourceGraphEdge,
   ResourceGraphNode,
-} from './content-resource-graph';
+} from './resources/content-resource-graph';
 export {
   SemanticManifestEvidenceProvider,
   parseSemanticManifest,
 } from './semantic-manifest-evidence';
 export type { SemanticManifestParseResult } from './semantic-manifest-evidence';
 
-export type { NormalizedPredicate, NormalizedPropertyPredicate } from './normalized-predicate';
+export type { NormalizedPredicate, NormalizedPropertyPredicate } from './resources/normalized-predicate';
 
 /** Resource-backed introspection shared by vanilla and external content sources. */
 export class ContentIntrospectionEngine {

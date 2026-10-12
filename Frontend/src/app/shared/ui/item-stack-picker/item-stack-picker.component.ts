@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import type { ItemCatalogEntry } from '../../../core/items/catalog/item-catalog';
 import type { ItemStackData } from '../../../core/items/item-stack.types';
-import { ALL_CONTENT_SOURCE } from '../../../core/content/content-source-selection';
+import { ALL_CONTENT_SOURCE } from '../../../core/content/source-selection/content-source-selection';
 import {
   SearchableDropdownComponent,
   SearchableDropdownOption,

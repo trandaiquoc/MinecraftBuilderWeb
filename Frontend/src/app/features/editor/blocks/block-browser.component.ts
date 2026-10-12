@@ -14,7 +14,7 @@ import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { DecorationService } from '../../../core/decorations/decoration.service';
-import { ALL_CONTENT_SOURCE } from '../../../core/content/content-source-selection';
+import { ALL_CONTENT_SOURCE } from '../../../core/content/source-selection/content-source-selection';
 import { LucidePlus } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import {

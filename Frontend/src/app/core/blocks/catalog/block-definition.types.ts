@@ -24,7 +24,7 @@ import type {
   BehaviorFingerprint,
 } from '../../block-behavior/compatibility/behavior-fingerprint.types';
 import type { LogicalPlacementMetadata } from '../../block-behavior/logical-objects/logical-placement.types';
-import type { MinecraftContentKind } from '../../content/content-classifier.types';
+import type { MinecraftContentKind } from '../../content/classification/content-classifier.types';
 
 export type {
   BlockBehavior,

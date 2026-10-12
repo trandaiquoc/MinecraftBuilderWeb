@@ -15,7 +15,7 @@ import type {
   BlockCapability,
   BlockCapabilityEvidence,
 } from '../capabilities/block-capability.types';
-import type { MinecraftContentKind } from '../../content/content-classifier.types';
+import type { MinecraftContentKind } from '../../content/classification/content-classifier.types';
 import type {
   ContentSemanticEvidence,
   ContentSemanticSupplement,

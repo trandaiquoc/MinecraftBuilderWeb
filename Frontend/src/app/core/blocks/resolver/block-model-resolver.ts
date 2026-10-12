@@ -1,12 +1,12 @@
 import { BlockSupportLevel } from '../catalog/block-definition.types';
 import { BlockState } from '../../domain/project.types';
-import { resolveResourceLocation, resourcePath } from '../../content/resource-location';
+import { resolveResourceLocation, resourcePath } from '../../content/resources/resource-location';
 import {
   variantKeyMatches,
   normalizePredicate,
   predicateMatches,
   invalidPredicateReasons,
-} from '../../content/normalized-predicate';
+} from '../../content/resources/normalized-predicate';
 import {
   AssetResourceProvider,
   BlockStateRotationResult,

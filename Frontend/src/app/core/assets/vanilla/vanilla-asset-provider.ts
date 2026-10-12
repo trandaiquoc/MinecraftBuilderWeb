@@ -19,11 +19,11 @@ import {
   evaluateCommonBehavior,
 } from '../../block-behavior/compatibility/common-behavior';
 import type { TargetItemEvidence } from './format/item-evidence';
-import { classifyContent, isDecorationEntityId } from '../../content/content-classifier';
+import { classifyContent, isDecorationEntityId } from '../../content/classification/content-classifier';
 import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vanilla-capability-profiles';
 import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catalog';
-import { textureResourcePath } from '../../content/resource-location';
-import { stateDefinitionsFromBlockstate } from '../../content/normalized-predicate';
+import { textureResourcePath } from '../../content/resources/resource-location';
+import { stateDefinitionsFromBlockstate } from '../../content/resources/normalized-predicate';
 import {
   ContentIntrospectionEngine,
   SemanticManifestEvidenceProvider,
@@ -449,7 +449,7 @@ function applyCommonBehavior(
   };
 }
 
-export { textureResourcePath as texturePath } from '../../content/resource-location';
+export { textureResourcePath as texturePath } from '../../content/resources/resource-location';
 
 function configuredModelIds(value: unknown): string[] {
   const result = new Set<string>();

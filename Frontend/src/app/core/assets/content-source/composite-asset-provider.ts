@@ -4,7 +4,7 @@ import {
   ContentSourceProvider,
   RenderableAssetResourceProvider,
 } from './content-source.types';
-import { resolveResourceLocation } from '../../content/resource-location';
+import { resolveResourceLocation } from '../../content/resources/resource-location';
 
 export interface ResourceContributionConflict {
   readonly path: string;

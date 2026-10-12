@@ -1,5 +1,5 @@
 import type { VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
-import { isDecorationEntityId, isTechnicalBlockId } from '../../content/content-classifier';
+import { isDecorationEntityId, isTechnicalBlockId } from '../../content/classification/content-classifier';
 import type { VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
 
 /**

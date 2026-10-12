@@ -1,4 +1,4 @@
-import type { AssetResourceProvider } from '../blocks/resolver/resolver.types';
+import type { AssetResourceProvider } from '../../blocks/resolver/resolver.types';
 import { resolveResourceLocation } from './resource-location';
 
 export type TagDomain = 'block' | 'item' | 'painting_variant';

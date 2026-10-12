@@ -1,9 +1,9 @@
-import type { AssetResourceProvider, ResolvedBlockModel } from '../blocks/resolver/resolver.types';
+import type { AssetResourceProvider, ResolvedBlockModel } from '../../blocks/resolver/resolver.types';
 import { resourcePath } from './resource-location';
 import type {
   ContentIntrospectionDiagnostic,
   ContentIntrospectionDiagnosticCode,
-} from './content-semantic-types';
+} from '../content-semantic-types';
 
 export interface ResourceGraphNode {
   readonly id: string;

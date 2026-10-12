@@ -5,7 +5,7 @@ import {
   isInternalContent,
   isTechnicalBlockId,
   isDecorationEntityId,
-} from '../../content/content-classifier';
+} from '../../content/classification/content-classifier';
 import { logicalPlacementForBehavior } from '../../block-behavior/logical-objects/logical-placement';
 import { rankSearchResults } from '../../search/relevance-search';
 import type {

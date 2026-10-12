@@ -1,4 +1,4 @@
-import { isValidNamespacedResourceLocation } from '../content/resource-location';
+import { isValidNamespacedResourceLocation } from '../content/resources/resource-location';
 import type { ItemStackData } from './item-stack.types';
 
 export type ItemStackValidationCode =

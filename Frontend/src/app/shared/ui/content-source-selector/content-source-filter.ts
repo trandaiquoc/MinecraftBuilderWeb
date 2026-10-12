@@ -1,4 +1,4 @@
-import { ALL_CONTENT_SOURCE } from '../../../core/content/content-source-selection';
+import { ALL_CONTENT_SOURCE } from '../../../core/content/source-selection/content-source-selection';
 import type { ContentSourceOption } from './content-source-selector.component';
 
 export function sourceOptions(

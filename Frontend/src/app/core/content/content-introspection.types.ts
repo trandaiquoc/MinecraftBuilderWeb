@@ -1,6 +1,6 @@
 import type { BlockCapabilityProfile } from '../blocks/capabilities/block-capability.types';
 import type { PlacementSupportRequirement } from '../blocks/catalog/block-contracts.types';
-import type { NormalizedPredicate } from './normalized-predicate';
+import type { NormalizedPredicate } from './resources/normalized-predicate';
 import type {
   ContentIntrospectionDiagnostic,
   ContentPropertyDescriptor,
@@ -9,7 +9,7 @@ import type {
   ContentItemHostVisualDescriptor,
   EvidenceProvenance,
 } from './content-semantic-types';
-import type { ResourceDependencyGraph } from './content-resource-graph';
+import type { ResourceDependencyGraph } from './resources/content-resource-graph';
 import type {
   BehaviorClassificationSummary,
   BehaviorFingerprint,
@@ -58,12 +58,12 @@ export interface NormalizedContentDescriptor {
   readonly diagnostics: readonly ContentIntrospectionDiagnostic[];
 }
 
-export type { NormalizedPredicate, NormalizedPropertyPredicate } from './normalized-predicate';
+export type { NormalizedPredicate, NormalizedPropertyPredicate } from './resources/normalized-predicate';
 export type {
   ResourceDependencyGraph,
   ResourceGraphEdge,
   ResourceGraphNode,
-} from './content-resource-graph';
+} from './resources/content-resource-graph';
 export type {
   BehaviorCandidateSummary,
   BehaviorClassificationSummary,

@@ -1,7 +1,7 @@
 import type {
   MinecraftContentKind,
   ContentClassificationProvenance,
-} from '../../content/content-classifier.types';
+} from '../../content/classification/content-classifier.types';
 
 export type {
   BehaviorSupportLevel,

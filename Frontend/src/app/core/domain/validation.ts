@@ -7,7 +7,7 @@ import {
   ProjectSize,
   VoxelCoordinate,
 } from './project.types';
-import { isValidNamespacedResourceLocation } from '../content/resource-location';
+import { isValidNamespacedResourceLocation } from '../content/resources/resource-location';
 
 export type DomainValidationCode =
   | 'invalid-size'

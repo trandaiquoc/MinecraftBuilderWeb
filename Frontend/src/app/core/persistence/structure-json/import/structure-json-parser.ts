@@ -1,7 +1,7 @@
 /** Structural JSON parsing, including the narrow legacy v2 migration. */
 
 import type { DecorationFacing } from '../../../decorations/decoration.types';
-import { isValidNamespacedResourceLocation } from '../../../content/resource-location';
+import { isValidNamespacedResourceLocation } from '../../../content/resources/resource-location';
 import { LEGACY_STRUCTURE_JSON_VERSION, STRUCTURE_JSON_FORMAT } from '../structure-json-contracts';
 import type {
   ParsedStructureJsonResult,

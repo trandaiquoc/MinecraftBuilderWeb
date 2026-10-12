@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TagIndex } from './tag-index';
-import type { AssetResourceProvider } from '../blocks/resolver/resolver.types';
+import type { AssetResourceProvider } from '../../blocks/resolver/resolver.types';
 
 class Tags implements AssetResourceProvider {
   reads = 0;

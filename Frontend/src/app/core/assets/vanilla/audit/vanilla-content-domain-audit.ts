@@ -12,7 +12,7 @@ import {
   isDecorationEntityId,
   isTechnicalBlockId,
   type MinecraftContentKind,
-} from '../../../content/content-classifier';
+} from '../../../content/classification/content-classifier';
 import type { VanillaAssetInspectionView } from '../vanilla-asset-provider';
 
 export interface ContentDomainAudit {

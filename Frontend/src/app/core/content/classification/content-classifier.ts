@@ -1,4 +1,4 @@
-import type { BlockBehavior, BlockItemEvidence } from '../blocks/catalog/block-contracts.types';
+import type { BlockBehavior, BlockItemEvidence } from '../../blocks/catalog/block-contracts.types';
 import type {
   ContentClassification,
   ContentClassificationProvenance,

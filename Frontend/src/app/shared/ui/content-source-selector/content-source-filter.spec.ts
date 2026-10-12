@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_CONTENT_SOURCE } from '../../../core/content/content-source-selection';
+import { ALL_CONTENT_SOURCE } from '../../../core/content/source-selection/content-source-selection';
 import { sourceOptions } from './content-source-filter';
 
 describe('content source option presentation', () => {
