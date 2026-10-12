@@ -7,7 +7,6 @@ import { MissingBlockReconciliationService } from './core/editor/structure/missi
 @Component({
   imports: [RouterOutlet],
   selector: 'app-root',
-  styleUrl: './app.scss',
   templateUrl: './app.html',
 })
 export class App {
