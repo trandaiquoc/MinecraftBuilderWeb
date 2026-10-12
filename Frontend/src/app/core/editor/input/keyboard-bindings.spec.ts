@@ -15,6 +15,49 @@ import {
 } from './keyboard-bindings';
 
 describe('keyboard binding model', () => {
+  it('matches default history and selection actions while guarding editable targets', () => {
+    const event = (
+      key: string,
+      target: EventTarget | null,
+      modifiers: Partial<Pick<KeyboardEvent, 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey'>> = {},
+    ) =>
+      keyboardActionForEvent(
+        {
+          key,
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          altKey: false,
+          ...modifiers,
+          target,
+        },
+        DEFAULT_KEYBINDINGS,
+      );
+
+    expect(event('z', null, { ctrlKey: true })).toBe('undo');
+    expect(event('y', null, { ctrlKey: true })).toBe('redo');
+    expect(event('z', null, { ctrlKey: true, shiftKey: true })).toBe('redo');
+    expect(event('z', null, { metaKey: true })).toBe('undo');
+    expect(event('a', null, { ctrlKey: true })).toBe('select-all');
+    expect(event('Delete', null)).toBe('delete-selection');
+
+    const editableControl = {
+      isContentEditable: false,
+      contentEditable: 'false',
+      closest: () => null,
+      matches: () => true,
+    } as unknown as EventTarget;
+    expect(event('z', editableControl, { ctrlKey: true })).toBeUndefined();
+
+    const editable = { isContentEditable: true } as unknown as EventTarget;
+    expect(event('z', editable, { ctrlKey: true })).toBeUndefined();
+  });
+
+  it('uses configured bindings for canonical action matching', () => {
+    const bindings = { ...DEFAULT_KEYBINDINGS, undo: 'Alt+U' };
+    expect(keyboardActionForEvent({ key: 'u', altKey: true, target: null }, bindings)).toBe('undo');
+  });
+
   it('normalizes modifier order and supports up to three tokens', () => {
     expect(normalizeBinding('shift+ctrl+z')).toBe('Ctrl+Shift+Z');
     expect(normalizeBinding('Ctrl+Alt+K')).toBe('Ctrl+Alt+K');

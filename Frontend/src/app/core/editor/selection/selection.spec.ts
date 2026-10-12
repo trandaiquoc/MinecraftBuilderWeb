@@ -307,7 +307,7 @@ describe('voxel box selection', () => {
   it('represents the existing 20k fixture as compact all-selection state', () => {
     const project = rendererBenchmarkProject('stress');
     const service = new SelectionService();
-    service.selectAll(project, () => undefined);
+    service.selectAll(project);
     expect(service.kind()).toBe('all');
     expect(service.logicalPositions()).toHaveLength(0);
     expect(service.count(project)).toBe(20_000);

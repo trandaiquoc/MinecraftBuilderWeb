@@ -629,7 +629,7 @@ describe('StructureEditorService mutations', () => {
 
   it('selects every logical structure voxel without changing history', () => {
     const { workspace, history, selection, library } = makeEditor(project);
-    selection.selectAll(workspace.project()!, (id) => library.get(id));
+    selection.selectAll(workspace.project()!);
     expect(selection.logicalPositions()).toEqual([{ x: 1, y: 1, z: 1 }]);
     expect(history.canUndo()).toBe(false);
   });
@@ -637,7 +637,7 @@ describe('StructureEditorService mutations', () => {
   it('deletes and restores the 20k select-all fixture as one bulk history operation', () => {
     const stress = rendererBenchmarkProject('stress');
     const { editor, workspace, history, selection } = makeEditor(stress);
-    selection.selectAll(stress, () => undefined);
+    selection.selectAll(stress);
     expect(selection.count(stress)).toBe(20_000);
     expect(editor.deleteSelection()).toBe(true);
     expect(workspace.project()!.blocks).toHaveLength(0);

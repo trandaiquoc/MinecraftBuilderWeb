@@ -16,11 +16,9 @@ import type {
   StructureJsonCoordinateConflict,
   StructureJsonDecorationIssue,
 } from '../../../core/persistence/structure-json/structure-json-import';
-import type { StructureJsonBoundsPreflight } from '../../../core/persistence/structure-json/structure-json-bounds';
 import type {
   StructureJsonImportBlocker,
   StructureJsonImportMode,
-  StructureJsonImportPlan,
 } from '../../../core/persistence/structure-json/structure-json-import-plan';
 import {
   structureJsonBlockIssueSeverity,

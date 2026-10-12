@@ -42,14 +42,14 @@ export async function buildStructureImportSpatialContextAsync(
     const key = coordinateKey(blocks[index].position);
     blockByCoordinate.set(key, blocks[index]);
     occupiedCoordinates.add(key);
-    const checkpoint = spatialCheckpoint(budget, index + 1, cancellation);
+    const checkpoint = spatialCheckpoint(budget, cancellation);
     if (checkpoint === true || (checkpoint instanceof Promise && (await checkpoint)))
       return undefined;
   }
   const decorationIndex = buildDecorationSpatialIndex([]);
   for (let index = 0; index < decorations.length; index += 1) {
     addDecorationToSpatialIndex(decorationIndex, decorations[index]);
-    const checkpoint = spatialCheckpoint(budget, index + 1, cancellation);
+    const checkpoint = spatialCheckpoint(budget, cancellation);
     if (checkpoint === true || (checkpoint instanceof Promise && (await checkpoint)))
       return undefined;
   }
@@ -147,7 +147,6 @@ export function intersectsBlock(box: SpatialAabb, position: VoxelCoordinate): bo
 
 function spatialCheckpoint(
   budget: CooperativeWorkBudget,
-  processed: number,
   cancellation?: SpatialBuildCancellation,
 ): boolean | Promise<boolean> {
   if (cancellation?.signal?.aborted || cancellation?.isCancelled?.()) return true;

@@ -10,9 +10,9 @@ import {
 } from './structure-json-import';
 import type { StructureJsonBlock, StructureJson } from './structure-json';
 import {
-  applyStructureJsonImportPlan,
   buildStructureJsonImportPlan,
   buildStructureJsonImportPlanAsync,
+  prepareStructureJsonImportPlan,
 } from './structure-json-import-plan';
 
 const stone: BlockDefinition = {
@@ -197,7 +197,7 @@ describe('Structure JSON import plan', () => {
 
   it('replaces blocks and decorations while preserving project metadata and groups', () => {
     const plan = planFor(source([{ id: stone.id, x: 0, y: 0, z: 0 }]), base, 'replace');
-    const result = applyStructureJsonImportPlan(base, plan, definitions);
+    const result = prepareStructureJsonImportPlan(base, plan);
     expect(result?.blocks).toHaveLength(1);
     expect(result?.groups).toEqual(base.groups);
     expect(result?.decorations).toEqual([]);
@@ -237,7 +237,7 @@ describe('Structure JSON import plan', () => {
     expect(plan.blockingIssues).toContainEqual(
       expect.objectContaining({ code: 'locked-current-blocks', count: 1 }),
     );
-    expect(applyStructureJsonImportPlan(locked, plan, definitions)).toBeUndefined();
+    expect(prepareStructureJsonImportPlan(locked, plan)).toBeUndefined();
   });
 
   it('merges only empty coordinates and blocks the whole operation on any collision', () => {
@@ -248,9 +248,9 @@ describe('Structure JSON import plan', () => {
     const plan = planFor(value, base, 'merge');
     expect(plan.currentConflictCount).toBe(1);
     expect(plan.applicable).toBe(false);
-    expect(applyStructureJsonImportPlan(base, plan, definitions)).toBeUndefined();
+    expect(prepareStructureJsonImportPlan(base, plan)).toBeUndefined();
     const valid = planFor(source([{ id: stone.id, x: 2, y: 2, z: 2 }]), base, 'merge');
-    const merged = applyStructureJsonImportPlan(base, valid, definitions);
+    const merged = prepareStructureJsonImportPlan(base, valid);
     expect(merged?.blocks.map((block) => block.position)).toEqual([
       { x: 3, y: 3, z: 3 },
       { x: 2, y: 2, z: 2 },
@@ -270,7 +270,7 @@ describe('Structure JSON import plan', () => {
       'new-group',
     );
     expect(plan.newGroup).toEqual({ id: 'group-2', name: 'Keep (2)' });
-    const result = applyStructureJsonImportPlan(base, plan, definitions);
+    const result = prepareStructureJsonImportPlan(base, plan);
     expect(result?.groups).toHaveLength(2);
     expect(result?.groups.at(-1)?.name).toBe('Keep (2)');
     expect(
@@ -285,7 +285,7 @@ describe('Structure JSON import plan', () => {
   it('handles empty imports deliberately and avoids meaningless merge/group operations', () => {
     const empty = planFor(source([]), base, 'replace');
     expect(empty.applicable).toBe(true);
-    expect(applyStructureJsonImportPlan(base, empty, definitions)?.blocks).toEqual([]);
+    expect(prepareStructureJsonImportPlan(base, empty)?.blocks).toEqual([]);
     expect(planFor(source([]), base, 'merge').applicable).toBe(false);
     expect(planFor(source([]), base, 'new-group').applicable).toBe(false);
   });
@@ -325,7 +325,7 @@ describe('Structure JSON import plan', () => {
       'Imported Structure',
     );
     expect(plan.applicable).toBe(true);
-    const result = applyStructureJsonImportPlan(base, plan, definitions);
+    const result = prepareStructureJsonImportPlan(base, plan);
     expect(result?.decorations).toHaveLength(2);
     expect(result?.decorations?.at(-1)).toMatchObject({
       kind: 'item-frame',
@@ -369,7 +369,7 @@ describe('Structure JSON import plan', () => {
       'new-group',
       'Glow',
     );
-    const result = applyStructureJsonImportPlan(base, plan, definitions);
+    const result = prepareStructureJsonImportPlan(base, plan);
     expect(result?.decorations?.at(-1)).toMatchObject({
       kind: 'glow-item-frame',
       entityTypeId: 'minecraft:glow_item_frame',
@@ -423,7 +423,7 @@ describe('Structure JSON import plan', () => {
     expect(plan.blockingIssues).toContainEqual(
       expect.objectContaining({ code: 'decoration-conflict' }),
     );
-    expect(applyStructureJsonImportPlan(decoratedBase, plan, definitions)).toBeUndefined();
+    expect(prepareStructureJsonImportPlan(decoratedBase, plan)).toBeUndefined();
   });
 
   it('restores the exact pre-import document with one history entry', () => {
@@ -433,7 +433,7 @@ describe('Structure JSON import plan', () => {
     const plan = planFor(source([{ id: stone.id, x: 0, y: 0, z: 0 }]), base, 'replace');
     expect(
       history.execute('Import Structure JSON', (current) =>
-        applyStructureJsonImportPlan(current, plan, definitions),
+        prepareStructureJsonImportPlan(current, plan),
       ),
     ).toBe(true);
     const imported = workspace.project();
@@ -447,6 +447,6 @@ describe('Structure JSON import plan', () => {
   it('rejects a plan whose immutable base project has become stale without revalidating', () => {
     const plan = planFor(source([{ id: stone.id, x: 0, y: 0, z: 0 }]), base, 'replace');
     const stale = { ...base, metadata: { ...base.metadata, updatedAt: 'changed' } };
-    expect(applyStructureJsonImportPlan(stale, plan, definitions)).toBeUndefined();
+    expect(prepareStructureJsonImportPlan(stale, plan)).toBeUndefined();
   });
 });

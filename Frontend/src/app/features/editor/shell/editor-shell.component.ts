@@ -518,7 +518,7 @@ export class EditorShellComponent implements OnDestroy {
   }
   protected selectAll(): void {
     const project = this.workspace.project();
-    if (project) this.selection.selectAll(project, (id) => this.library.get(id));
+    if (project) this.selection.selectAll(project);
     this.closeMenus();
   }
   protected undoEdit(): void {
@@ -624,7 +624,7 @@ export class EditorShellComponent implements OnDestroy {
     if (action === 'select-all') {
       const project = this.workspace.project();
       if (!project) return false;
-      this.selection.selectAll(project, (id) => this.library.get(id));
+      this.selection.selectAll(project);
       return true;
     }
     if (action === 'clear-selection') {

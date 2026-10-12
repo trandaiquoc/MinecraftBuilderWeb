@@ -38,11 +38,7 @@ export class StructureJsonExportDialogComponent {
   protected readonly tabs: readonly StructureJsonTab[] = ['structure'];
 
   ngOnInit(): void {
-    const snapshot = serializeStructureJson(
-      this.project(),
-      this.resolveMaxStackSize,
-      this.resolveDefinition,
-    );
+    const snapshot = serializeStructureJson(this.project(), this.resolveDefinition);
     this.savedJson.set(snapshot);
     this.draftJson.set(snapshot);
     this.validateDraft(snapshot);

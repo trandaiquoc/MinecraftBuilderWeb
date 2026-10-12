@@ -208,7 +208,6 @@ function toItem(
     definition.logicalPlacement ??
     logicalPlacementForBehavior(definition.behavior);
   const previewBlocks = createPlaceablePreviewBlocks(
-    entry,
     definition,
     previewState ?? defaultState,
     logicalPlacement,

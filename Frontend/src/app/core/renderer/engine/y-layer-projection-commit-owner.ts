@@ -33,7 +33,6 @@ import type {
 } from './y-layer-projection-coordinator';
 import type { ViewportStructureSyncState } from './viewport-structure-sync-state';
 import type { YLayerRepresentationPrewarmOwner } from './y-layer-representation-prewarm-owner';
-import type { YLayerPresentationLifecycleOwner } from './y-layer-presentation-lifecycle-owner';
 
 export interface YLayerProjectionCommitVisualPorts {
   readonly removeRepresentation: (key: string, entry: RenderedBlockEntry) => void;
@@ -91,7 +90,6 @@ export class YLayerProjectionCommitOwner {
     private readonly surfaces: SurfaceFaceBatchRenderer,
     private readonly representationCommit: BlockRepresentationCommitOwner,
     private readonly prewarm: YLayerRepresentationPrewarmOwner,
-    private readonly presentation: YLayerPresentationLifecycleOwner,
     private readonly diagnostics: RendererDiagnostics,
     private readonly instanceThreshold: number,
     private readonly currentProvider: () => BlockVisualProvider | undefined,
@@ -127,7 +125,6 @@ export class YLayerProjectionCommitOwner {
       (block) => provider?.occlusionClass?.(block) ?? 'unknown',
     );
     const changes = plan.changes;
-    const { addedVisible, removedVisible, roleChanged } = plan;
     const changedProjectionKeys = new Set(changes.keys());
     if (!changedProjectionKeys.size) {
       this.recordCommitDuration(started);

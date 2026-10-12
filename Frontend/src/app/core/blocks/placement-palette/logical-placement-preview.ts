@@ -1,11 +1,9 @@
 import type { BlockState, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { expandLogicalPlacement } from '../../block-behavior/logical-objects/logical-placement';
 import type { LogicalPlacementMetadata } from '../../block-behavior/logical-objects/logical-placement';
-import type { PlaceableManifestEntry } from './placeable-item.types';
 import type { BlockDefinition } from '../catalog/block-definition.types';
 
 export function createPlaceablePreviewBlocks(
-  entry: PlaceableManifestEntry,
   definition: BlockDefinition,
   itemState: BlockState,
   logicalPlacement?: LogicalPlacementMetadata,

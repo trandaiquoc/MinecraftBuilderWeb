@@ -125,7 +125,7 @@ export class BlockModelResolver {
   }
 
   /** Resolves an inventory/static model directly, without requiring a blockstate JSON. */
-  resolveModelReference(modelId: string, seed = ''): ResolvedBlockModel {
+  resolveModelReference(modelId: string): ResolvedBlockModel {
     const diagnostics: ResolverDiagnostic[] = [];
     const modelResources = new Set<string>();
     const parentResources = new Set<string>();

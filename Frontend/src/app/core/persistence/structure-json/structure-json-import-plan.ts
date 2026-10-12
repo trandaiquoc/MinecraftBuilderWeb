@@ -200,7 +200,7 @@ export async function buildStructureJsonImportPlanAsync(
       toPlacedBlock(source.blocks[index], getDefinition(source.blocks[index].id)),
     );
     options?.onProgress?.('blocks', index + 1, source.blocks.length);
-    if (await planCheckpoint(budget, index + 1, cancellation)) return undefined;
+    if (await planCheckpoint(budget, cancellation)) return undefined;
   }
   const usedDecorationIds = new Set((project.decorations ?? []).map((entry) => entry.instanceId));
   const importedDecorations: PlacedDecoration[] = [];
@@ -209,7 +209,7 @@ export async function buildStructureJsonImportPlanAsync(
       toPlacedDecoration(source.decorations[index], index, usedDecorationIds),
     );
     options?.onProgress?.('decorations', index + 1, source.decorations.length);
-    if (await planCheckpoint(budget, index + 1, cancellation)) return undefined;
+    if (await planCheckpoint(budget, cancellation)) return undefined;
   }
   const decorationValidationProject =
     mode === 'replace'
@@ -274,7 +274,7 @@ export async function buildStructureJsonImportPlanAsync(
         index + 1,
         project.blocks.length + (project.decorations ?? []).length,
       );
-      if (await planCheckpoint(budget, index + 1, cancellation)) return undefined;
+      if (await planCheckpoint(budget, cancellation)) return undefined;
     }
     for (let index = 0; index < (project.decorations ?? []).length; index += 1) {
       if ((project.decorations?.[index].groupIds ?? []).some((id) => lockedGroups.has(id)))
@@ -284,8 +284,7 @@ export async function buildStructureJsonImportPlanAsync(
         project.blocks.length + index + 1,
         project.blocks.length + (project.decorations ?? []).length,
       );
-      if (await planCheckpoint(budget, project.blocks.length + index + 1, cancellation))
-        return undefined;
+      if (await planCheckpoint(budget, cancellation)) return undefined;
     }
     if (lockedCount > 0) blockers.push({ code: 'locked-current-blocks', count: lockedCount });
     if (lockedDecorations > 0)
@@ -324,20 +323,9 @@ export async function buildStructureJsonImportPlanAsync(
   };
 }
 
-export function applyStructureJsonImportPlan(
-  current: ProjectDocument,
-  plan: StructureJsonImportPlan,
-  getDefinition: (id: string) => BlockDefinition | undefined,
-  fallbackGroupName = 'Imported Structure',
-): ProjectDocument | undefined {
-  if (current !== plan.baseProject || !plan.applicable) return undefined;
-  return prepareStructureJsonImportPlan(current, plan, fallbackGroupName);
-}
-
 export function prepareStructureJsonImportPlan(
   current: ProjectDocument,
   plan: StructureJsonImportPlan,
-  fallbackGroupName = 'Imported Structure',
 ): ProjectDocument | undefined {
   if (current !== plan.baseProject || !plan.applicable) return undefined;
   if (plan.emptyImport && plan.mode !== 'replace') return undefined;
@@ -462,7 +450,6 @@ function nextDecorationId(index: number, used: ReadonlySet<string>): string {
 }
 async function planCheckpoint(
   budget: CooperativeWorkBudget,
-  processed: number,
   cancellation?: StructureJsonValidationCancellation,
 ): Promise<boolean> {
   if (cancellation?.signal?.aborted || cancellation?.isCancelled?.()) return true;

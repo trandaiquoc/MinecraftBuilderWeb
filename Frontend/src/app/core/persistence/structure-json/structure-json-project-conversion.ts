@@ -17,7 +17,6 @@ import {
 
 export function structureJsonFromProject(
   project: ProjectDocument,
-  resolveMaxStackSize?: (id: string) => number | undefined,
   resolveDefinition?: StructureJsonDefinitionResolver,
 ): StructureJson {
   return {
@@ -46,12 +45,9 @@ export function hasUnsupportedProjectBlockEntities(
 
 export function serializeStructureJson(
   project: ProjectDocument,
-  resolveMaxStackSize?: (id: string) => number | undefined,
   resolveDefinition?: StructureJsonDefinitionResolver,
 ): string {
-  return serializeStructureJsonValue(
-    structureJsonFromProject(project, resolveMaxStackSize, resolveDefinition),
-  );
+  return serializeStructureJsonValue(structureJsonFromProject(project, resolveDefinition));
 }
 
 export function serializeStructureJsonValue(value: StructureJson): string {

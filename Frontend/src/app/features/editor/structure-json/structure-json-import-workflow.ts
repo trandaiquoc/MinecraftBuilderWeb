@@ -27,7 +27,6 @@ import {
   prepareStructureJsonImportPlan,
 } from '../../../core/persistence/structure-json/structure-json-import-plan';
 import type {
-  StructureJsonImportBlocker,
   StructureJsonImportMode,
   StructureJsonImportPlan,
 } from '../../../core/persistence/structure-json/structure-json-import-plan';
@@ -311,11 +310,7 @@ export class StructureJsonImportWorkflow implements OnDestroy {
       return true;
     }
 
-    const prepared = prepareStructureJsonImportPlan(
-      targetProject,
-      effectivePlan,
-      this.i18n.t('structureJsonImportedGroupFallback'),
-    );
+    const prepared = prepareStructureJsonImportPlan(targetProject, effectivePlan);
     if (!prepared) {
       await this.dialogs.warning(this.i18n.t('structureJsonImportStale'));
       return false;

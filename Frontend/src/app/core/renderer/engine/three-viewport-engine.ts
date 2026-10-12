@@ -1335,7 +1335,6 @@ export class ThreeViewportEngine {
       this.surfaceRenderer,
       this.blockRepresentationCommit,
       this.yLayerPrewarm,
-      this.yLayerPresentationLifecycle,
       this.instrumentation,
       VIEWPORT_INSTANCE_THRESHOLD,
       () => this.visualProvider,

@@ -130,10 +130,7 @@ export class SelectionService {
     const closure = expandLogicalObjectClosure(this.runtimeIndex, seeds, definition);
     this.setBoxSelection(box, closure);
   }
-  selectAll(
-    project: ProjectDocument,
-    definition: (id: string) => BlockDefinition | undefined,
-  ): void {
+  selectAll(project: ProjectDocument): void {
     this.singleState.set(undefined);
     this.boxState.set(undefined);
     // All project blocks are already selected; resolving every logical pair here only
