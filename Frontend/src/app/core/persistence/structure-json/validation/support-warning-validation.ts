@@ -18,6 +18,16 @@ import type {
 import { CooperativeWorkBudget } from '../../../assets/cooperative-yield';
 import { cooperativeValidationCheckpoint } from './structure-json-validation-scheduling';
 
+const VANILLA_TREE_SAPLING_NAMES: ReadonlySet<string> = new Set([
+  'oak',
+  'spruce',
+  'birch',
+  'jungle',
+  'acacia',
+  'dark_oak',
+  'cherry',
+]);
+
 export function appendSupportAndWarnings(
   issues: MutableStructureJsonIssues,
   document: StructureJson,
@@ -157,18 +167,8 @@ async function appendTreeWarningsAsync(
   cancellation: StructureJsonValidationCancellation | undefined,
   budget: CooperativeWorkBudget,
 ): Promise<boolean> {
-  const saplings = new Set([
-    'oak',
-    'spruce',
-    'birch',
-    'jungle',
-    'acacia',
-    'dark_oak',
-    'mangrove',
-    'cherry',
-  ]);
   for (let index = 0; index < document.blocks.length; index += 1) {
-    appendTreeWarning(issues, document.blocks[index], index, source, saplings);
+    appendTreeWarning(issues, document.blocks[index], index, source);
     const checkpoint = cooperativeValidationCheckpoint(budget, index + 1, cancellation);
     if (checkpoint === true || (checkpoint instanceof Promise && (await checkpoint))) return false;
   }
@@ -225,18 +225,8 @@ function appendTreeWarnings(
   document: StructureJson,
   source: ProjectBlockSpatialIndex,
 ): void {
-  const saplings = new Set([
-    'oak',
-    'spruce',
-    'birch',
-    'jungle',
-    'acacia',
-    'dark_oak',
-    'mangrove',
-    'cherry',
-  ]);
   for (let index = 0; index < document.blocks.length; index += 1)
-    appendTreeWarning(issues, document.blocks[index], index, source, saplings);
+    appendTreeWarning(issues, document.blocks[index], index, source);
 }
 
 function appendTreeWarning(
@@ -244,12 +234,11 @@ function appendTreeWarning(
   block: StructureJsonBlock,
   index: number,
   source: ProjectBlockSpatialIndex,
-  saplings: ReadonlySet<string>,
 ): void {
   const name = block.id.startsWith('minecraft:') ? block.id.slice('minecraft:'.length) : '';
   if (
     !name.endsWith('_sapling') ||
-    !saplings.has(name.slice(0, -'_sapling'.length)) ||
+    !VANILLA_TREE_SAPLING_NAMES.has(name.slice(0, -'_sapling'.length)) ||
     block.y <= 0
   )
     return;
