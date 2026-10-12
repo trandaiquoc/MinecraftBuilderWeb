@@ -36,6 +36,7 @@ import { yieldToBrowser } from '../cooperative-yield';
 import { throwIfAborted } from '../asset-operation-cancellation';
 import { deriveVanillaInternalBlockIds } from './vanilla-internal-content';
 import { VANILLA_ASSET_VERSION } from './vanilla-asset-version';
+import { minecraftFluidKindForBlockId } from '../../domain/minecraft-fluids';
 
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
 const RESOURCE_PATH =
@@ -343,7 +344,7 @@ export class VanillaAssetProvider implements ContentSourceProvider, VanillaAsset
       const texturesAvailable = resolved.trace.textureResources.every((resource) =>
         this.binary.has(textureResourcePath(resource)),
       );
-      const fluid = id === 'minecraft:water' || id === 'minecraft:lava';
+      const fluid = minecraftFluidKindForBlockId(id) !== undefined;
       const visualSupport = fluid
         ? 'partial'
         : resolved.parts.length

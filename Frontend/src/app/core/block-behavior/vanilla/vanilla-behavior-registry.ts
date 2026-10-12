@@ -14,6 +14,10 @@ import { MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
 import { MINECRAFT_WOOD_TYPES } from '../../domain/minecraft-wood-types';
 import { MINECRAFT_HEAD_VARIANTS } from '../../domain/minecraft-head-variants';
 import { DECORATED_POT_ID } from '../../block-entities/decorated-pot/decorated-pot';
+import {
+  MINECRAFT_FLUID_BLOCK_IDS,
+  minecraftFluidKindForBlockId,
+} from '../../domain/minecraft-fluids';
 
 export interface VanillaBehaviorResourceProvider {
   readJson(path: string): unknown | undefined;
@@ -135,8 +139,11 @@ export class VanillaBehaviorRegistry {
       this.explicit.set(id, amethystAttachmentMetadata);
     this.explicit.set(DECORATED_POT_ID, decoratedPotMetadata);
     this.explicit.set('minecraft:conduit', conduitMetadata);
-    this.explicit.set('minecraft:water', waterMetadata);
-    this.explicit.set('minecraft:lava', lavaMetadata);
+    for (const id of Object.values(MINECRAFT_FLUID_BLOCK_IDS))
+      this.explicit.set(
+        id,
+        minecraftFluidKindForBlockId(id) === 'water' ? waterMetadata : lavaMetadata,
+      );
     for (const wood of MINECRAFT_WOOD_TYPES) {
       this.explicit.set(`minecraft:${wood}_sign`, standingSignMetadata(wood));
       this.explicit.set(`minecraft:${wood}_wall_sign`, wallSignMetadata);
@@ -174,8 +181,9 @@ export class VanillaBehaviorRegistry {
     const id = record.id;
     if (id === DECORATED_POT_ID) return decoratedPotMetadata;
     if (id === 'minecraft:conduit') return conduitMetadata;
-    if (id === 'minecraft:water') return waterMetadata;
-    if (id === 'minecraft:lava') return lavaMetadata;
+    const fluidKind = minecraftFluidKindForBlockId(id);
+    if (fluidKind === 'water') return waterMetadata;
+    if (fluidKind === 'lava') return lavaMetadata;
     if (isVanillaCandleId(id)) return candleMetadata;
     const torch = vanillaTorchMetadata(id);
     if (torch) return torch;

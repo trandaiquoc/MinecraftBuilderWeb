@@ -4,6 +4,7 @@ import {
   isTechnicalBlockId,
 } from '../../content/classification/content-classifier';
 import type { VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
+import { isMinecraftFluidBlockId } from '../../domain/minecraft-fluids';
 
 /**
  * Vanilla 1.21.1 content-domain evidence at the asset boundary.
@@ -26,7 +27,7 @@ export function deriveVanillaInternalBlockIds(
   for (const block of blocks.all()) {
     if (!block.id.startsWith('minecraft:') || itemIds.has(block.id)) continue;
     if (
-      VANILLA_NON_INTERNAL_WORLD_IDS.has(block.id) ||
+      isMinecraftFluidBlockId(block.id) ||
       isTechnicalBlockId(block.id) ||
       isDecorationEntityId(block.id)
     )
@@ -35,6 +36,3 @@ export function deriveVanillaInternalBlockIds(
   }
   return internal;
 }
-
-/** Fluid blocks are world identities represented by bucket items, not internal variants. */
-const VANILLA_NON_INTERNAL_WORLD_IDS = new Set(['minecraft:water', 'minecraft:lava']);

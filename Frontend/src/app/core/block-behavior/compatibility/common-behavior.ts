@@ -8,6 +8,7 @@ import { extractBehaviorFingerprint } from './behavior-fingerprint';
 import { matchVanillaBehaviorCandidates } from './behavior-classifier';
 import type { BehaviorClassificationSummary } from './behavior-fingerprint.types';
 import { GENERIC_BEHAVIOR_PROFILES } from './behavior-profiles';
+import { minecraftFluidKindForBlockId } from '../../domain/minecraft-fluids';
 
 export interface CommonBehaviorResourceProvider {
   readJson(path: string): unknown | undefined;
@@ -185,11 +186,12 @@ export function evaluateCommonBehavior(
   const fluid = contract(definitions, {
     level: Array.from({ length: 16 }, (_, value) => String(value)),
   });
-  if (fluid.complete && (record.id === 'minecraft:water' || record.id === 'minecraft:lava'))
+  const fluidKind = minecraftFluidKindForBlockId(record.id);
+  if (fluid.complete && fluidKind)
     return complete(
       definitions,
       'fluids',
-      { kind: 'fluid', fluid: record.id === 'minecraft:lava' ? 'lava' : 'water' },
+      { kind: 'fluid', fluid: fluidKind },
       { level: '0' },
       'compatible-common',
     );

@@ -1,5 +1,10 @@
 import { BlockDefinition } from '../../../blocks/catalog/block-definition.types';
 import { PlacedBlock, VoxelCoordinate } from '../../../domain/project.types';
+import {
+  MINECRAFT_FLUID_BLOCK_IDS,
+  minecraftFluidKindForBlockId,
+  type MinecraftFluidKind,
+} from '../../../domain/minecraft-fluids';
 import type { OcclusionClass } from '../../visibility/interior-occlusion';
 import {
   fluidHorizontalVelocity,
@@ -7,7 +12,7 @@ import {
 } from '../geometry/fluid-surface-sampler';
 export { calculateFluidHeight } from '../geometry/fluid-surface-sampler';
 
-export type FluidKind = 'water' | 'lava';
+export type FluidKind = MinecraftFluidKind;
 export type FluidRenderLayer = 'solid' | 'cutout' | 'translucent';
 export interface StaticFluidState {
   readonly kind: FluidKind;
@@ -113,17 +118,14 @@ function vanillaFluidState(block: PlacedBlock, kind: FluidKind): ResolvedFluidRe
 }
 
 export const vanillaFluidRenderResolver: FluidRenderResolver = new RegistryFluidRenderResolver()
-  .register('minecraft:water', (block) => vanillaFluidState(block, 'water'))
-  .register('minecraft:lava', (block) => vanillaFluidState(block, 'lava'))
+  .register(MINECRAFT_FLUID_BLOCK_IDS.water, (block) => vanillaFluidState(block, 'water'))
+  .register(MINECRAFT_FLUID_BLOCK_IDS.lava, (block) => vanillaFluidState(block, 'lava'))
   .registerEmbeddedFluidHeight((block, state) =>
     block.state['waterlogged'] === 'true' && state.kind === 'water' ? 8 / 9 : undefined,
   );
 
-export function fluidKindForBlockId(id: string): FluidKind | undefined {
-  return id === 'minecraft:water' ? 'water' : id === 'minecraft:lava' ? 'lava' : undefined;
-}
 export function fluidStateForBlock(block: PlacedBlock | undefined): StaticFluidState | undefined {
-  const kind = block && fluidKindForBlockId(block.id);
+  const kind = block && minecraftFluidKindForBlockId(block.id);
   if (!kind) return undefined;
   return staticFluidState(block!, kind);
 }
