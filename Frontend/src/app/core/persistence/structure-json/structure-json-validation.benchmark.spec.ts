@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateParsedStructureJsonPreviewAsync } from './structure-json-import';
+import { validateParsedStructureJsonPreviewAsync } from './import/structure-json-import';
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 
 const enabled =

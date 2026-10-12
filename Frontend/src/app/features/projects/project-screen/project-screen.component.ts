@@ -26,7 +26,7 @@ import { SettingsDialogComponent } from '../../editor/settings/settings-dialog/s
 import type {
   StructureJsonProjectImportError,
   StructureJsonProjectImportPreview,
-} from '../../../core/persistence/structure-json/structure-json-project-import';
+} from '../../../core/persistence/structure-json/import/structure-json-project-import';
 import { StructureJsonProjectImportWorkflow } from './structure-json-project-import-workflow';
 import { ProjectScreenWorkflow } from './project-screen-workflow';
 

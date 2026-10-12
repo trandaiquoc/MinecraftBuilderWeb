@@ -1,11 +1,11 @@
 /** Compatibility entry point for the public Structure JSON API. */
 export * from './structure-json-contracts';
-export { parseStructureJson } from './structure-json-parser';
+export { parseStructureJson } from './import/structure-json-parser';
 export {
   validateStructureJson,
   validateStructureJsonValue,
   validateStructureJsonBlockEntity,
-} from './structure-json-validation';
+} from './validation/structure-json-validation';
 export { projectBlockEntityDataFromStructureJson } from './structure-json-block-entity-mapping';
 export {
   structureJsonFromProject,
@@ -13,5 +13,5 @@ export {
   serializeStructureJson,
   serializeStructureJsonValue,
   decorationToStructureJson,
-} from './structure-json-project-conversion';
+} from './import/structure-json-project-conversion';
 export { createStructureJsonExample } from './structure-json-example';

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { blockBrightnessStopPercent, UiPreferencesService } from './ui-preferences.service';
-import { DEFAULT_EXTERNAL_AI_CONTENT_LIMITS } from '../../persistence/structure-json/external-ai-content-limits';
+import { DEFAULT_EXTERNAL_AI_CONTENT_LIMITS } from '../../persistence/structure-json/external-ai/external-ai-content-limits';
 
 const key = 'minecraft-builder.ui-preferences';
 const legacyKey = 'minecraft-builder.editor-layout';

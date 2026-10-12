@@ -5,12 +5,12 @@ import { UiPreferencesService } from '../../../core/ui/preferences/ui-preference
 import {
   parseStructureJsonWithWorker,
   type StructureJsonValidationCancellation,
-} from '../../../core/persistence/structure-json/structure-json-import';
+} from '../../../core/persistence/structure-json/import/structure-json-import';
 import {
   prepareStructureJsonProjectImport,
   type StructureJsonProjectImportError,
   type StructureJsonProjectImportPreview,
-} from '../../../core/persistence/structure-json/structure-json-project-import';
+} from '../../../core/persistence/structure-json/import/structure-json-project-import';
 
 export type StructureJsonProjectImportProgress =
   'idle' | 'reading' | 'parsing' | 'checking' | 'saving' | 'error' | 'ready';

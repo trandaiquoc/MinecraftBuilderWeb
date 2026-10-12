@@ -13,7 +13,7 @@ import {
   DEFAULT_EXTERNAL_AI_CONTENT_LIMITS,
   ExternalAiContentLimits,
   normalizeExternalAiContentLimits,
-} from '../../persistence/structure-json/external-ai-content-limits';
+} from '../../persistence/structure-json/external-ai/external-ai-content-limits';
 
 export type UiLocale = 'en' | 'vi';
 export type ThemePreset = 'dark' | 'light' | 'craft' | 'custom';

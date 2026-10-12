@@ -58,8 +58,8 @@ import { EditorStatusBarComponent } from './editor-status-bar/editor-status-bar.
 import { ShortcutsHelpDialogComponent } from '../settings/shortcuts-help/shortcuts-help-dialog.component';
 import { AssetManagerDialogComponent } from '../tools/asset-manager/asset-manager-dialog.component';
 import { ProjectDiagnosticsDialogComponent } from '../tools/diagnostics/project-diagnostics-dialog.component';
-import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
-import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
+import { StructureJsonExportDialogComponent } from '../structure-json/export/structure-json-export-dialog.component';
+import { StructureJsonImportDialogComponent } from '../structure-json/import/structure-json-import-dialog.component';
 import { StructureNbtExportDialogComponent } from '../minecraft-structure-export/structure-nbt-export-dialog.component';
 import type { ViewportPerformanceEvidence } from '../../../core/renderer/engine/three-viewport-engine';
 
