@@ -58,9 +58,6 @@ export class CompositeAssetResourceProvider
   get revision(): number {
     return this.revisionValue;
   }
-  get generation(): number {
-    return this.revisionValue;
-  }
   get gameVersion(): string | undefined {
     return this.sources()[0]?.minecraftVersion;
   }
@@ -132,10 +129,6 @@ export class CompositeAssetResourceProvider
     return [...this.providers.values()].filter((provider) =>
       provider.source.namespaces.includes(namespace),
     );
-  }
-  /** @deprecated Namespace is not exclusive ownership. Use providersForNamespace or effectiveResource. */
-  providerForNamespace(namespace: string): ContentSourceProvider | undefined {
-    return this.providersForNamespace(namespace)[0];
   }
   providerForExactPath(path: string): readonly ContentSourceProvider[] {
     const explicit = [...this.providers.values()].filter((provider) =>
