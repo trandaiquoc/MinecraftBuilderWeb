@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ViewportCameraFramingController } from './viewport-camera-framing-controller';
-import type { ProjectDocument } from '../../domain/project.types';
+import type { ProjectDocument } from '../../../domain/project.types';
 
 describe('ViewportCameraFramingController', () => {
   it('round-trips camera state and owns frame identity', () => {

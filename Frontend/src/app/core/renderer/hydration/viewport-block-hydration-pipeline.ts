@@ -1,9 +1,9 @@
-import { HydrationProgressTracker } from '../scheduling/hydration-progress-tracker';
+import { HydrationProgressTracker } from '../scheduling/hydration/hydration-progress-tracker';
 import type {
   HydrationBlockScopeDelta,
   HydrationLane,
   HydrationProgressSnapshot,
-} from '../scheduling/hydration-progress-tracker';
+} from '../scheduling/hydration/hydration-progress-tracker';
 import { BlockHydrationWorkOwner } from './block-hydration-work-owner';
 import type {
   HydrationExecutionPort,
@@ -13,7 +13,7 @@ import type {
   HydrationWorkCounts,
   HydrationWorkItem,
   HydrationWorkOwnerToken,
-} from '../scheduling/hydration-work-coordinator';
+} from '../scheduling/hydration/hydration-work-coordinator';
 
 export type {
   HydrationExecutionPort,

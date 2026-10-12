@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   ViewportGhostSceneSnapshot,
   ViewportInstanceOwnershipEvent,
-} from './viewport-diagnostics-contracts';
+} from '../viewport-diagnostics-contracts';
 import { ViewportRuntimeDiagnosticsOwner } from './viewport-runtime-diagnostics-owner';
 
 const snapshot = (): ViewportGhostSceneSnapshot => ({

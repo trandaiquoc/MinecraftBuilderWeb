@@ -1,4 +1,4 @@
-import type { RendererCounters } from '../engine/renderer-diagnostics';
+import type { RendererCounters } from '../../engine/renderer-diagnostics';
 import type { TraceDurationSummary } from './viewport-trace-statistics';
 
 export interface TraceVector3 {

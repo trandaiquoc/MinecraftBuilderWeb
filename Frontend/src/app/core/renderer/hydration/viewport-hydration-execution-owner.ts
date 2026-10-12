@@ -1,5 +1,5 @@
 import type { DecorationRenderLifecycle } from '../visuals/decoration-render-lifecycle';
-import type { ViewportRuntimeTrace } from '../diagnostics/viewport-runtime-trace';
+import type { ViewportRuntimeTrace } from '../diagnostics/trace/viewport-runtime-trace';
 import type { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import type { YLayerProjectionCoordinator } from '../engine/y-layer-projection-coordinator';
 import type { BlockRepresentationHydrationOwner } from '../visuals/block-representation-hydration-owner';

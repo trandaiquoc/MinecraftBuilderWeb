@@ -53,7 +53,7 @@ import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
 import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { runTerrainAtlasProbe } from '../../../../core/renderer/terrain/atlas/terrain-atlas-browser-runner';
-import { ViewportRuntimeTrace } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
+import { ViewportRuntimeTrace } from '../../../../core/renderer/diagnostics/trace/viewport-runtime-trace';
 import { selectionFocusBounds } from '../../../../core/renderer/presentation/selection-bounds';
 import {
   ViewportStatusService,
@@ -61,7 +61,7 @@ import {
 } from '../../../../core/editor/viewport/viewport-status.service';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
 import type { ProjectDocument } from '../../../../core/domain/project.types';
-import type { ViewportRuntimeTraceApi } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
+import type { ViewportRuntimeTraceApi } from '../../../../core/renderer/diagnostics/trace/viewport-runtime-trace';
 import { ViewportSessionOwner } from '../shared/viewport-session-owner';
 import {
   ViewportPreparationScheduler,

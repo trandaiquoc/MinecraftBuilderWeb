@@ -1,11 +1,11 @@
-import { HydrationScheduler } from '../scheduling/hydration-scheduler';
-import { HydrationWorkCoordinator } from '../scheduling/hydration-work-coordinator';
+import { HydrationScheduler } from '../scheduling/hydration/hydration-scheduler';
+import { HydrationWorkCoordinator } from '../scheduling/hydration/hydration-work-coordinator';
 import type {
   HydrationWorkCounts,
   HydrationWorkItem,
   HydrationWorkOwnerToken,
-} from '../scheduling/hydration-work-coordinator';
-import type { HydrationLane } from '../scheduling/hydration-progress-tracker';
+} from '../scheduling/hydration/hydration-work-coordinator';
+import type { HydrationLane } from '../scheduling/hydration/hydration-progress-tracker';
 
 export interface RunningBlockHydrationOwnership {
   readonly generation: number;

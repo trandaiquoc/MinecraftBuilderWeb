@@ -1,4 +1,4 @@
-import { stableValueKey } from '../../domain/stable-value-key';
+import { stableValueKey } from '../../../domain/stable-value-key';
 
 type EmptyTransitionMesh = {
   readonly owner: string;

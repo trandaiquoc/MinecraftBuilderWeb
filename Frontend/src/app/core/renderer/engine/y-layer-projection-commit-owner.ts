@@ -1,5 +1,5 @@
 import type { ProjectDocument } from '../../domain/project.types';
-import type { HydrationBlockScopeDelta } from '../scheduling/hydration-progress-tracker';
+import type { HydrationBlockScopeDelta } from '../scheduling/hydration/hydration-progress-tracker';
 import type { BlockHydrationJob } from '../visuals/block-representation-contracts';
 import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 import type { BlockRepresentationCommitOwner } from '../visuals/block-representation-commit-owner';

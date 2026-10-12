@@ -8,7 +8,7 @@ import type {
 import {
   cancelViewportFrame,
   requestViewportFrame,
-} from '../scheduling/viewport-camera-input-controller';
+} from '../scheduling/camera/viewport-camera-input-controller';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { coordinateKey } from '../../domain/coordinates';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';

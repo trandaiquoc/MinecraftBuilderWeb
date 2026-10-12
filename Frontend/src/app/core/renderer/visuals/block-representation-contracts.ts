@@ -4,7 +4,7 @@ import type { VisibleBlockProjectionEntry } from '../engine/y-layer-projection-c
 import type { BlockVisualResult } from './block-visual-provider-contract';
 import type { RenderedBlockEntry } from '../engine/viewport-block-representation-store';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
-import type { HydrationWorkOwnerToken } from '../scheduling/hydration-work-coordinator';
+import type { HydrationWorkOwnerToken } from '../scheduling/hydration/hydration-work-coordinator';
 
 export type HydrationBlock = ProjectDocument['blocks'][number];
 export type BlockRenderRole = RenderedBlockEntry['role'];

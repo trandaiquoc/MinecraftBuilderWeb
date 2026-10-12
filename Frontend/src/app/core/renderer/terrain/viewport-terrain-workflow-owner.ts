@@ -4,7 +4,7 @@ import type {
   BlockVisualProvider,
   BlockVisualResult,
 } from '../visuals/block-visual-provider-contract';
-import type { HydrationLane } from '../scheduling/hydration-progress-tracker';
+import type { HydrationLane } from '../scheduling/hydration/hydration-progress-tracker';
 import type { ViewportBlockRepresentationStore } from '../engine/viewport-block-representation-store';
 import type { VisibleBlockProjectionEntry } from '../engine/y-layer-projection-coordinator';
 import type {

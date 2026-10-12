@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { MovementAction } from '../../editor/input/keyboard-bindings';
+import type { MovementAction } from '../../../editor/input/keyboard-bindings';
 import { cameraMovementScale, effectiveCameraMovementSpeed } from './camera-movement-speed';
 import {
   nextCameraDistanceFromWheel,

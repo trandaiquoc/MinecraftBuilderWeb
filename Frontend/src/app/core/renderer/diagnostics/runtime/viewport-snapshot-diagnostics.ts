@@ -2,7 +2,7 @@ import type {
   ViewportGhostSceneSnapshot,
   ViewportInstanceOwnershipEvent,
   ViewportOwnershipDiagnostics,
-} from './viewport-diagnostics-contracts';
+} from '../viewport-diagnostics-contracts';
 
 export function captureViewportGhostSceneSnapshot(
   diagnostics: ViewportOwnershipDiagnostics,

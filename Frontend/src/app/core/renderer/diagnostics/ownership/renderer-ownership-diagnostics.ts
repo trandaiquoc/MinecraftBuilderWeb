@@ -1,13 +1,13 @@
 import * as THREE from 'three';
-import { coordinateKey } from '../../domain/coordinates';
-import type { VoxelCoordinate } from '../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
+import type { VoxelCoordinate } from '../../../domain/project.types';
 import { collectInstanceOwnershipViolations } from './instance-ownership-diagnostics';
 import type { InstanceOwnershipBatchView } from './instance-ownership-diagnostics';
 import type {
   ViewportOwnershipDiagnostics,
   ViewportSuspiciousVisualDiagnostic,
   ViewportVisibleMeshDiagnostic,
-} from './viewport-diagnostics-contracts';
+} from '../viewport-diagnostics-contracts';
 
 interface RenderedEntryView {
   readonly fallback?: THREE.Object3D;

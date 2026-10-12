@@ -27,7 +27,7 @@ import type { PlaceholderBatchRenderer } from '../batching/placeholder-batch-ren
 import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
 import type { TerrainHydrationCandidate } from '../terrain/viewport-terrain-workflow-owner';
 import { coordinateNeighbors } from '../visibility/interior-occlusion';
-import type { HydrationFinalizationSnapshot } from '../scheduling/hydration-progress-tracker';
+import type { HydrationFinalizationSnapshot } from '../scheduling/hydration/hydration-progress-tracker';
 
 export interface ViewportHydrationFinalizationScope {
   readonly project: () => ProjectDocument | undefined;

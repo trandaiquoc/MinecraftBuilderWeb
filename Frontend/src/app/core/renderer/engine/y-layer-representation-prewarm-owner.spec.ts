@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 import type { PlacedBlock, ProjectDocument } from '../../domain/project.types';
 import type { BlockHydrationJob } from '../visuals/block-representation-contracts';
-import type { HydrationWorkOwnerToken } from '../scheduling/hydration-work-coordinator';
+import type { HydrationWorkOwnerToken } from '../scheduling/hydration/hydration-work-coordinator';
 import { rendererBenchmarkProject } from '../benchmark/renderer-benchmark-fixtures';
 import { YLayerRepresentationPrewarmOwner } from './y-layer-representation-prewarm-owner';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';

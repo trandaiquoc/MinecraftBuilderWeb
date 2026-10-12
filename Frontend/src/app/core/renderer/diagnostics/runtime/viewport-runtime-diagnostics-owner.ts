@@ -1,7 +1,7 @@
 import type {
   ViewportGhostSceneSnapshot,
   ViewportInstanceOwnershipEvent,
-} from './viewport-diagnostics-contracts';
+} from '../viewport-diagnostics-contracts';
 
 /** Owns mutable diagnostic history and its bounded lifecycle. */
 export class ViewportRuntimeDiagnosticsOwner {

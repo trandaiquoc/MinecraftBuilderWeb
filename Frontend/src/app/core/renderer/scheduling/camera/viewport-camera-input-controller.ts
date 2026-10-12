@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { MovementAction } from '../../editor/input/keyboard-bindings';
+import type { MovementAction } from '../../../editor/input/keyboard-bindings';
 import {
   DEFAULT_MOUSE_BINDINGS,
   type MouseAction,
   mouseActionForEvent,
-} from '../../editor/input/mouse-bindings';
+} from '../../../editor/input/mouse-bindings';
 import { CameraInteractionController } from './camera-interaction-controller';
 import type { WheelZoomAction } from './camera-wheel-zoom';
 

@@ -10,7 +10,7 @@ import { fluidChunkKey } from '../fluids/fluid-mesh-core';
 import type { TerrainBlockChange, TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
 import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../terrain/terrain-classifier';
 import type { TerrainHydrationCandidate } from '../terrain/viewport-terrain-workflow-owner';
-import type { HydrationLane } from '../scheduling/hydration-progress-tracker';
+import type { HydrationLane } from '../scheduling/hydration/hydration-progress-tracker';
 import type { RenderedBlockEntry } from './viewport-block-representation-store';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
 import { canonicalRenderOptions } from './viewport-render-signatures';

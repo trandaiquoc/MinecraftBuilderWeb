@@ -1,9 +1,9 @@
-import type { RendererCounters } from '../engine/renderer-diagnostics';
-import type { ViewportPerformanceEvidence } from './viewport-diagnostics-contracts';
+import type { RendererCounters } from '../../engine/renderer-diagnostics';
+import type { ViewportPerformanceEvidence } from '../viewport-diagnostics-contracts';
 import type { SceneRenderCost } from './scene-render-cost';
-import type { ChunkSurfaceRenderer } from '../terrain/chunk-surface-renderer';
-import type { StaticModelBatchRenderer } from '../batching/static-model-batch-renderer';
-import type { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
+import type { ChunkSurfaceRenderer } from '../../terrain/chunk-surface-renderer';
+import type { StaticModelBatchRenderer } from '../../batching/static-model-batch-renderer';
+import type { FluidRenderCoordinator } from '../../fluids/fluid-render-coordinator';
 
 export interface ViewportPerformanceEvidencePort {
   readonly counters: RendererCounters;

@@ -1,4 +1,4 @@
-import type { HydrationWorkItem } from '../scheduling/hydration-work-coordinator';
+import type { HydrationWorkItem } from '../scheduling/hydration/hydration-work-coordinator';
 import type { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
 import { ProviderRefreshCoordinator } from './provider-refresh-coordinator';
 import { ProviderRefreshPlanner } from './provider-refresh-planner';

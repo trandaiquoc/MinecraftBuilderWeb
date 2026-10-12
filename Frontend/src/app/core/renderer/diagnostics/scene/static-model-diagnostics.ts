@@ -3,7 +3,7 @@ import { countObjectMeshCost } from './scene-render-cost';
 import type {
   StaticModelBatchMetrics,
   StaticModelDecision,
-} from '../batching/static-model-batch-renderer';
+} from '../../batching/static-model-batch-renderer';
 
 export interface StaticModelDiagnosticEntry {
   readonly key: string;

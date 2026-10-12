@@ -21,7 +21,7 @@ import type {
   HydrationFinalizationSnapshot,
   HydrationProgressSnapshot,
   HydrationStatus,
-} from '../scheduling/hydration-progress-tracker';
+} from '../scheduling/hydration/hydration-progress-tracker';
 import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 
 export interface ViewportHit {

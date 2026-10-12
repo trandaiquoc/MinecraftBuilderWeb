@@ -12,7 +12,7 @@ import { WorkspaceStateService } from '../workspace/workspace-state.service';
 import {
   ViewportRuntimeTrace,
   type ViewportTraceSample,
-} from '../renderer/diagnostics/viewport-runtime-trace';
+} from '../renderer/diagnostics/trace/viewport-runtime-trace';
 import { ThreeViewportEngine } from '../renderer/engine/three-viewport-engine';
 import { rendererBenchmarkProject } from '../renderer/benchmark/renderer-benchmark-fixtures';
 import {

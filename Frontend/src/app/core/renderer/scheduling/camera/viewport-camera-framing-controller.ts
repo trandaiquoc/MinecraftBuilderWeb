@@ -5,15 +5,15 @@ import type {
   CameraPreset,
   CameraState,
   CameraVector,
-} from '../../editor/camera/camera';
+} from '../../../editor/camera/camera';
 import {
   cameraBoundsCenter,
   cameraDistanceForBounds,
   projectCameraBounds,
   structureCameraBounds,
-} from '../../editor/camera/camera';
-import { blocksForLayers, type YLayerVisibility } from '../../editor/viewport/y-layer';
-import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
+} from '../../../editor/camera/camera';
+import { blocksForLayers, type YLayerVisibility } from '../../../editor/viewport/y-layer';
+import type { ProjectDocument, VoxelCoordinate } from '../../../domain/project.types';
 import { perspectiveDirection, presetDirection, vectorValue } from './viewport-camera-geometry';
 
 export interface ViewportCameraFramingCallbacks {

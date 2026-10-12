@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { effectiveCameraMovementSpeed } from './camera-movement-speed';
 import { cameraMovementDelta, cameraMovementDirection } from './viewport-camera-geometry';
-import { rendererBenchmarkProject } from '../benchmark/renderer-benchmark-fixtures';
+import { rendererBenchmarkProject } from '../../benchmark/renderer-benchmark-fixtures';
 
 describe('viewport camera geometry', () => {
   const camera = new THREE.PerspectiveCamera();

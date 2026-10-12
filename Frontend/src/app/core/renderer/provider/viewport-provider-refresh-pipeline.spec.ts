@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
-import type { HydrationWorkItem } from '../scheduling/hydration-work-coordinator';
+import type { HydrationWorkItem } from '../scheduling/hydration/hydration-work-coordinator';
 import { ViewportProviderRefreshPipeline } from './viewport-provider-refresh-pipeline';
 
 interface Job extends HydrationWorkItem {

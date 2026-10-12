@@ -22,7 +22,7 @@ import type {
   TerrainAtlasGpuProbeVariantsResult,
   TerrainAtlasGpuProbeVariantDraw,
 } from './terrain-atlas-gpu-probe';
-import type { ViewportRuntimeTraceApi } from '../../diagnostics/viewport-runtime-trace';
+import type { ViewportRuntimeTraceApi } from '../../diagnostics/trace/viewport-runtime-trace';
 
 export interface TerrainAtlasBrowserProbeHost {
   runTerrainAtlasGpuProbeVariants?(

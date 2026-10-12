@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import type { MovementAction } from '../../editor/input/keyboard-bindings';
-import type { CameraPreset, CameraVector } from '../../editor/camera/camera';
+import type { MovementAction } from '../../../editor/input/keyboard-bindings';
+import type { CameraPreset, CameraVector } from '../../../editor/camera/camera';
 
 export function cameraMovementDirection(
   keys: ReadonlySet<string>,

@@ -1,7 +1,7 @@
 import type {
   HydrationFinalizationSnapshot,
   HydrationProgressSnapshot,
-} from '../../renderer/scheduling/hydration-progress-tracker';
+} from '../../renderer/scheduling/hydration/hydration-progress-tracker';
 
 export type ViewportFinalizationPhase = 'idle' | 'building' | 'updating' | 'warning' | 'ready';
 

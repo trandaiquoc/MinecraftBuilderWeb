@@ -96,20 +96,20 @@ import type {
 import {
   collectStaticModelDiagnostics,
   type StaticModelDiagnosticSnapshot,
-} from '../diagnostics/static-model-diagnostics';
+} from '../diagnostics/scene/static-model-diagnostics';
 import { RenderRegionPolicy } from '../batching/render-region-policy';
-import { RenderScheduler } from '../scheduling/render-scheduler';
+import { RenderScheduler } from '../scheduling/render/render-scheduler';
 import { ViewportHostLifecycleAdapter } from '../scheduling/viewport-host-lifecycle';
 import {
   ViewportCameraInputController,
   cancelViewportFrame,
   requestViewportFrame,
-} from '../scheduling/viewport-camera-input-controller';
-import { ViewportCameraFramingController } from '../scheduling/viewport-camera-framing-controller';
+} from '../scheduling/camera/viewport-camera-input-controller';
+import { ViewportCameraFramingController } from '../scheduling/camera/viewport-camera-framing-controller';
 import type {
   HydrationFinalizationSnapshot,
   HydrationProgressSnapshot,
-} from '../scheduling/hydration-progress-tracker';
+} from '../scheduling/hydration/hydration-progress-tracker';
 import { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
 import { MissingBlockAccountingOwner } from '../hydration/missing-block-accounting-owner';
 import { ViewportHydrationExecutionOwner } from '../hydration/viewport-hydration-execution-owner';
@@ -149,7 +149,7 @@ import {
 import {
   cameraMovementScale,
   effectiveCameraMovementSpeed,
-} from '../scheduling/camera-movement-speed';
+} from '../scheduling/camera/camera-movement-speed';
 import { createScreenSpaceMarqueeQuery } from '../interaction/screen-space-marquee-selection';
 import type {
   ScreenSpaceMarqueeQuery,
@@ -160,18 +160,18 @@ import type {
   ViewportTraceMetadata,
   ViewportTraceSample,
   TraceVector3,
-} from '../diagnostics/viewport-runtime-trace';
+} from '../diagnostics/trace/viewport-runtime-trace';
 import {
   collectOwnershipDiagnostics,
   collectVisibleSceneDiagnostics,
-} from '../diagnostics/renderer-diagnostics-collector';
-import { collectRendererOwnershipDiagnostics } from '../diagnostics/renderer-ownership-diagnostics';
+} from '../diagnostics/scene/renderer-diagnostics-collector';
+import { collectRendererOwnershipDiagnostics } from '../diagnostics/ownership/renderer-ownership-diagnostics';
 import {
   collectInstanceOwnershipViolations,
   collectInstanceOwnershipViolationsForKey,
-} from '../diagnostics/instance-ownership-diagnostics';
-import { captureViewportGhostSceneSnapshot } from '../diagnostics/viewport-snapshot-diagnostics';
-import { ViewportRuntimeDiagnosticsOwner } from '../diagnostics/viewport-runtime-diagnostics-owner';
+} from '../diagnostics/ownership/instance-ownership-diagnostics';
+import { captureViewportGhostSceneSnapshot } from '../diagnostics/runtime/viewport-snapshot-diagnostics';
+import { ViewportRuntimeDiagnosticsOwner } from '../diagnostics/runtime/viewport-runtime-diagnostics-owner';
 import type {
   ViewportControlConfiguration,
   ViewportDiagnostics,
@@ -201,8 +201,8 @@ export type {
   ViewportVoxelOwnershipDiagnostic,
   VisibleSceneDiagnostics,
 } from '../diagnostics/viewport-diagnostics-contracts';
-import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
-import { collectPerformanceEvidence } from '../diagnostics/viewport-performance-evidence';
+import { collectSceneRenderCost } from '../diagnostics/scene/scene-render-cost';
+import { collectPerformanceEvidence } from '../diagnostics/scene/viewport-performance-evidence';
 import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
 import { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
 import type { FluidWorldLookup } from '../fluids/fluid-state';
@@ -247,7 +247,7 @@ import {
   ViewportLocalMutationOwner,
   type ViewportLocalMutationPorts,
 } from './viewport-local-mutation-owner';
-import { ViewportCameraMotionController } from '../scheduling/viewport-camera-motion-controller';
+import { ViewportCameraMotionController } from '../scheduling/camera/viewport-camera-motion-controller';
 import {
   blockCoordinateFromHit,
   surfaceFaceDirectionFromHit,
@@ -265,7 +265,7 @@ import {
 } from '../batching/render-chunk-geometry';
 import { DETAILED_SELECTION_OUTLINE_LIMIT } from '../presentation/selection-overlay-presenter';
 import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
-import { compareEmptySnapshots } from '../diagnostics/viewport-empty-transition-diff';
+import { compareEmptySnapshots } from '../diagnostics/runtime/viewport-empty-transition-diff';
 import { renderFilterKey } from './viewport-render-signatures';
 import { stableValueKey } from '../../domain/stable-value-key';
 import {

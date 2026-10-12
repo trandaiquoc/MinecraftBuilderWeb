@@ -17,7 +17,7 @@ import type {
   YLayerPrewarmOutcome,
   YLayerPrewarmTerminalNotification,
 } from './viewport-engine-contracts';
-import type { HydrationWorkOwnerToken } from '../scheduling/hydration-work-coordinator';
+import type { HydrationWorkOwnerToken } from '../scheduling/hydration/hydration-work-coordinator';
 import type {
   YLayerProjectionCoordinator,
   VisibleBlockProjectionEntry,

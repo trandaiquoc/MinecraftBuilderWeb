@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { HydrationWorkOwnerToken } from '../scheduling/hydration-work-coordinator';
+import type { HydrationWorkOwnerToken } from '../scheduling/hydration/hydration-work-coordinator';
 import {
   ViewportBlockHydrationPipeline,
   type HydrationExecutionPort,

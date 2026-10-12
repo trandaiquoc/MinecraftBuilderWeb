@@ -1,5 +1,5 @@
-import type { VoxelCoordinate } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
+import type { VoxelCoordinate } from '../../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
 
 export interface InstanceOwnershipBatchView {
   readonly key: string;
