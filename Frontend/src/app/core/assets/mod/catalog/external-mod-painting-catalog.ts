@@ -1,5 +1,5 @@
 import type { PaintingVariant } from '../../../decorations/decoration.types';
-import { paintingTextureResource } from '../../../decorations/decoration.types';
+import { paintingTextureResource } from '../../../decorations/catalog/painting-catalog';
 import { resolveResourceLocation } from '../../../content/resources/resource-location';
 import { TagIndex } from '../../../content/resources/tag-index';
 

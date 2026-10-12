@@ -6,10 +6,10 @@ import {
   paintingEntityPosition,
 } from '../../../decorations/placement/decoration-placement';
 import {
-  paintingVariant,
   type DecorationFacing,
   type PlacedDecoration,
 } from '../../../decorations/decoration.types';
+import { paintingVariant } from '../../../decorations/catalog/painting-catalog';
 import type { MinecraftNbtCompound, MinecraftNbtTag } from '../codec/minecraft-structure-types';
 import { type ItemMaxStackResolver } from '../../../items/item-stack-validation';
 import { failure, hasUnknownRaw } from './minecraft-structure-semantic-mapping-result';

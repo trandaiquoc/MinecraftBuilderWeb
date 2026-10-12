@@ -1,10 +1,10 @@
 import { Injectable, computed, signal } from '@angular/core';
+import type { PaintingVariant } from '../decoration.types';
 import {
   allPaintingVariants,
   PAINTING_VARIANTS,
-  PaintingVariant,
   setActivePaintingVariants,
-} from '../decoration.types';
+} from './painting-catalog';
 
 @Injectable({ providedIn: 'root' })
 export class PaintingVariantCatalogService {

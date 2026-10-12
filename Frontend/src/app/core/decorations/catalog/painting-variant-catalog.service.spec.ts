@@ -1,8 +1,7 @@
 import { computed } from '@angular/core';
 import { describe, expect, it } from 'vitest';
 import { PaintingVariantCatalogService } from './painting-variant-catalog.service';
-import { PaintingVariantCatalog } from './painting-catalog';
-import { allPaintingVariants, paintingVariant } from '../decoration.types';
+import { allPaintingVariants, PaintingVariantCatalog, paintingVariant } from './painting-catalog';
 
 describe('PaintingVariantCatalogService', () => {
   it('normalizes legacy vanilla variants and filters external paintings by source', () => {

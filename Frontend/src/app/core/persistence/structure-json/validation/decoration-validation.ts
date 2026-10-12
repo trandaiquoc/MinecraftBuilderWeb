@@ -1,5 +1,8 @@
 import type { PlacedDecoration } from '../../../decorations/decoration.types';
-import { allPaintingVariants, paintingVariant } from '../../../decorations/decoration.types';
+import {
+  allPaintingVariants,
+  paintingVariant,
+} from '../../../decorations/catalog/painting-catalog';
 import {
   decorationAabb,
   decorationInBounds,

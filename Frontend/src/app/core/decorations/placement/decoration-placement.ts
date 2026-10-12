@@ -4,9 +4,8 @@ import {
   DecorationKind,
   PaintingVariant,
   PlacedDecoration,
-  paintingVariant,
-  chooseRandomPaintingVariant,
 } from '../decoration.types';
+import { paintingVariant, chooseRandomPaintingVariant } from '../catalog/painting-catalog';
 
 export interface DecorationAabb {
   readonly min: { readonly x: number; readonly y: number; readonly z: number };

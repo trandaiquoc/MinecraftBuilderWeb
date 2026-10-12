@@ -12,7 +12,8 @@ import {
   paintingSupportFootprint,
   supportsDecoration,
 } from '../../decorations/placement/decoration-placement';
-import { paintingVariant, type PlacedDecoration } from '../../decorations/decoration.types';
+import type { PlacedDecoration } from '../../decorations/decoration.types';
+import { paintingVariant } from '../../decorations/catalog/painting-catalog';
 
 export interface GroupMovePreview {
   readonly groupId: string;

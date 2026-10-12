@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { PAINTING_VARIANTS, chooseRandomPaintingVariant } from './decoration.types';
+import { PAINTING_VARIANTS, chooseRandomPaintingVariant } from './painting-catalog';
 
-describe('decoration types and catalog', () => {
+describe('painting catalog', () => {
   it('keeps the verified painting catalog and chooses the largest fitting placeable variant', () => {
     expect(PAINTING_VARIANTS).toHaveLength(50);
     expect(chooseRandomPaintingVariant(4, 4, () => 0)?.id).toBe('pointer');
