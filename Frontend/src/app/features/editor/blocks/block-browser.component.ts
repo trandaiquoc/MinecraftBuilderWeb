@@ -24,7 +24,7 @@ import {
 import { sourceOptions } from '../../../shared/ui/content-source-selector/content-source-filter';
 import { ThumbnailVisibilityDirective } from '../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling';
-import type { ThumbnailTaskPriority } from '../../../core/assets/vanilla/thumbnail-task-queue';
+import type { ThumbnailTaskPriority } from '../../../core/assets/vanilla/thumbnails/thumbnail-task-queue';
 
 const BLOCK_GRID_TILE_WIDTH = 112;
 const BLOCK_GRID_GAP = 7;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ZipArchive } from '../archive/zip-archive';
+import { ZipArchive } from '../../archive/zip-archive';
 import { inspectModJar } from './external-mod-importer';
 import { MAX_JAR_UPLOAD_BYTES } from './jar-upload-validation';
 

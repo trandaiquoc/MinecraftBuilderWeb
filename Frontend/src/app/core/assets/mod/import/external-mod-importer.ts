@@ -1,12 +1,12 @@
-import { ZipArchive } from '../archive/zip-archive';
-import { ExternalModProvider } from './external-mod-provider';
+import { ZipArchive } from '../../archive/zip-archive';
+import { ExternalModProvider } from '../external-mod-provider';
 import { isModConflictDiagnostic } from './external-mod-import-contracts';
 import type { ModImportDiagnostic, ModImportReport } from './external-mod-import-contracts';
 import { detectLoader } from './mod-loader';
 import type { NormalizedModMetadata, SupportedModLoader } from './mod-loader';
-import { yieldToBrowser } from '../cooperative-yield';
+import { yieldToBrowser } from '../../cooperative-yield';
 import { validateJarUpload } from './jar-upload-validation';
-import { createPhaseWatchdog, throwIfAborted } from './mod-import-cancellation';
+import { createPhaseWatchdog, throwIfAborted } from '../mod-import-cancellation';
 
 const RETAINED_RESOURCE_PATH =
   /^(?:assets|data)\/[^/]+\/(?:blockstates|models|items|textures|lang|atlases|tags\/block|tags\/item|tags\/painting_variant|painting_variant)\/.+\.(?:json|png|png\.mcmeta)$|^(?:[^/]+\/)*[^/]+\.class$/;

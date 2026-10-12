@@ -1,19 +1,19 @@
-import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
-import { BlockCatalog } from '../../blocks/catalog/block-catalog';
-import { buildPlaceableItems } from '../../blocks/placement-palette/placeable-item';
+import type { BlockDefinition } from '../../../blocks/catalog/block-definition.types';
+import type { CatalogItemEvidence } from '../../../blocks/catalog/block-definition.types';
+import { BlockCatalog } from '../../../blocks/catalog/block-catalog';
+import { buildPlaceableItems } from '../../../blocks/placement-palette/placeable-item';
 import type {
   PlaceableItemDefinition,
   PlaceableItemEvidence,
-} from '../../blocks/placement-palette/placeable-item.types';
+} from '../../../blocks/placement-palette/placeable-item.types';
 import {
   classifyBlockDefinition,
   classifyContent,
   isDecorationEntityId,
   isTechnicalBlockId,
   type MinecraftContentKind,
-} from '../../content/content-classifier';
-import type { VanillaAssetInspectionView } from './vanilla-asset-provider';
+} from '../../../content/content-classifier';
+import type { VanillaAssetInspectionView } from '../vanilla-asset-provider';
 
 export interface ContentDomainAudit {
   readonly counts: Readonly<Record<MinecraftContentKind, number>>;

@@ -1,17 +1,17 @@
 import type {
   AssetBlockRecord,
   CatalogItemEvidence,
-} from '../../blocks/catalog/block-definition.types';
-import type { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
-import type { ContentSourceProvider } from '../content-source/content-source.types';
-import type { PaintingVariant } from '../../decorations/decoration.types';
+} from '../../../blocks/catalog/block-definition.types';
+import type { BlockCatalogSource } from '../../../blocks/catalog/block-catalog';
+import type { ContentSourceProvider } from '../../content-source/content-source.types';
+import type { PaintingVariant } from '../../../decorations/decoration.types';
 import type {
   ContentSemanticEvidenceProvider,
   ContentSpecialVisualDescriptor,
-} from '../../content/content-introspection';
-import { ContentIntrospectionEngine } from '../../content/content-introspection';
-import { TagIndex } from '../../content/tag-index';
-import { stateDefinitionsFromBlockstate } from '../../content/normalized-predicate';
+} from '../../../content/content-introspection';
+import { ContentIntrospectionEngine } from '../../../content/content-introspection';
+import { TagIndex } from '../../../content/tag-index';
+import { stateDefinitionsFromBlockstate } from '../../../content/normalized-predicate';
 import { externalItemEvidence } from './external-mod-item-evidence';
 import { discoverPaintingVariants } from './external-mod-painting-catalog';
 import { buildExternalTrustedBehaviorEvidence } from './external-mod-behavior-evidence';
@@ -19,10 +19,10 @@ import {
   addVerifiedSignPlacementVariants,
   buildExternalSignVisualIndex,
 } from './external-mod-sign-catalog';
-import { evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
-import type { BehaviorClassificationSummary } from '../../block-behavior/compatibility/behavior-fingerprint';
-import { CooperativeWorkBudget, yieldToBrowser } from '../cooperative-yield';
-import { throwIfAborted } from './mod-import-cancellation';
+import { evaluateCommonBehavior } from '../../../block-behavior/compatibility/common-behavior';
+import type { BehaviorClassificationSummary } from '../../../block-behavior/compatibility/behavior-fingerprint';
+import { CooperativeWorkBudget, yieldToBrowser } from '../../cooperative-yield';
+import { throwIfAborted } from '../mod-import-cancellation';
 
 export { discoverPaintingVariants } from './external-mod-painting-catalog';
 export { externalItemEvidence } from './external-mod-item-evidence';

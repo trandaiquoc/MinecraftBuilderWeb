@@ -4,13 +4,13 @@ import { AssetActivityService } from '../../../../core/assets/asset-activity.ser
 import {
   ModImportProgress,
   PreparedModImport,
-} from '../../../../core/assets/mod/external-mod-importer';
+} from '../../../../core/assets/mod/import/external-mod-importer';
 import { ModImportTimeoutError } from '../../../../core/assets/mod/mod-import-cancellation';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import {
   JarUploadValidationError,
   validateJarUpload,
-} from '../../../../core/assets/mod/jar-upload-validation';
+} from '../../../../core/assets/mod/import/jar-upload-validation';
 import { phaseLabels, type ImportOperationStatus } from './asset-manager-mod-presentation';
 
 @Injectable()

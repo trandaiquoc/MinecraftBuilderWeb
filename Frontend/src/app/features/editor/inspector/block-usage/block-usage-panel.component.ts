@@ -11,7 +11,7 @@ import { WorkspaceStateService } from '../../../../core/workspace/workspace-stat
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ThumbnailVisibilityDirective } from '../../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
 import type { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item.types';
-import type { ThumbnailTaskPriority } from '../../../../core/assets/vanilla/thumbnail-task-queue';
+import type { ThumbnailTaskPriority } from '../../../../core/assets/vanilla/thumbnails/thumbnail-task-queue';
 
 type UsageSort = 'count-desc' | 'count-asc' | 'name-asc' | 'name-desc';
 

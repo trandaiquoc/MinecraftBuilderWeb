@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
-import type { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
-import type { VanillaAssetProvider } from './vanilla-asset-provider';
+import type { PlaceableItemDefinition } from '../../../blocks/placement-palette/placeable-item.types';
+import type { VanillaBlockVisualProvider } from '../../../renderer/geometry/vanilla-block-visual-provider';
+import type { VanillaAssetProvider } from '../vanilla-asset-provider';
 import { AssetThumbnailService } from './asset-thumbnail-service';
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));

@@ -1,7 +1,7 @@
-import type { PaintingVariant } from '../../decorations/decoration.types';
-import { paintingTextureResource } from '../../decorations/decoration.types';
-import { resolveResourceLocation } from '../../content/resource-location';
-import { TagIndex } from '../../content/tag-index';
+import type { PaintingVariant } from '../../../decorations/decoration.types';
+import { paintingTextureResource } from '../../../decorations/decoration.types';
+import { resolveResourceLocation } from '../../../content/resource-location';
+import { TagIndex } from '../../../content/tag-index';
 
 export function discoverPaintingVariants(
   json: Readonly<Record<string, unknown>>,

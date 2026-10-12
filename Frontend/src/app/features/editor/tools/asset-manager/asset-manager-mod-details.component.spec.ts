@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 import type { ImportedModSummary } from '../../../../core/assets/content-asset-runtime.service';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
-import { ModSupportCatalog } from '../../../../core/assets/mod/mod-support-catalog';
+import { ModSupportCatalog } from '../../../../core/assets/mod/catalog/mod-support-catalog';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
 import type { ItemCatalogEntry } from '../../../../core/items/catalog/item-catalog';

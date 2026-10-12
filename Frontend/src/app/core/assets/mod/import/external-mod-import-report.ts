@@ -1,5 +1,5 @@
-import { discoverPaintingVariants } from './external-mod-painting-catalog';
-import { externalItemEvidence } from './external-mod-item-evidence';
+import { discoverPaintingVariants } from '../catalog/external-mod-painting-catalog';
+import { externalItemEvidence } from '../catalog/external-mod-item-evidence';
 import {
   isModConflictDiagnostic,
   type ModImportDiagnostic,

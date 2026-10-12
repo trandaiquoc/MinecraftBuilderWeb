@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import type { NormalizedModMetadata, SupportedModLoader } from './mod-loader';
+import type { NormalizedModMetadata, SupportedModLoader } from '../import/mod-loader';
 
 export interface ModSupportCertification {
   readonly modId: string;

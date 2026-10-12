@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { auditVanillaAssets, classifyVisualSupport } from './vanilla-asset-audit';
 import { coverageReportMarkdown } from './vanilla-asset-audit-report';
 import { auditContentDomains, auditPaletteLeaks } from './vanilla-content-domain-audit';
-import { VanillaAssetProvider } from './vanilla-asset-provider';
-import { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
+import { VanillaAssetProvider } from '../vanilla-asset-provider';
+import { VanillaBlockVisualProvider } from '../../../renderer/geometry/vanilla-block-visual-provider';
 
 describe('vanilla asset coverage audit', () => {
   beforeEach(() => {

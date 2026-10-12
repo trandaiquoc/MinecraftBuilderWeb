@@ -1,9 +1,9 @@
-import type { BlockCapabilityProfile } from '../../blocks/capabilities/block-capability.types';
+import type { BlockCapabilityProfile } from '../../../blocks/capabilities/block-capability.types';
 import type {
   BehaviorSupportLevel,
   VisualSupportLevel,
-} from '../../blocks/catalog/block-definition.types';
-import type { VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
+} from '../../../blocks/catalog/block-definition.types';
+import type { VanillaBlockRegistry } from '../../../blocks/registry/vanilla-block-registry';
 import type { ContentDomainAudit } from './vanilla-content-domain-audit';
 
 export type AssetAuditReason =

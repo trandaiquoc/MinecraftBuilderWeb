@@ -1,5 +1,5 @@
 import { AfterViewInit, Directive, ElementRef, Input, OnDestroy, output } from '@angular/core';
-import type { ThumbnailTaskPriority } from '../../../core/assets/vanilla/thumbnail-task-queue';
+import type { ThumbnailTaskPriority } from '../../../core/assets/vanilla/thumbnails/thumbnail-task-queue';
 
 export interface VisibilityEvent {
   readonly priority: ThumbnailTaskPriority;

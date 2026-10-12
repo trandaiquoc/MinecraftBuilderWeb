@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { LucideCheckCircle2, LucideCircleX } from '@lucide/angular';
 import type { ImportedModSummary } from '../../../../core/assets/content-asset-runtime.service';
-import { ModSupportCatalog } from '../../../../core/assets/mod/mod-support-catalog';
+import { ModSupportCatalog } from '../../../../core/assets/mod/catalog/mod-support-catalog';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';

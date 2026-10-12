@@ -1,5 +1,5 @@
-import type { AssetBlockRecord } from '../../blocks/catalog/block-definition.types';
-import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
+import type { AssetBlockRecord } from '../../../blocks/catalog/block-definition.types';
+import type { ContentSpecialVisualDescriptor } from '../../../content/content-introspection';
 
 export function buildExternalSignVisualIndex(
   blockIds: ReadonlySet<string>,

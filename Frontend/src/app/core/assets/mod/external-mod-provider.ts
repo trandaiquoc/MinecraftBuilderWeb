@@ -2,23 +2,23 @@ import type { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
 import type { ContentSourceProvider } from '../content-source/content-source.types';
 import { CONTENT_SOURCE_MINECRAFT_VERSION } from '../content-source/content-source.types';
 import { textureResourcePath } from '../../content/resource-location';
-import { ExternalModCatalogBuilder } from './external-mod-catalog-builder';
-import type { ExternalCatalogProgress, ExternalModCatalog } from './external-mod-catalog-builder';
-import { evaluateMinecraftRequirement } from './minecraft-version-predicate';
-import { legacyFabricMetadata, normalizeFabricMetadata } from './mod-loader';
+import { ExternalModCatalogBuilder } from './catalog/external-mod-catalog-builder';
+import type { ExternalCatalogProgress, ExternalModCatalog } from './catalog/external-mod-catalog-builder';
+import { evaluateMinecraftRequirement } from './import/minecraft-version-predicate';
+import { legacyFabricMetadata, normalizeFabricMetadata } from './import/mod-loader';
 import type {
   FabricModMetadata,
   ModCompatibilityResult,
   NormalizedModMetadata,
-} from './mod-loader';
-import { buildExternalModImportReport } from './external-mod-import-report';
-import { EXTERNAL_MOD_CACHE_SCHEMA_VERSION } from './external-mod-import-contracts';
+} from './import/mod-loader';
+import { buildExternalModImportReport } from './import/external-mod-import-report';
+import { EXTERNAL_MOD_CACHE_SCHEMA_VERSION } from './import/external-mod-import-contracts';
 import type {
   ExternalModResourceInput,
   ModImportDiagnostic,
   ModImportReport,
   SerializedExternalMod,
-} from './external-mod-import-contracts';
+} from './import/external-mod-import-contracts';
 import type { PaintingVariant } from '../../decorations/decoration.types';
 import {
   SemanticManifestEvidenceProvider,

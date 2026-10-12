@@ -1,13 +1,13 @@
 import type {
   BehaviorSupportLevel,
   VisualSupportLevel,
-} from '../../blocks/catalog/block-definition.types';
+} from '../../../blocks/catalog/block-definition.types';
 import { auditContentDomains } from './vanilla-content-domain-audit';
 import type {
   VanillaAssetCoverageReport,
   VanillaAssetAuditRecord,
 } from './vanilla-asset-audit.types';
-import type { VanillaAssetInspectionView } from './vanilla-asset-provider';
+import type { VanillaAssetInspectionView } from '../vanilla-asset-provider';
 
 /** Aggregates completed entry audits into the stable coverage report contract. */
 export function buildVanillaAssetCoverage(

@@ -4,8 +4,8 @@ import type { PlaceableItemDefinition } from '../blocks/placement-palette/placea
 import { BlockLibraryService } from '../blocks/catalog/block-library.service';
 import { VanillaBlockVisualProvider } from '../renderer/geometry/vanilla-block-visual-provider';
 import { IndexedDbAssetCache } from './cache/indexeddb-asset-cache';
-import { AssetThumbnailService } from './vanilla/asset-thumbnail-service';
-import type { ThumbnailPreviewState } from './vanilla/asset-thumbnail-service';
+import { AssetThumbnailService } from './vanilla/thumbnails/asset-thumbnail-service';
+import type { ThumbnailPreviewState } from './vanilla/thumbnails/asset-thumbnail-service';
 import {
   VanillaAssetProvider,
   type VanillaAssetInspectionView,
@@ -26,8 +26,8 @@ import {
 import { ContentSourceCleanupError } from './content-source/composite-asset-provider';
 import { ExternalModProvider } from './mod/external-mod-provider';
 import type { BlockVisualProvider } from '../renderer/visuals/block-visual-provider-contract';
-import type { ModImportReport } from './mod/external-mod-import-contracts';
-import { ModImportProgress, PreparedModImport } from './mod/external-mod-importer';
+import type { ModImportReport } from './mod/import/external-mod-import-contracts';
+import { ModImportProgress, PreparedModImport } from './mod/import/external-mod-importer';
 import { ExternalModContentLifecycle } from './mod/external-mod-content-lifecycle';
 import {
   MojangVanillaAssetSource,
@@ -40,7 +40,7 @@ import { AssetActivityService } from './asset-activity.service';
 import { CompatibilityReport } from './vanilla/compatibility/compatibility.types';
 import { downloadCompatibilityReport } from './vanilla/compatibility/compatibility-report';
 import { PaintingVariantCatalogService } from '../decorations/catalog/painting-variant-catalog.service';
-import type { ThumbnailTaskPriority } from './vanilla/thumbnail-task-queue';
+import type { ThumbnailTaskPriority } from './vanilla/thumbnails/thumbnail-task-queue';
 import { isAbortError, throwIfAborted } from './mod/mod-import-cancellation';
 import { ContentOperationCoordinator } from './content-operation-coordinator';
 

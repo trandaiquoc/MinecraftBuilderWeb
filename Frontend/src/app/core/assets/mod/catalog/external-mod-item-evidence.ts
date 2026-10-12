@@ -1,7 +1,7 @@
 import {
   itemEvidenceFromResources,
   itemIdentityIndexFromResources,
-} from '../vanilla/format/item-evidence';
+} from '../../vanilla/format/item-evidence';
 
 export function externalItemEvidence(
   json: Readonly<Record<string, unknown>>,

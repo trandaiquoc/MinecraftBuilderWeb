@@ -1,7 +1,7 @@
 import type { AssetActivityEntry } from '../../../../core/assets/asset-activity.service';
-import type { ModImportProgress } from '../../../../core/assets/mod/external-mod-importer';
+import type { ModImportProgress } from '../../../../core/assets/mod/import/external-mod-importer';
 import type { TranslationKey } from '../../../../core/ui/localization/translation-catalogs';
-import type { ModImportReport } from '../../../../core/assets/mod/external-mod-import-contracts';
+import type { ModImportReport } from '../../../../core/assets/mod/import/external-mod-import-contracts';
 
 export type ImportStage =
   'reading' | 'compatibility' | 'resources' | 'content' | 'validation' | 'import';

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 import { VanillaAssetProvider } from '../assets/vanilla/vanilla-asset-provider';
-import { auditVanillaAssets } from '../assets/vanilla/vanilla-asset-audit';
+import { auditVanillaAssets } from '../assets/vanilla/audit/vanilla-asset-audit';
 import { GroupService } from '../editor/groups/group.service';
 import { HistoryService } from '../editor/history/history.service';
 import { SelectionService } from '../editor/selection/selection.service';

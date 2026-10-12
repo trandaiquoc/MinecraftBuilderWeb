@@ -18,16 +18,16 @@ import {
 import {
   ModImportProgress,
   PreparedModImport,
-} from '../../../../core/assets/mod/external-mod-importer';
+} from '../../../../core/assets/mod/import/external-mod-importer';
 import type {
   ModImportDiagnostic,
   ModImportReport,
-} from '../../../../core/assets/mod/external-mod-import-contracts';
+} from '../../../../core/assets/mod/import/external-mod-import-contracts';
 import {
   ModSupportCatalog,
   ModSupportCertification,
-} from '../../../../core/assets/mod/mod-support-catalog';
-import { SupportedModLoader } from '../../../../core/assets/mod/mod-loader';
+} from '../../../../core/assets/mod/catalog/mod-support-catalog';
+import { SupportedModLoader } from '../../../../core/assets/mod/import/mod-loader';
 import { AssetActivityService } from '../../../../core/assets/asset-activity.service';
 import type {
   AssetActivityEntry,
@@ -38,7 +38,7 @@ import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import {
   JarUploadValidationError,
   validateJarUpload,
-} from '../../../../core/assets/mod/jar-upload-validation';
+} from '../../../../core/assets/mod/import/jar-upload-validation';
 import { UiProgressComponent } from '../../../../shared/ui/progress/ui-progress.component';
 import {
   compactContentCount,

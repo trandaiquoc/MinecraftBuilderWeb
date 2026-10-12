@@ -14,7 +14,7 @@ import {
   auditVanillaAssets,
   VanillaAssetCoverageReport,
   VanillaAssetAuditRecord,
-} from '../../../../core/assets/vanilla/vanilla-asset-audit';
+} from '../../../../core/assets/vanilla/audit/vanilla-asset-audit';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';

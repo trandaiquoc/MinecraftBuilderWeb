@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import type {
   BlockDefinition,
   VisualSupportLevel,
-} from '../../blocks/catalog/block-definition.types';
-import { ResolverDiagnosticCode, BlockModelResolver } from '../../blocks/resolver';
-import { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
-import { texturePath } from './vanilla-asset-provider';
-import type { VanillaAssetInspectionView } from './vanilla-asset-provider';
+} from '../../../blocks/catalog/block-definition.types';
+import { ResolverDiagnosticCode, BlockModelResolver } from '../../../blocks/resolver';
+import { VanillaBlockVisualProvider } from '../../../renderer/geometry/vanilla-block-visual-provider';
+import { texturePath } from '../vanilla-asset-provider';
+import type { VanillaAssetInspectionView } from '../vanilla-asset-provider';
 import type { AssetAuditReason, VanillaAssetAuditRecord } from './vanilla-asset-audit.types';
 
 export async function auditVanillaAssetEntry(

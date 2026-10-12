@@ -5,7 +5,7 @@ import type {
   VanillaDownloadProgress,
 } from './mojang-vanilla-asset-source';
 import type { VanillaAssetProvider } from './vanilla-asset-provider';
-import { validateJarUpload } from '../mod/jar-upload-validation';
+import { validateJarUpload } from '../mod/import/jar-upload-validation';
 import { evaluateCompatibility } from './compatibility/compatibility-evaluator';
 import type { CompatibilityReport } from './compatibility/compatibility.types';
 

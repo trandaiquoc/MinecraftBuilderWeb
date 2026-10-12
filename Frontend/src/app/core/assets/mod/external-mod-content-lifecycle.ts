@@ -12,16 +12,16 @@ import type {
   ModImportDiagnostic,
   ModImportReport,
   SerializedExternalMod,
-} from './external-mod-import-contracts';
+} from './import/external-mod-import-contracts';
 import {
   commitModImport,
   inspectModJar,
   ModImportProgress,
   PreparedModImport,
-} from './external-mod-importer';
+} from './import/external-mod-importer';
 import { createPhaseWatchdog, isAbortError, throwIfAborted } from './mod-import-cancellation';
 import { yieldToBrowser } from '../cooperative-yield';
-import type { ExternalCatalogProgress } from './external-mod-catalog-builder';
+import type { ExternalCatalogProgress } from './catalog/external-mod-catalog-builder';
 
 export interface ImportedModSummary {
   readonly sourceId: string;
