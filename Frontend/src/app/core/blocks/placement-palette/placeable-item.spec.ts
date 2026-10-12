@@ -7,7 +7,7 @@ import {
   isWorldBlockSerializable,
   placementItemSearch,
 } from './placeable-item';
-import { VANILLA_PLACEABLE_MANIFEST } from './manifest/vanilla-placeable-manifest';
+import { VANILLA_PLACEABLE_MANIFEST } from './vanilla-placeable-manifest';
 import {
   canonicalPlaceableItemId,
   resolveConcreteBlockId,

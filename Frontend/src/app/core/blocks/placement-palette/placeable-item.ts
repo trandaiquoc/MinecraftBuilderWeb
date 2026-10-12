@@ -16,7 +16,7 @@ import type {
 import {
   vanillaPlaceableForConcreteId,
   VANILLA_PLACEABLE_MANIFEST,
-} from './manifest/vanilla-placeable-manifest';
+} from './vanilla-placeable-manifest';
 import { createPlaceablePreviewBlocks } from './logical-placement-preview';
 
 export type {
@@ -26,7 +26,7 @@ export type {
   PlaceablePlacementKind,
   PreviewRecipe,
 } from './placeable-item.types';
-export { VANILLA_PLACEABLE_MANIFEST } from './manifest/vanilla-placeable-manifest';
+export { VANILLA_PLACEABLE_MANIFEST } from './vanilla-placeable-manifest';
 export {
   canonicalPlaceableItemId,
   resolveConcreteBlockId,

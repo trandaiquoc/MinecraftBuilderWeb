@@ -1,4 +1,4 @@
-import type { PlaceableManifestEntry } from '../placeable-item.types';
+import type { PlaceableManifestEntry } from './placeable-item.types';
 
 const WOODS = [
   'oak',

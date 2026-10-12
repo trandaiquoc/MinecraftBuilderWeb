@@ -2,7 +2,7 @@ import type { BlockDefinition } from '../catalog/block-definition.types';
 import type { BlockState, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { PlacementContext } from '../../editor/placement/placement';
 import type { PlaceableItemDefinition } from './placeable-item.types';
-import { vanillaPlaceableForConcreteId } from './manifest/vanilla-placeable-manifest';
+import { vanillaPlaceableForConcreteId } from './vanilla-placeable-manifest';
 
 export function canonicalPlaceableItemId(
   concreteId: string,
