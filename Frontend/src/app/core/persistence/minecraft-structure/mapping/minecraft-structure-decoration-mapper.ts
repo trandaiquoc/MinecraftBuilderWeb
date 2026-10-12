@@ -6,6 +6,7 @@ import {
   paintingEntityPosition,
 } from '../../../decorations/placement/decoration-placement';
 import {
+  decorationEntityTypeId,
   type DecorationFacing,
   type PlacedDecoration,
 } from '../../../decorations/decoration.types';
@@ -56,12 +57,7 @@ export function mapDecoration(
       'Decoration raw data is outside the verified semantic mapper.',
       `decorations.${index}.raw`,
     );
-  const expectedEntityType =
-    decoration.kind === 'painting'
-      ? 'minecraft:painting'
-      : decoration.kind === 'item-frame'
-        ? 'minecraft:item_frame'
-        : 'minecraft:glow_item_frame';
+  const expectedEntityType = decorationEntityTypeId(decoration.kind);
   if (decoration.entityTypeId !== expectedEntityType)
     return failure(
       'invalid-decoration',
@@ -107,7 +103,7 @@ function mapPainting(
       pos: coordinateTuple(position.x, position.y, position.z),
       blockPos: coordinateTuple(decoration.anchor.x, decoration.anchor.y, decoration.anchor.z),
       nbt: compound({
-        id: stringTag('minecraft:painting'),
+        id: stringTag(decorationEntityTypeId('painting')),
         Pos: doubleList(position),
         TileX: intTag(decoration.anchor.x),
         TileY: intTag(decoration.anchor.y),

@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { classifyContent, isDecorationEntityId } from './content-classifier';
+import {
+  DECORATION_ENTITY_TYPE_IDS,
+  decorationEntityTypeId,
+} from '../../decorations/decoration.types';
 
 describe('content classification', () => {
   it('keeps decorations out of the block domain', () => {
-    for (const id of ['minecraft:item_frame', 'minecraft:glow_item_frame', 'minecraft:painting']) {
+    expect(DECORATION_ENTITY_TYPE_IDS).toEqual({
+      painting: 'minecraft:painting',
+      'item-frame': 'minecraft:item_frame',
+      'glow-item-frame': 'minecraft:glow_item_frame',
+    });
+    for (const [kind, id] of Object.entries(DECORATION_ENTITY_TYPE_IDS)) {
+      expect(decorationEntityTypeId(kind as keyof typeof DECORATION_ENTITY_TYPE_IDS)).toBe(id);
       expect(classifyContent({ id, hasItemEvidence: true })).toMatchObject({
         kind: 'decoration-entity',
         placeable: false,

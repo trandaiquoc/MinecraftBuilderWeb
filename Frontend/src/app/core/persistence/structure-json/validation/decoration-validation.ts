@@ -1,4 +1,7 @@
-import type { PlacedDecoration } from '../../../decorations/decoration.types';
+import {
+  decorationEntityTypeId,
+  type PlacedDecoration,
+} from '../../../decorations/decoration.types';
 import {
   allPaintingVariants,
   paintingVariant,
@@ -251,12 +254,7 @@ function validateDecorationEntry(
   addDecorationToSpatialIndex(candidateSpatial, {
     instanceId: `preview-${index}`,
     kind: decoration.kind,
-    entityTypeId:
-      decoration.kind === 'painting'
-        ? 'minecraft:painting'
-        : decoration.kind === 'item-frame'
-          ? 'minecraft:item_frame'
-          : 'minecraft:glow-item-frame',
+    entityTypeId: decorationEntityTypeId(decoration.kind),
     anchor: decoration.anchor,
     facing: decoration.facing,
     ...(decoration.kind === 'painting' ? { variantId: decoration.variantId } : {}),

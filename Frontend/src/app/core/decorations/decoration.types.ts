@@ -2,6 +2,17 @@ import type { VoxelCoordinate } from '../domain/voxel-coordinate.types';
 import type { ItemStackData } from '../items/item-stack.types';
 
 export type DecorationKind = 'painting' | 'item-frame' | 'glow-item-frame';
+export const DECORATION_ENTITY_TYPE_IDS = {
+  painting: 'minecraft:painting',
+  'item-frame': 'minecraft:item_frame',
+  'glow-item-frame': 'minecraft:glow_item_frame',
+} as const satisfies Record<DecorationKind, string>;
+export type DecorationEntityTypeId = (typeof DECORATION_ENTITY_TYPE_IDS)[DecorationKind];
+
+export function decorationEntityTypeId(kind: DecorationKind): DecorationEntityTypeId {
+  return DECORATION_ENTITY_TYPE_IDS[kind];
+}
+
 export type DecorationFacing = 'down' | 'up' | 'north' | 'south' | 'west' | 'east';
 
 /** Browser/catalog source metadata; this does not become placed-decoration data. */
@@ -16,8 +27,7 @@ export type DecorationItemStack = ItemStackData;
 export interface PlacedDecoration {
   readonly instanceId: string;
   readonly kind: DecorationKind;
-  readonly entityTypeId:
-    'minecraft:painting' | 'minecraft:item_frame' | 'minecraft:glow_item_frame';
+  readonly entityTypeId: DecorationEntityTypeId;
   /** The empty voxel immediately in front of the supporting block. */
   readonly anchor: VoxelCoordinate;
   readonly facing: DecorationFacing;

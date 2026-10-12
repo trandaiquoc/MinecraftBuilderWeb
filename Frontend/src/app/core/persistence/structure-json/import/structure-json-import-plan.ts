@@ -2,7 +2,10 @@ import type { BlockDefinition } from '../../../blocks/catalog/block-definition.t
 import { isBlockLocked } from '../../../editor/groups/group-membership';
 import { nextGroupId, uniqueGroupName } from '../../../editor/groups/group-naming';
 import type { ProjectDocument, PlacedBlock, ProjectGroup } from '../../../domain/project.types';
-import type { PlacedDecoration } from '../../../decorations/decoration.types';
+import {
+  decorationEntityTypeId,
+  type PlacedDecoration,
+} from '../../../decorations/decoration.types';
 import {
   projectBlockEntityDataFromStructureJson,
   type StructureJsonBlock,
@@ -409,7 +412,7 @@ function toPlacedDecoration(
     return {
       instanceId,
       kind: 'painting',
-      entityTypeId: 'minecraft:painting',
+      entityTypeId: decorationEntityTypeId('painting'),
       anchor: decoration.anchor,
       facing: decoration.facing,
       variantId: decoration.variantId,
@@ -417,8 +420,7 @@ function toPlacedDecoration(
   return {
     instanceId,
     kind: decoration.kind,
-    entityTypeId:
-      decoration.kind === 'item-frame' ? 'minecraft:item_frame' : 'minecraft:glow_item_frame',
+    entityTypeId: decorationEntityTypeId(decoration.kind),
     anchor: decoration.anchor,
     facing: decoration.facing,
     ...(decoration.item

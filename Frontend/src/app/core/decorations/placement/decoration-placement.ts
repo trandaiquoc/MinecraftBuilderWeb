@@ -1,5 +1,6 @@
 import { ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import {
+  decorationEntityTypeId,
   DecorationFacing,
   DecorationKind,
   PaintingVariant,
@@ -252,12 +253,7 @@ export function planDecorationPlacement(
         ))
       : undefined;
   if (active.kind === 'painting' && !variant) return { status: 'invalid', reason: 'out-of-bounds' };
-  const entityTypeId =
-    active.kind === 'painting'
-      ? 'minecraft:painting'
-      : active.kind === 'item-frame'
-        ? 'minecraft:item_frame'
-        : 'minecraft:glow_item_frame';
+  const entityTypeId = decorationEntityTypeId(active.kind);
   const decoration: PlacedDecoration = {
     instanceId: 'preview',
     kind: active.kind,

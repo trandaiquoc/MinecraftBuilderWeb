@@ -1,4 +1,5 @@
 import type { BlockBehavior, BlockItemEvidence } from '../../blocks/catalog/block-contracts.types';
+import { DECORATION_ENTITY_TYPE_IDS } from '../../decorations/decoration.types';
 import type {
   ContentClassification,
   ContentClassificationProvenance,
@@ -11,11 +12,7 @@ export type {
   MinecraftContentKind,
 } from './content-classifier.types';
 
-const DECORATION_IDS = new Set([
-  'minecraft:item_frame',
-  'minecraft:glow_item_frame',
-  'minecraft:painting',
-]);
+const DECORATION_IDS = new Set<string>(Object.values(DECORATION_ENTITY_TYPE_IDS));
 const TECHNICAL_IDS = new Set([
   'minecraft:air',
   'minecraft:cave_air',
