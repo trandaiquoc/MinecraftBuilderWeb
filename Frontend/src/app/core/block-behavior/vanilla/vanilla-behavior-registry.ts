@@ -517,23 +517,8 @@ const signRotationStates = GENERIC_BEHAVIOR_PROFILES.standingSign.stateDefinitio
 const hangingSignStates = GENERIC_BEHAVIOR_PROFILES.hangingSign.stateDefinitions;
 const vanillaShulkerBoxIds = [
   'minecraft:shulker_box',
-  'minecraft:white_shulker_box',
-  'minecraft:orange_shulker_box',
-  'minecraft:magenta_shulker_box',
-  'minecraft:light_blue_shulker_box',
-  'minecraft:yellow_shulker_box',
-  'minecraft:lime_shulker_box',
-  'minecraft:pink_shulker_box',
-  'minecraft:gray_shulker_box',
-  'minecraft:light_gray_shulker_box',
-  'minecraft:cyan_shulker_box',
-  'minecraft:purple_shulker_box',
-  'minecraft:blue_shulker_box',
-  'minecraft:brown_shulker_box',
-  'minecraft:green_shulker_box',
-  'minecraft:red_shulker_box',
-  'minecraft:black_shulker_box',
-] as const;
+  ...MINECRAFT_DYE_COLORS.map((color) => `minecraft:${color}_shulker_box`),
+];
 function standingSignMetadata(wood: string): BehaviorMetadata {
   return {
     ...profileMetadata(GENERIC_BEHAVIOR_PROFILES.standingSign, 'full'),
