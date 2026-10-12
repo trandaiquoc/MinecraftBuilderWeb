@@ -12,6 +12,7 @@ import {
 } from '../compatibility/behavior-profiles';
 import { MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
 import { MINECRAFT_WOOD_TYPES } from '../../domain/minecraft-wood-types';
+import { MINECRAFT_HEAD_VARIANTS } from '../../domain/minecraft-head-variants';
 
 export interface VanillaBehaviorResourceProvider {
   readJson(path: string): unknown | undefined;
@@ -124,8 +125,10 @@ export class VanillaBehaviorRegistry {
     this.explicit.set('minecraft:dandelion', floorSupportedMetadata);
     this.explicit.set('minecraft:chain', chainMetadata);
     this.explicit.set('minecraft:lantern', lanternMetadata);
-    for (const id of standingHeadIds) this.explicit.set(`minecraft:${id}`, standingHeadMetadata);
-    for (const id of wallHeadIds) this.explicit.set(`minecraft:${id}`, wallHeadMetadata);
+    for (const [standing, wall] of MINECRAFT_HEAD_VARIANTS) {
+      this.explicit.set(`minecraft:${standing}`, standingHeadMetadata);
+      this.explicit.set(`minecraft:${wall}`, wallHeadMetadata);
+    }
     for (const id of vanillaShulkerBoxIds) this.explicit.set(id, shulkerBoxMetadata);
     for (const id of vanillaAmethystAttachmentIds)
       this.explicit.set(id, amethystAttachmentMetadata);
@@ -530,24 +533,6 @@ const vanillaShulkerBoxIds = [
   'minecraft:green_shulker_box',
   'minecraft:red_shulker_box',
   'minecraft:black_shulker_box',
-] as const;
-const standingHeadIds = [
-  'creeper_head',
-  'dragon_head',
-  'piglin_head',
-  'player_head',
-  'skeleton_skull',
-  'wither_skeleton_skull',
-  'zombie_head',
-] as const;
-const wallHeadIds = [
-  'creeper_wall_head',
-  'dragon_wall_head',
-  'piglin_wall_head',
-  'player_wall_head',
-  'skeleton_wall_skull',
-  'wither_skeleton_wall_skull',
-  'zombie_wall_head',
 ] as const;
 function standingSignMetadata(wood: string): BehaviorMetadata {
   return {

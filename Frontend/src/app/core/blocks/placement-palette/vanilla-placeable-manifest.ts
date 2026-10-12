@@ -1,16 +1,8 @@
 import type { PlaceableManifestEntry } from './placeable-item.types';
 import { MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
 import { MINECRAFT_WOOD_TYPES } from '../../domain/minecraft-wood-types';
+import { MINECRAFT_HEAD_VARIANTS } from '../../domain/minecraft-head-variants';
 
-const HEADS = [
-  ['skeleton_skull', 'skeleton_wall_skull'],
-  ['wither_skeleton_skull', 'wither_skeleton_wall_skull'],
-  ['zombie_head', 'zombie_wall_head'],
-  ['creeper_head', 'creeper_wall_head'],
-  ['piglin_head', 'piglin_wall_head'],
-  ['player_head', 'player_wall_head'],
-  ['dragon_head', 'dragon_wall_head'],
-] as const;
 const CORAL = ['tube', 'brain', 'bubble', 'fire', 'horn'] as const;
 const TALL_PLANTS = [
   'sunflower',
@@ -71,7 +63,7 @@ function buildManifest(): readonly PlaceableManifestEntry[] {
       recipe: 'single',
     });
   }
-  for (const [standing, wall] of HEADS)
+  for (const [standing, wall] of MINECRAFT_HEAD_VARIANTS)
     entries.push({
       itemId: id(standing),
       concreteBlockIds: [id(standing), id(wall)],
