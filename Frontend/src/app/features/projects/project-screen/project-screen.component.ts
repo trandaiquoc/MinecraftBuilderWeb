@@ -2,7 +2,11 @@ import { DatePipe } from '@angular/common';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Component, computed, inject, signal } from '@angular/core';
 import { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
-import { ProjectSize, StructureMode } from '../../../core/domain/project.types';
+import {
+  DEFAULT_MINECRAFT_VERSION,
+  ProjectSize,
+  StructureMode,
+} from '../../../core/domain/project.types';
 import {
   DEFAULT_STRUCTURE_MODE,
   effectiveStructureModeForSize,
@@ -21,7 +25,6 @@ import {
   MojangRelease,
   MojangVersionService,
 } from '../../../core/assets/vanilla/mojang-vanilla-asset-source';
-import { DEFAULT_MINECRAFT_VERSION } from '../../../core/domain/project.types';
 import { SettingsDialogComponent } from '../../editor/settings/settings-dialog/settings-dialog.component';
 import type {
   StructureJsonProjectImportError,

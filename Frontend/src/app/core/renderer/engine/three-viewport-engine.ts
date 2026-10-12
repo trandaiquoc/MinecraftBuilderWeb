@@ -72,7 +72,10 @@ import { FaceLockedSelectionPlane } from '../../editor/selection/selection';
 import { structureBlockGuidePosition } from './guides/structure-block-guide';
 import { ViewportInteriorCullingOwner } from '../visibility/viewport-interior-culling-owner';
 import { exposedFaceDirections, SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
-import { fluidCoordinateFromHit } from '../interaction/viewport-raycast-controller';
+import {
+  fluidCoordinateFromHit,
+  ViewportRaycastController,
+} from '../interaction/viewport-raycast-controller';
 import {
   compileInstanceTemplates as compileInstanceTemplatesFromCache,
   mergeInstanceTemplateParts as mergeInstanceTemplatePartsFromCache,
@@ -213,11 +216,13 @@ import {
   type IsolateDecorationVisualSnapshot,
 } from '../isolation/group-isolation-presentation';
 import { EditingPlanePresenter } from '../presentation/editing-plane-presenter';
-import { SelectionOverlayPresenter } from '../presentation/selection-overlay-presenter';
+import {
+  DETAILED_SELECTION_OUTLINE_LIMIT,
+  SelectionOverlayPresenter,
+} from '../presentation/selection-overlay-presenter';
 import { applyBlockRenderRole } from '../presentation/block-render-role';
 import { projectPointerToAxisPlane } from '../interaction/viewport-pointer-projection';
 import { ViewportHoverController } from '../interaction/viewport-hover-controller';
-import { ViewportRaycastController } from '../interaction/viewport-raycast-controller';
 import { disposeObject } from '../presentation/renderer-resource-disposal';
 import { BlockGhostPresenter } from '../presentation/block-ghost-presenter';
 import { DecorationGhostPresenter } from '../presentation/decoration-ghost-presenter';
@@ -263,7 +268,6 @@ import {
   unitVoxelEnvelope,
   RENDER_CHUNK_SIZE,
 } from '../batching/render-chunk-geometry';
-import { DETAILED_SELECTION_OUTLINE_LIMIT } from '../presentation/selection-overlay-presenter';
 import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
 import { compareEmptySnapshots } from '../diagnostics/runtime/viewport-empty-transition-diff';
 import { renderFilterKey } from './reconciliation/viewport-render-signatures';

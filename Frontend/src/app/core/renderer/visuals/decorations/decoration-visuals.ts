@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { PlacedDecoration } from '../../../decorations/decoration.types';
-import { paintingTextureResource } from '../../../decorations/decoration.types';
+import { paintingTextureResource, PlacedDecoration } from '../../../decorations/decoration.types';
 import {
   decorationAabb,
   directionVector,

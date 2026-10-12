@@ -33,11 +33,11 @@ const providerModule = moduleSpecifier(
 );
 const auditModule = moduleSpecifier(
   dirname(testPath),
-  resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-audit'),
+  resolve(frontendRoot, 'src/app/core/assets/vanilla/audit/vanilla-asset-audit'),
 );
 const reportModule = moduleSpecifier(
   dirname(testPath),
-  resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-audit-report'),
+  resolve(frontendRoot, 'src/app/core/assets/vanilla/audit/vanilla-asset-audit-report'),
 );
 try {
   writeFileSync(
@@ -50,11 +50,45 @@ import { VanillaAssetProvider } from '${providerModule}';
 import { auditVanillaAssets } from '${auditModule}';
 import { coverageReportMarkdown } from '${reportModule}';
 describe('vanilla coverage command', () => it('writes the report', async () => {
-  const root = ${literalRoot}; const version = ${literalVersion};
-  const json = {}; const binary = new Map();
-  const visit = (directory) => { for (const entry of readdirSync(directory, { withFileTypes: true })) { const full = join(directory, entry.name); if (entry.isDirectory()) { visit(full); continue; } const path = relative(root, full).replaceAll('\\\\', '/'); if (!path.startsWith('assets/')) continue; if (path.endsWith('.json')) json[path] = JSON.parse(readFileSync(full, 'utf8')); else if (path.endsWith('.png')) binary.set(path, new Uint8Array(readFileSync(full))); } };
-  visit(root); Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: () => 'blob:audit' }); Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: () => undefined });
-  const report = await auditVanillaAssets(new VanillaAssetProvider('Mojang official Java ' + version + ' client.jar', version, json, binary), { decodeTexture: async () => true, batchSize: 32 });
+  const root = ${literalRoot};
+  const version = ${literalVersion};
+  const json = {};
+  const binary = new Map();
+  const visit = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(full);
+        continue;
+      }
+
+      const path = relative(root, full).replaceAll('\\\\', '/');
+      if (!path.startsWith('assets/')) continue;
+      if (path.endsWith('.json')) {
+        json[path] = JSON.parse(readFileSync(full, 'utf8'));
+      } else if (path.endsWith('.png')) {
+        binary.set(path, new Uint8Array(readFileSync(full)));
+      }
+    }
+  };
+  visit(root);
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: () => 'blob:audit',
+  });
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: () => undefined,
+  });
+  const report = await auditVanillaAssets(
+    new VanillaAssetProvider(
+      'Mojang official Java ' + version + ' client.jar',
+      version,
+      json,
+      binary,
+    ),
+    { decodeTexture: async () => true, batchSize: 32 },
+  );
   writeFileSync(${reportJsonPath}, JSON.stringify(report, null, 2) + '\\n');
   writeFileSync(${reportMarkdownPath}, coverageReportMarkdown(report) + '\\n');
 }, 120000));

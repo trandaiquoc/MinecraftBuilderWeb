@@ -1,10 +1,10 @@
 import { Injectable, signal } from '@angular/core';
 import { ProjectDocument } from '../domain/project.types';
 import { migrateProject } from '../domain/migrations';
-import { ProjectStore } from '../persistence/project-store/project-store.port';
 import {
   ProjectPersistenceMetadata,
   ProjectRecord,
+  ProjectStore,
 } from '../persistence/project-store/project-store.port';
 import { validateProject } from '../domain/validation';
 import { installWorkspaceRecoveryDiagnostics } from './workspace-recovery-diagnostics';

@@ -3,8 +3,10 @@ import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
-import { MinecraftStructureExportService } from '../../../core/persistence/minecraft-structure/export/minecraft-structure-export.service';
-import { preflightStructureExport } from '../../../core/persistence/minecraft-structure/export/minecraft-structure-export.service';
+import {
+  MinecraftStructureExportService,
+  preflightStructureExport,
+} from '../../../core/persistence/minecraft-structure/export/minecraft-structure-export.service';
 import { StructureNbtExportDialogComponent } from './structure-nbt-export-dialog.component';
 import type { ProjectDocument } from '../../../core/domain/project.types';
 

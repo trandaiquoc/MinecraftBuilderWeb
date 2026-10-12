@@ -1,7 +1,6 @@
-import { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
+import { BlockCatalog, BlockCatalogSource } from '../../blocks/catalog/block-catalog';
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
 import type { PaintingVariant } from '../../decorations/decoration.types';
-import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import {
   ContentSourceDescriptor,
   ContentSourceProvider,

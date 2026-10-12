@@ -90,6 +90,7 @@ architecture/clean-code refactor. In either mode, preserve behavior and do
 not invent unrelated product work.
 
 Do not introduce a new framework, state-management system, architectural layer, or infrastructure dependency unless:
+
 - the repository already uses it for the relevant purpose, or
 - the task explicitly requires it.
 

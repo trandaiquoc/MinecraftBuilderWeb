@@ -1,4 +1,4 @@
-import { ProjectSize, VoxelCoordinate } from '../../domain/project.types';
+import { ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import {
   DecorationFacing,
   DecorationKind,
@@ -7,7 +7,6 @@ import {
   paintingVariant,
   chooseRandomPaintingVariant,
 } from '../decoration.types';
-import { ProjectDocument } from '../../domain/project.types';
 
 export interface DecorationAabb {
   readonly min: { readonly x: number; readonly y: number; readonly z: number };

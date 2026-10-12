@@ -6,7 +6,7 @@ import { BlockLibraryService } from '../../../../core/blocks/catalog/block-libra
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { blockGroupNames } from '../../../../core/editor/groups/group-membership';
+import { blockGroupNames, isBlockLocked } from '../../../../core/editor/groups/group-membership';
 import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { DecorationInspectorComponent } from '../decoration-inspector/decoration-inspector.component';
 import { SignInspectorComponent } from '../sign-inspector/sign-inspector.component';
@@ -17,7 +17,6 @@ import {
 import { ItemDisplayInspectorComponent } from '../item-display-inspector/item-display-inspector.component';
 import { blockCapability } from '../../../../core/blocks/capabilities/block-capability-resolver';
 import { verifiedInventoryContainerSchema } from '../../../../core/block-entities/item-display/inventory-storage-schema';
-import { isBlockLocked } from '../../../../core/editor/groups/group-membership';
 import { InventoryStorageInspectorComponent } from '../inventory-storage-inspector/inventory-storage-inspector.component';
 import { DecoratedPotInspectorComponent } from '../decorated-pot-inspector/decorated-pot-inspector.component';
 import type { ContentPropertyDescriptor } from '../../../../core/content/content-introspection';

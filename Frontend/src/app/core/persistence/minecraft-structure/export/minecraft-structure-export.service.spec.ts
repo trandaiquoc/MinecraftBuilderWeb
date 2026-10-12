@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ProjectDocument } from '../../../domain/project.types';
 import { NbtifyMinecraftJavaCodec } from '../codec/nbtify-minecraft-java-codec';
 import {
+  MinecraftStructureExportService,
   prepareAndDownloadStructure,
   preflightStructureExport,
   type StructureExportDownloadPort,
 } from './minecraft-structure-export.service';
 import { BrowserDownloadService } from './browser-download.service';
-import { MinecraftStructureExportService } from './minecraft-structure-export.service';
 import { WorkspaceStateService } from '../../../workspace/workspace-state.service';
 import { UiPreferencesService } from '../../../ui/preferences/ui-preferences.service';
 
