@@ -10,7 +10,7 @@ export interface DecorationBrowserSource {
 }
 export const DECORATION_BROWSER_SOURCES: readonly DecorationBrowserSource[] = [{ id: 'vanilla' }];
 
-/** @deprecated Item stacks are shared domain data; keep this alias for persisted/API compatibility. */
+/** Domain name for the item stack attached to a placed decoration. */
 export type DecorationItemStack = ItemStackData;
 
 export interface PlacedDecoration {
