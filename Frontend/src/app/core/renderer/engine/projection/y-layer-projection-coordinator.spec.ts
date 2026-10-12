@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ProjectDocument, ResolvedPlacedBlock } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
+import type { ProjectDocument, ResolvedPlacedBlock } from '../../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
 import {
   YLayerProjectionCoordinator,
   type VisibleBlockProjectionEntry,

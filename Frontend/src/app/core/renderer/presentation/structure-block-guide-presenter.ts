@@ -5,7 +5,7 @@ import type { BlockVisualProvider } from '../visuals/block-visual-provider-contr
 import {
   applyStructureGuideBrightnessToObject,
   STRUCTURE_GUIDE_BRIGHTNESS,
-} from '../engine/block-brightness';
+} from '../engine/appearance/block-brightness';
 import { disposeObject } from './renderer-resource-disposal';
 
 export interface StructureBlockGuidePresenterCallbacks {

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { coordinateKey } from '../../domain/coordinates';
-import type { VoxelCoordinate } from '../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
+import type { VoxelCoordinate } from '../../../domain/project.types';
 import {
   planStructureReconciliation,
   type ReconciliationRepresentation,
 } from './structure-reconciliation-plan';
-import type { VisibleBlockProjectionEntry } from './y-layer-projection-coordinator';
+import type { VisibleBlockProjectionEntry } from '../projection/y-layer-projection-coordinator';
 
 function projection(position: VoxelCoordinate, signature = 'stone'): VisibleBlockProjectionEntry {
   return {

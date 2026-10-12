@@ -1,4 +1,4 @@
-import { VoxelCoordinate } from '../../domain/project.types';
+import { VoxelCoordinate } from '../../../domain/project.types';
 
 /**
  * Returns the helper voxel directly below the structure origin.

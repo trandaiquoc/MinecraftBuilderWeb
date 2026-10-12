@@ -1,42 +1,42 @@
-import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
-import { visibleBlockEntries } from '../../editor/viewport/visible-blocks';
-import { visibleLayerSet } from '../../editor/viewport/y-layer';
-import type { LayerBlockIndex } from '../../editor/viewport/y-layer';
-import { groupIdsOf } from '../../editor/groups/group-membership';
-import type { FluidWorldLookup } from '../fluids/fluid-state';
-import type { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
-import { fluidChunkKey } from '../fluids/fluid-mesh-core';
-import type { PlaceholderBatchRenderer } from '../batching/placeholder-batch-renderer';
-import type { StaticModelBatchRenderer } from '../batching/static-model-batch-renderer';
-import type { BlockHydrationJob } from '../visuals/block-representation-contracts';
-import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
-import type { BlockRepresentationCommitOwner } from '../visuals/block-representation-commit-owner';
-import type { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
-import type { ViewportHydrationLifecycleOwner } from '../hydration/viewport-hydration-lifecycle-owner';
-import type { RendererDiagnostics } from './renderer-diagnostics';
-import type { ViewportBlockIndexOwner } from './viewport-block-index-owner';
+import type { ProjectDocument, VoxelCoordinate } from '../../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
+import { visibleBlockEntries } from '../../../editor/viewport/visible-blocks';
+import { visibleLayerSet } from '../../../editor/viewport/y-layer';
+import type { LayerBlockIndex } from '../../../editor/viewport/y-layer';
+import { groupIdsOf } from '../../../editor/groups/group-membership';
+import type { FluidWorldLookup } from '../../fluids/fluid-state';
+import type { FluidRenderCoordinator } from '../../fluids/fluid-render-coordinator';
+import { fluidChunkKey } from '../../fluids/fluid-mesh-core';
+import type { PlaceholderBatchRenderer } from '../../batching/placeholder-batch-renderer';
+import type { StaticModelBatchRenderer } from '../../batching/static-model-batch-renderer';
+import type { BlockHydrationJob } from '../../visuals/block-representation-contracts';
+import type { BlockVisualProvider } from '../../visuals/block-visual-provider-contract';
+import type { BlockRepresentationCommitOwner } from '../../visuals/block-representation-commit-owner';
+import type { ViewportBlockHydrationPipeline } from '../../hydration/viewport-block-hydration-pipeline';
+import type { ViewportHydrationLifecycleOwner } from '../../hydration/viewport-hydration-lifecycle-owner';
+import type { RendererDiagnostics } from '../renderer-diagnostics';
+import type { ViewportBlockIndexOwner } from '../viewport-block-index-owner';
 import type {
   ViewportBlockRepresentationStore,
   RenderedBlockEntry,
-} from './viewport-block-representation-store';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
+} from '../viewport-block-representation-store';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
 import type {
   YLayerProjectionCoordinator,
   VisibleBlockProjectionEntry,
-} from './y-layer-projection-coordinator';
+} from '../projection/y-layer-projection-coordinator';
 import type { ViewportStructureSyncState } from './viewport-structure-sync-state';
-import type { ViewportHydrationSettlementOwner } from '../hydration/viewport-hydration-settlement-owner';
+import type { ViewportHydrationSettlementOwner } from '../../hydration/viewport-hydration-settlement-owner';
 import { blockRenderSignature, canonicalRenderOptions } from './viewport-render-signatures';
 import { planStructureReconciliation } from './structure-reconciliation-plan';
-import type { ViewportInteriorCullingOwner } from '../visibility/viewport-interior-culling-owner';
-import type { ChunkSurfaceRenderer } from '../terrain/chunk-surface-renderer';
-import type { SurfaceFaceBatchRenderer } from '../batching/surface-face-batch-renderer';
-import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../terrain/terrain-classifier';
+import type { ViewportInteriorCullingOwner } from '../../visibility/viewport-interior-culling-owner';
+import type { ChunkSurfaceRenderer } from '../../terrain/chunk-surface-renderer';
+import type { SurfaceFaceBatchRenderer } from '../../batching/surface-face-batch-renderer';
+import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../../terrain/terrain-classifier';
 import type {
   TerrainHydrationCandidate,
   ViewportTerrainWorkflowOwner,
-} from '../terrain/viewport-terrain-workflow-owner';
+} from '../../terrain/viewport-terrain-workflow-owner';
 
 type VisibleBlockEntry = VisibleBlockProjectionEntry;
 type PlacedBlock = ProjectDocument['blocks'][number];

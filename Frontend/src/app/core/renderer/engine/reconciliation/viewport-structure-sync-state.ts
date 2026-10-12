@@ -1,6 +1,6 @@
-import type { ProjectDocument } from '../../domain/project.types';
-import type { VoxelCoordinate } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
+import type { ProjectDocument } from '../../../domain/project.types';
+import type { VoxelCoordinate } from '../../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
 
 export interface ViewportStructureSyncSnapshot {
   readonly syncKey: string;

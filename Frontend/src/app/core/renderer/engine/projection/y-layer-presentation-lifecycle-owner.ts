@@ -1,23 +1,23 @@
-import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
-import { visibleLayerSet } from '../../editor/viewport/y-layer';
-import type { RendererDiagnostics } from './renderer-diagnostics';
-import type { ViewportBlockRepresentationStore } from './viewport-block-representation-store';
-import type { ViewportBlockIndexOwner } from './viewport-block-index-owner';
-import type { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
-import type { BlockHydrationJob } from '../visuals/block-representation-contracts';
-import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
-import type { StaticModelBatchRenderer } from '../batching/static-model-batch-renderer';
-import type { SurfaceFaceBatchRenderer } from '../batching/surface-face-batch-renderer';
-import type { PlaceholderBatchRenderer } from '../batching/placeholder-batch-renderer';
-import type { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
-import type { ViewportTerrainWorkflowOwner } from '../terrain/viewport-terrain-workflow-owner';
-import type { ChunkSurfaceRenderer } from '../terrain/chunk-surface-renderer';
-import type { ViewportInteriorCullingOwner } from '../visibility/viewport-interior-culling-owner';
-import type { ViewportProviderRefreshPipeline } from '../provider/viewport-provider-refresh-pipeline';
-import type { LayeredObjectPresentationOwner } from '../batching/layered-object-presentation-owner';
+import type { ProjectDocument, VoxelCoordinate } from '../../../domain/project.types';
+import type { ProjectMutationHint } from '../../../editor/mutations/project-mutation-hint';
+import { visibleLayerSet } from '../../../editor/viewport/y-layer';
+import type { RendererDiagnostics } from '../renderer-diagnostics';
+import type { ViewportBlockRepresentationStore } from '../viewport-block-representation-store';
+import type { ViewportBlockIndexOwner } from '../viewport-block-index-owner';
+import type { ViewportBlockHydrationPipeline } from '../../hydration/viewport-block-hydration-pipeline';
+import type { BlockHydrationJob } from '../../visuals/block-representation-contracts';
+import type { BlockVisualProvider } from '../../visuals/block-visual-provider-contract';
+import type { StaticModelBatchRenderer } from '../../batching/static-model-batch-renderer';
+import type { SurfaceFaceBatchRenderer } from '../../batching/surface-face-batch-renderer';
+import type { PlaceholderBatchRenderer } from '../../batching/placeholder-batch-renderer';
+import type { FluidRenderCoordinator } from '../../fluids/fluid-render-coordinator';
+import type { ViewportTerrainWorkflowOwner } from '../../terrain/viewport-terrain-workflow-owner';
+import type { ChunkSurfaceRenderer } from '../../terrain/chunk-surface-renderer';
+import type { ViewportInteriorCullingOwner } from '../../visibility/viewport-interior-culling-owner';
+import type { ViewportProviderRefreshPipeline } from '../../provider/viewport-provider-refresh-pipeline';
+import type { LayeredObjectPresentationOwner } from '../../batching/layered-object-presentation-owner';
 import type { YLayerProjectionCoordinator } from './y-layer-projection-coordinator';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
 import {
   YLayerPresentationOwner,
   type YLayerPresentationDecision,
@@ -85,7 +85,7 @@ interface PresentationScope {
   readonly options: () => ViewportRenderOptions;
   readonly provider: () => BlockVisualProvider | undefined;
   readonly providerGeneration: () => number;
-  readonly layerIndex: () => import('../../editor/viewport/y-layer').LayerBlockIndex | undefined;
+  readonly layerIndex: () => import('../../../editor/viewport/y-layer').LayerBlockIndex | undefined;
   readonly hasRepresentationPrewarm: () => boolean;
   readonly isDisposed: () => boolean;
 }

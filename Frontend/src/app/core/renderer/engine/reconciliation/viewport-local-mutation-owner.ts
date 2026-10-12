@@ -1,18 +1,18 @@
-import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
-import { isBlockVisibleForViewport } from '../../editor/viewport/visible-blocks';
-import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
-import { blockMutationHint } from '../../editor/mutations/project-mutation-hint';
-import { groupIdsOf } from '../../editor/groups/group-membership';
-import { planLocalRenderDelta } from '../mutations/local-render-delta';
-import { applyLocalFluidDelta } from '../mutations/local-fluid-render-delta';
-import { fluidChunkKey } from '../fluids/fluid-mesh-core';
-import type { TerrainBlockChange, TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
-import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../terrain/terrain-classifier';
-import type { TerrainHydrationCandidate } from '../terrain/viewport-terrain-workflow-owner';
-import type { HydrationLane } from '../scheduling/hydration/hydration-progress-tracker';
-import type { RenderedBlockEntry } from './viewport-block-representation-store';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
+import type { ProjectDocument, VoxelCoordinate } from '../../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
+import { isBlockVisibleForViewport } from '../../../editor/viewport/visible-blocks';
+import type { ProjectMutationHint } from '../../../editor/mutations/project-mutation-hint';
+import { blockMutationHint } from '../../../editor/mutations/project-mutation-hint';
+import { groupIdsOf } from '../../../editor/groups/group-membership';
+import { planLocalRenderDelta } from '../../mutations/local-render-delta';
+import { applyLocalFluidDelta } from '../../mutations/local-fluid-render-delta';
+import { fluidChunkKey } from '../../fluids/fluid-mesh-core';
+import type { TerrainBlockChange, TerrainSurfaceRecord } from '../../terrain/chunk-surface-renderer';
+import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../../terrain/terrain-classifier';
+import type { TerrainHydrationCandidate } from '../../terrain/viewport-terrain-workflow-owner';
+import type { HydrationLane } from '../../scheduling/hydration/hydration-progress-tracker';
+import type { RenderedBlockEntry } from '../viewport-block-representation-store';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
 import { canonicalRenderOptions } from './viewport-render-signatures';
 import type {
   ViewportStructureReconciliationOwner,

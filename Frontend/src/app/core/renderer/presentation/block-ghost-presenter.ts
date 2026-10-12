@@ -4,7 +4,7 @@ import type { PlacementPlan } from '../../block-behavior/placement/placement-pla
 import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import type { PlacementStatus } from '../../editor/placement/placement';
 import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
-import type { ViewportThemePalette } from '../engine/viewport-theme';
+import type { ViewportThemePalette } from '../engine/appearance/viewport-theme';
 import { disposeObject } from './renderer-resource-disposal';
 
 export interface BlockGhostPresenterCallbacks {

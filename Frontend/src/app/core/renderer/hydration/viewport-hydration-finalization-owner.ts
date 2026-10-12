@@ -9,11 +9,11 @@ import type {
   RenderedBlockEntry,
   ViewportBlockRepresentationStore,
 } from '../engine/viewport-block-representation-store';
-import type { ViewportStructureReconciliationOwner } from '../engine/viewport-structure-reconciliation-owner';
+import type { ViewportStructureReconciliationOwner } from '../engine/reconciliation/viewport-structure-reconciliation-owner';
 import type {
   YLayerProjectionCoordinator,
   VisibleBlockProjectionEntry,
-} from '../engine/y-layer-projection-coordinator';
+} from '../engine/projection/y-layer-projection-coordinator';
 import type { ViewportBlockHydrationPipeline } from './viewport-block-hydration-pipeline';
 import type { ViewportHydrationLifecycleOwner } from './viewport-hydration-lifecycle-owner';
 import type { ViewportHydrationSettlementOwner } from './viewport-hydration-settlement-owner';

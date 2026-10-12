@@ -5,7 +5,7 @@ import { renderChunkKey } from '../batching/render-chunk-geometry';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { ViewportBlockRepresentationStore } from '../engine/viewport-block-representation-store';
 import type { ViewportRenderOptions } from '../engine/viewport-engine-contracts';
-import type { VisibleBlockProjectionEntry } from '../engine/y-layer-presentation-owner';
+import type { VisibleBlockProjectionEntry } from '../engine/projection/y-layer-presentation-owner';
 import { meshTerrainCore } from './terrain-mesh-core';
 import type {
   TerrainMeshJob,

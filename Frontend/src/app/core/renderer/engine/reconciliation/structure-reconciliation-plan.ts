@@ -1,7 +1,7 @@
-import { coordinateKey } from '../../domain/coordinates';
-import type { VoxelCoordinate } from '../../domain/project.types';
-import { coordinateNeighbors } from '../visibility/interior-occlusion';
-import type { VisibleBlockProjectionEntry } from './y-layer-projection-coordinator';
+import { coordinateKey } from '../../../domain/coordinates';
+import type { VoxelCoordinate } from '../../../domain/project.types';
+import { coordinateNeighbors } from '../../visibility/interior-occlusion';
+import type { VisibleBlockProjectionEntry } from '../projection/y-layer-projection-coordinator';
 
 export interface ReconciliationRepresentation {
   readonly block: VisibleBlockProjectionEntry['block'];

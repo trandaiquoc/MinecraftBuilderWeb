@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { PlacedBlock, ProjectDocument } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
-import type { LayerBlockIndex } from '../../editor/viewport/y-layer';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
+import type { PlacedBlock, ProjectDocument } from '../../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
+import type { LayerBlockIndex } from '../../../editor/viewport/y-layer';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
 import {
   YLayerPresentationOwner,
   type YLayerPresentationReadiness,

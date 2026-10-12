@@ -1,35 +1,35 @@
-import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
+import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
 import type {
   BlockVisualProvider,
   BlockVisualResult,
-} from '../visuals/block-visual-provider-contract';
-import type { BlockRepresentationHydrationOwner } from '../visuals/block-representation-hydration-owner';
-import type { BlockHydrationJob } from '../visuals/block-representation-contracts';
-import type { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
+} from '../../visuals/block-visual-provider-contract';
+import type { BlockRepresentationHydrationOwner } from '../../visuals/block-representation-hydration-owner';
+import type { BlockHydrationJob } from '../../visuals/block-representation-contracts';
+import type { ViewportBlockHydrationPipeline } from '../../hydration/viewport-block-hydration-pipeline';
 import type {
   RenderedBlockEntry,
   ViewportBlockRepresentationStore,
-} from './viewport-block-representation-store';
-import type { ViewportBlockIndexOwner } from './viewport-block-index-owner';
+} from '../viewport-block-representation-store';
+import type { ViewportBlockIndexOwner } from '../viewport-block-index-owner';
 import type {
   ViewportRenderOptions,
   YLayerPrewarmOutcome,
   YLayerPrewarmTerminalNotification,
-} from './viewport-engine-contracts';
-import type { HydrationWorkOwnerToken } from '../scheduling/hydration/hydration-work-coordinator';
+} from '../viewport-engine-contracts';
+import type { HydrationWorkOwnerToken } from '../../scheduling/hydration/hydration-work-coordinator';
 import type {
   YLayerProjectionCoordinator,
   VisibleBlockProjectionEntry,
 } from './y-layer-projection-coordinator';
-import type { StaticModelBatchRenderer } from '../batching/static-model-batch-renderer';
-import type { CompiledInstanceTemplates } from '../batching/instance-template-cache';
-import type { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
-import type { ChunkSurfaceRenderer } from '../terrain/chunk-surface-renderer';
-import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
-import type { ViewportTerrainWorkflowOwner } from '../terrain/viewport-terrain-workflow-owner';
-import { blockRenderSignature } from './viewport-render-signatures';
-import { disposeObject } from '../presentation/renderer-resource-disposal';
+import type { StaticModelBatchRenderer } from '../../batching/static-model-batch-renderer';
+import type { CompiledInstanceTemplates } from '../../batching/instance-template-cache';
+import type { FluidRenderCoordinator } from '../../fluids/fluid-render-coordinator';
+import type { ChunkSurfaceRenderer } from '../../terrain/chunk-surface-renderer';
+import type { SurfaceFaceTemplate } from '../../batching/surface-face-batch-renderer';
+import type { ViewportTerrainWorkflowOwner } from '../../terrain/viewport-terrain-workflow-owner';
+import { blockRenderSignature } from '../reconciliation/viewport-render-signatures';
+import { disposeObject } from '../../presentation/renderer-resource-disposal';
 import {
   YLayerVisualPreloader,
   yieldYLayerPreloadToBrowser,

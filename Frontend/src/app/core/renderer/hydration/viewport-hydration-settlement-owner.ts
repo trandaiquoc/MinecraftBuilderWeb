@@ -16,7 +16,7 @@ import type {
 import type {
   YLayerProjectionCoordinator,
   VisibleBlockProjectionEntry,
-} from '../engine/y-layer-projection-coordinator';
+} from '../engine/projection/y-layer-projection-coordinator';
 
 export interface ViewportHydrationSettlementOwners {
   readonly hydration: ViewportBlockHydrationPipeline<BlockHydrationJob>;

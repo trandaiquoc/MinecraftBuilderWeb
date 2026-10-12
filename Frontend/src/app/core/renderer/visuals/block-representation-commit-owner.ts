@@ -12,7 +12,7 @@ import type {
   RenderedBlockEntry,
   ViewportBlockRepresentationStore,
 } from '../engine/viewport-block-representation-store';
-import type { VisibleBlockProjectionEntry } from '../engine/y-layer-projection-coordinator';
+import type { VisibleBlockProjectionEntry } from '../engine/projection/y-layer-projection-coordinator';
 import type { BlockRepresentationResourceOwner } from './block-representation-resource-owner';
 import type {
   BlockHydrationJob,

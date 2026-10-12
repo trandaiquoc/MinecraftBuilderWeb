@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { ViewportThemePalette } from '../engine/viewport-theme';
+import type { ViewportThemePalette } from '../engine/appearance/viewport-theme';
 import { disposeObject } from './renderer-resource-disposal';
 
 export interface DecorationSelectionPresenterCallbacks {

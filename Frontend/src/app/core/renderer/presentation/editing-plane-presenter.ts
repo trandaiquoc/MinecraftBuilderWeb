@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { ProjectDocument } from '../../domain/project.types';
 import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
-import type { ViewportThemePalette } from '../engine/viewport-theme';
+import type { ViewportThemePalette } from '../engine/appearance/viewport-theme';
 
 /** Owns only the transient Y-layer plane and grid visuals. */
 export class EditingPlanePresenter {

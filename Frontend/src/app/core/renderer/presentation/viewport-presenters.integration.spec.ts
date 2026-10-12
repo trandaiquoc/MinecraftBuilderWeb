@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { rendererBenchmarkProject } from '../benchmark/renderer-benchmark-fixtures';
-import { viewportThemePalette } from '../engine/viewport-theme';
+import { viewportThemePalette } from '../engine/appearance/viewport-theme';
 import { BlockGhostPresenter } from './block-ghost-presenter';
 import { DecorationGhostPresenter } from './decoration-ghost-presenter';
 import { EditingPlanePresenter } from './editing-plane-presenter';

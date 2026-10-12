@@ -1,4 +1,4 @@
-import type { VisibleBlockProjectionEntry } from '../engine/y-layer-projection-coordinator';
+import type { VisibleBlockProjectionEntry } from '../engine/projection/y-layer-projection-coordinator';
 
 /** Owns the source-restore terminal policy for unresolved block entries. */
 export class MissingBlockAccountingOwner {

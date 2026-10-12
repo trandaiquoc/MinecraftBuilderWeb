@@ -17,7 +17,7 @@ import type { PlacementPlan } from '../../block-behavior/placement/placement-pla
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
 import { coordinateKey } from '../../domain/coordinates';
-import { viewportThemePalette } from './viewport-theme';
+import { viewportThemePalette } from './appearance/viewport-theme';
 import {
   blockMutationHint,
   metadataMutationHint,
@@ -26,7 +26,7 @@ import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 import { ViewportRuntimeTrace } from '../diagnostics/trace/viewport-runtime-trace';
 import { ViewportCameraMotionController } from '../scheduling/camera/viewport-camera-motion-controller';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
-import type { YLayerPresentationReadiness } from './y-layer-presentation-owner';
+import type { YLayerPresentationReadiness } from './projection/y-layer-presentation-owner';
 import { deriveViewportFinalizationState } from '../../editor/state/viewport-finalization-coordinator';
 
 describe('camera movement input contract', () => {

@@ -1,37 +1,37 @@
-import type { ProjectDocument } from '../../domain/project.types';
-import type { HydrationBlockScopeDelta } from '../scheduling/hydration/hydration-progress-tracker';
-import type { BlockHydrationJob } from '../visuals/block-representation-contracts';
-import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
-import type { BlockRepresentationCommitOwner } from '../visuals/block-representation-commit-owner';
-import type { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
+import type { ProjectDocument } from '../../../domain/project.types';
+import type { HydrationBlockScopeDelta } from '../../scheduling/hydration/hydration-progress-tracker';
+import type { BlockHydrationJob } from '../../visuals/block-representation-contracts';
+import type { BlockVisualProvider } from '../../visuals/block-visual-provider-contract';
+import type { BlockRepresentationCommitOwner } from '../../visuals/block-representation-commit-owner';
+import type { ViewportBlockHydrationPipeline } from '../../hydration/viewport-block-hydration-pipeline';
 import type {
   FluidRenderCoordinator,
   ProjectionFluidChange,
-} from '../fluids/fluid-render-coordinator';
-import type { FluidWorldLookup } from '../fluids/fluid-state';
-import { fluidChunkKey } from '../fluids/fluid-mesh-core';
-import type { ViewportInteriorCullingOwner } from '../visibility/viewport-interior-culling-owner';
-import type { StaticModelBatchRenderer } from '../batching/static-model-batch-renderer';
-import type { SurfaceFaceBatchRenderer } from '../batching/surface-face-batch-renderer';
-import type { ChunkSurfaceRenderer, TerrainBlockChange } from '../terrain/chunk-surface-renderer';
+} from '../../fluids/fluid-render-coordinator';
+import type { FluidWorldLookup } from '../../fluids/fluid-state';
+import { fluidChunkKey } from '../../fluids/fluid-mesh-core';
+import type { ViewportInteriorCullingOwner } from '../../visibility/viewport-interior-culling-owner';
+import type { StaticModelBatchRenderer } from '../../batching/static-model-batch-renderer';
+import type { SurfaceFaceBatchRenderer } from '../../batching/surface-face-batch-renderer';
+import type { ChunkSurfaceRenderer, TerrainBlockChange } from '../../terrain/chunk-surface-renderer';
 import type {
   ViewportTerrainWorkflowOwner,
   TerrainHydrationCandidate,
-} from '../terrain/viewport-terrain-workflow-owner';
-import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
-import type { RendererDiagnostics } from './renderer-diagnostics';
-import type { ViewportBlockIndexOwner } from './viewport-block-index-owner';
+} from '../../terrain/viewport-terrain-workflow-owner';
+import { isCompiledTerrainEntry } from '../../terrain/terrain-classifier';
+import type { RendererDiagnostics } from '../renderer-diagnostics';
+import type { ViewportBlockIndexOwner } from '../viewport-block-index-owner';
 import type {
   ViewportBlockRepresentationStore,
   RenderedBlockEntry,
-} from './viewport-block-representation-store';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
-import { blockRenderSignature } from './viewport-render-signatures';
+} from '../viewport-block-representation-store';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
+import { blockRenderSignature } from '../reconciliation/viewport-render-signatures';
 import type {
   YLayerProjectionCoordinator,
   VisibleBlockProjectionEntry,
 } from './y-layer-projection-coordinator';
-import type { ViewportStructureSyncState } from './viewport-structure-sync-state';
+import type { ViewportStructureSyncState } from '../reconciliation/viewport-structure-sync-state';
 import type { YLayerRepresentationPrewarmOwner } from './y-layer-representation-prewarm-owner';
 
 export interface YLayerProjectionCommitVisualPorts {
@@ -48,7 +48,7 @@ export interface YLayerProjectionCommitVisualPorts {
     world: {
       readonly visualRevisionKey: number;
       getBlock(
-        position: import('../../domain/project.types').VoxelCoordinate,
+        position: import('../../../domain/project.types').VoxelCoordinate,
       ): ProjectDocument['blocks'][number] | undefined;
     },
     options: ViewportRenderOptions,
@@ -172,7 +172,7 @@ export class YLayerProjectionCommitOwner {
 
     const worldContext = {
       visualRevisionKey: this.blockIndex.visualRevision,
-      getBlock: (position: import('../../domain/project.types').VoxelCoordinate) =>
+      getBlock: (position: import('../../../domain/project.types').VoxelCoordinate) =>
         this.blockIndex.get(position),
     };
     const fluidKeys = this.applyFluidRepresentationDelta(changes, worldContext);

@@ -1,23 +1,23 @@
-import type { ProjectDocument, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
-import { planYLayerProjectionDelta, type LayerBlockIndex } from '../../editor/viewport/y-layer';
-import { isBlockVisibleForViewport } from '../../editor/viewport/visible-blocks';
+import type { ProjectDocument, PlacedBlock, VoxelCoordinate } from '../../../domain/project.types';
+import { planYLayerProjectionDelta, type LayerBlockIndex } from '../../../editor/viewport/y-layer';
+import { isBlockVisibleForViewport } from '../../../editor/viewport/visible-blocks';
 import type {
   ViewportProjectionActivity,
   ViewportProjectionState,
-} from '../diagnostics/viewport-diagnostics-contracts';
+} from '../../diagnostics/viewport-diagnostics-contracts';
 import {
   cancelViewportFrame,
   requestViewportFrame,
-} from '../scheduling/camera/viewport-camera-input-controller';
-import type { OcclusionClass } from '../visibility/interior-occlusion';
-import { coordinateKey } from '../../domain/coordinates';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
+} from '../../scheduling/camera/viewport-camera-input-controller';
+import type { OcclusionClass } from '../../visibility/interior-occlusion';
+import { coordinateKey } from '../../../domain/coordinates';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
 import {
   blockRenderSignature,
   canonicalRenderOptions,
   renderFilterKey,
-} from './viewport-render-signatures';
-import { yieldToBrowser } from '../../assets/cooperative-yield';
+} from '../reconciliation/viewport-render-signatures';
+import { yieldToBrowser } from '../../../assets/cooperative-yield';
 import {
   YLayerPresentationOwner,
   type VisibleBlockProjectionEntry,

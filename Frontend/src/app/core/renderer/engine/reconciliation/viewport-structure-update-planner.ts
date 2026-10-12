@@ -1,9 +1,9 @@
-import type { ProjectDocument } from '../../domain/project.types';
-import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
-import type { LayerBlockIndex } from '../../editor/viewport/y-layer';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
+import type { ProjectDocument } from '../../../domain/project.types';
+import type { ProjectMutationHint } from '../../../editor/mutations/project-mutation-hint';
+import type { LayerBlockIndex } from '../../../editor/viewport/y-layer';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
 import { isolateKey, renderFilterKey } from './viewport-render-signatures';
-import type { YLayerProjectionCoordinator } from './y-layer-projection-coordinator';
+import type { YLayerProjectionCoordinator } from '../projection/y-layer-projection-coordinator';
 import type { ViewportStructureSyncSnapshot } from './viewport-structure-sync-state';
 import { ViewportStructureSyncState } from './viewport-structure-sync-state';
 

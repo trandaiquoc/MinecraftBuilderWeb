@@ -1,6 +1,6 @@
 import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import type { ViewportRenderOptions } from '../engine/viewport-engine-contracts';
-import type { VisibleBlockProjectionEntry } from '../engine/y-layer-projection-coordinator';
+import type { VisibleBlockProjectionEntry } from '../engine/projection/y-layer-projection-coordinator';
 import type { BlockVisualResult } from './block-visual-provider-contract';
 import type { RenderedBlockEntry } from '../engine/viewport-block-representation-store';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';

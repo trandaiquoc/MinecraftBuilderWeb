@@ -3,7 +3,7 @@ import type { ProjectDocument } from '../../domain/project.types';
 import type { GroupMovePreview } from '../../editor/groups/group-move-planner';
 import { createDecorationVisual, type DecorationTextureCache } from '../visuals/decorations/decoration-visuals';
 import type { ResolvedItemVisual } from '../visuals/items/item-visual-resolver';
-import type { ViewportThemePalette } from '../engine/viewport-theme';
+import type { ViewportThemePalette } from '../engine/appearance/viewport-theme';
 
 export interface MovePreviewPresenterCallbacks {
   readonly getBlock: (

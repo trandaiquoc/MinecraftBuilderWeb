@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { VoxelCoordinate } from '../../domain/project.types';
-import type { ViewportThemePalette } from '../engine/viewport-theme';
+import type { ViewportThemePalette } from '../engine/appearance/viewport-theme';
 
 export const DETAILED_SELECTION_OUTLINE_LIMIT = 256;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
+import type { ProjectDocument, VoxelCoordinate } from '../../../domain/project.types';
 import { ViewportStructureSyncState } from './viewport-structure-sync-state';
 
 const project = (): ProjectDocument => ({

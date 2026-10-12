@@ -26,7 +26,7 @@ import {
 import { groupIdsOf, isBlockVisible } from '../../editor/groups/group-membership';
 import { isDecorationVisible, decorationHasGroup } from '../../editor/groups/decoration-membership';
 import type { GroupMovePreview } from '../../editor/groups/group-move-planner';
-import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
+import { ViewportThemePalette, viewportThemePalette } from './appearance/viewport-theme';
 import type {
   BlockVisualProvider,
   BlockVisualResult,
@@ -62,14 +62,14 @@ import {
   normalizeBlockBrightness,
   viewportLightingForBrightness,
   ViewportLighting,
-} from './viewport-lighting';
+} from './appearance/viewport-lighting';
 import {
   applyBlockBrightnessToMaterial,
   applyBlockBrightnessToObject,
   setBlockBrightnessBaseColor,
-} from './block-brightness';
+} from './appearance/block-brightness';
 import { FaceLockedSelectionPlane } from '../../editor/selection/selection';
-import { structureBlockGuidePosition } from './structure-block-guide';
+import { structureBlockGuidePosition } from './guides/structure-block-guide';
 import { ViewportInteriorCullingOwner } from '../visibility/viewport-interior-culling-owner';
 import { exposedFaceDirections, SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 import { fluidCoordinateFromHit } from '../interaction/viewport-raycast-controller';
@@ -228,25 +228,25 @@ import { DecorationSelectionPresenter } from '../presentation/decoration-selecti
 import {
   YLayerProjectionCoordinator,
   type VisibleBlockProjectionEntry,
-} from './y-layer-projection-coordinator';
-import { YLayerPresentationOwner } from './y-layer-presentation-owner';
+} from './projection/y-layer-projection-coordinator';
+import { YLayerPresentationOwner } from './projection/y-layer-presentation-owner';
 import {
   YLayerRepresentationPrewarmOwner,
   type YLayerRepresentationPrewarmEvidence,
-} from './y-layer-representation-prewarm-owner';
-import { YLayerPresentationLifecycleOwner } from './y-layer-presentation-lifecycle-owner';
-import { YLayerProjectionCommitOwner } from './y-layer-projection-commit-owner';
-import type { YLayerVisualPreloadEvidence } from './y-layer-visual-preloader';
-import { ViewportStructureSyncState } from './viewport-structure-sync-state';
-import { ViewportStructureUpdatePlanner } from './viewport-structure-update-planner';
+} from './projection/y-layer-representation-prewarm-owner';
+import { YLayerPresentationLifecycleOwner } from './projection/y-layer-presentation-lifecycle-owner';
+import { YLayerProjectionCommitOwner } from './projection/y-layer-projection-commit-owner';
+import type { YLayerVisualPreloadEvidence } from './projection/y-layer-visual-preloader';
+import { ViewportStructureSyncState } from './reconciliation/viewport-structure-sync-state';
+import { ViewportStructureUpdatePlanner } from './reconciliation/viewport-structure-update-planner';
 import {
   ViewportStructureReconciliationOwner,
   type ViewportStructureReconciliationPorts,
-} from './viewport-structure-reconciliation-owner';
+} from './reconciliation/viewport-structure-reconciliation-owner';
 import {
   ViewportLocalMutationOwner,
   type ViewportLocalMutationPorts,
-} from './viewport-local-mutation-owner';
+} from './reconciliation/viewport-local-mutation-owner';
 import { ViewportCameraMotionController } from '../scheduling/camera/viewport-camera-motion-controller';
 import {
   blockCoordinateFromHit,
@@ -266,7 +266,7 @@ import {
 import { DETAILED_SELECTION_OUTLINE_LIMIT } from '../presentation/selection-overlay-presenter';
 import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
 import { compareEmptySnapshots } from '../diagnostics/runtime/viewport-empty-transition-diff';
-import { renderFilterKey } from './viewport-render-signatures';
+import { renderFilterKey } from './reconciliation/viewport-render-signatures';
 import { stableValueKey } from '../../domain/stable-value-key';
 import {
   ViewportBlockRepresentationStore,

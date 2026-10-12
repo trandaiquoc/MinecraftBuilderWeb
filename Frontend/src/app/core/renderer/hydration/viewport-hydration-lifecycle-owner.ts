@@ -1,6 +1,6 @@
 import type { DecorationRenderLifecycle } from '../visuals/decorations/decoration-render-lifecycle';
 import type { RendererDiagnostics } from '../engine/renderer-diagnostics';
-import type { YLayerRepresentationPrewarmOwner } from '../engine/y-layer-representation-prewarm-owner';
+import type { YLayerRepresentationPrewarmOwner } from '../engine/projection/y-layer-representation-prewarm-owner';
 import type { ViewportTerrainWorkflowOwner } from '../terrain/viewport-terrain-workflow-owner';
 import type { ViewportBlockHydrationPipeline } from './viewport-block-hydration-pipeline';
 import type { BlockHydrationJob } from '../visuals/block-representation-contracts';

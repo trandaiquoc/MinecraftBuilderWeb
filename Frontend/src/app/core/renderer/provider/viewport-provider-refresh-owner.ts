@@ -2,7 +2,7 @@ import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.type
 import { coordinateKey } from '../../domain/coordinates';
 import { visibleBlockEntries } from '../../editor/viewport/visible-blocks';
 import type { ViewportRenderOptions } from '../engine/viewport-engine-contracts';
-import { canonicalRenderOptions } from '../engine/viewport-render-signatures';
+import { canonicalRenderOptions } from '../engine/reconciliation/viewport-render-signatures';
 import type { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
 import type { BlockHydrationJob } from '../visuals/block-representation-contracts';
 import type { BlockRepresentationHydrationOwner } from '../visuals/block-representation-hydration-owner';
@@ -16,7 +16,7 @@ import type {
 import type {
   YLayerProjectionCoordinator,
   VisibleBlockProjectionEntry,
-} from '../engine/y-layer-projection-coordinator';
+} from '../engine/projection/y-layer-projection-coordinator';
 import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
 import { ViewportProviderRefreshPipeline } from './viewport-provider-refresh-pipeline';
 

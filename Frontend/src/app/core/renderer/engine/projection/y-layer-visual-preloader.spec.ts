@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PlacedBlock } from '../../domain/project.types';
+import type { PlacedBlock } from '../../../domain/project.types';
 import {
   Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES,
   YLayerVisualPreloader,

@@ -18,7 +18,7 @@ import { HistoryService } from '../history/history.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { SelectionOverlayPresenter } from '../../renderer/presentation/selection-overlay-presenter';
 import { selectionFocusBounds } from '../../renderer/presentation/selection-bounds';
-import { viewportThemePalette } from '../../renderer/engine/viewport-theme';
+import { viewportThemePalette } from '../../renderer/engine/appearance/viewport-theme';
 import { createScreenSpaceMarqueeQuery } from '../../renderer/interaction/screen-space-marquee-selection';
 
 describe('voxel box selection', () => {

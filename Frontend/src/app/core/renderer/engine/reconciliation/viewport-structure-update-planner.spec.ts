@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ProjectDocument } from '../../domain/project.types';
-import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
-import type { LayerBlockIndex } from '../../editor/viewport/y-layer';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
+import type { ProjectDocument } from '../../../domain/project.types';
+import type { ProjectMutationHint } from '../../../editor/mutations/project-mutation-hint';
+import type { LayerBlockIndex } from '../../../editor/viewport/y-layer';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
 import { renderFilterKey } from './viewport-render-signatures';
 import { ViewportStructureSyncState } from './viewport-structure-sync-state';
 import { ViewportStructureUpdatePlanner } from './viewport-structure-update-planner';

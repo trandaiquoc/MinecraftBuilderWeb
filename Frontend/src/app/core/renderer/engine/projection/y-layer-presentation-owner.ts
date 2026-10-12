@@ -1,9 +1,9 @@
-import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import { groupIdsOf } from '../../editor/groups/group-membership';
-import { visibleLayerSet } from '../../editor/viewport/y-layer';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
-import { renderFilterKey } from './viewport-render-signatures';
-import type { OcclusionClass } from '../visibility/interior-occlusion';
+import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../../domain/project.types';
+import { groupIdsOf } from '../../../editor/groups/group-membership';
+import { visibleLayerSet } from '../../../editor/viewport/y-layer';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
+import { renderFilterKey } from '../reconciliation/viewport-render-signatures';
+import type { OcclusionClass } from '../../visibility/interior-occlusion';
 
 export type VisibleBlockProjectionEntry = {
   readonly block: PlacedBlock;

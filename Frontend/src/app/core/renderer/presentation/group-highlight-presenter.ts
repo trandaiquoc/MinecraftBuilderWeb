@@ -4,7 +4,7 @@ import { coordinateKey } from '../../domain/coordinates';
 import { isBlockVisible } from '../../editor/groups/group-membership';
 import { decorationAabb } from '../../decorations/placement/decoration-placement';
 import { decorationHasGroup, isDecorationVisible } from '../../editor/groups/decoration-membership';
-import type { ViewportThemePalette } from '../engine/viewport-theme';
+import type { ViewportThemePalette } from '../engine/appearance/viewport-theme';
 import { selectionBounds } from './selection-bounds';
 
 export interface GroupHighlightPresenterCallbacks {

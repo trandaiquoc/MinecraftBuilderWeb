@@ -7,7 +7,7 @@ import {
   resolveItemVisual,
 } from '../../../../core/renderer/visuals/items/item-visual-resolver';
 import type { ItemStackData } from '../../../../core/items/item-stack.types';
-import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-theme';
+import { viewportThemePalette } from '../../../../core/renderer/engine/appearance/viewport-theme';
 import type { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
 import { ThemeService } from '../../../../core/ui/theme/theme.service';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';

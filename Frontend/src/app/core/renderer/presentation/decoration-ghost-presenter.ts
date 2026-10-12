@@ -4,7 +4,7 @@ import type { PlacedDecoration } from '../../decorations/decoration.types';
 import type { DecorationPlacementPlan } from '../../decorations/placement/decoration-placement';
 import { createDecorationVisual, type DecorationTextureCache } from '../visuals/decorations/decoration-visuals';
 import type { ResolvedItemVisual } from '../visuals/items/item-visual-resolver';
-import type { ViewportThemePalette } from '../engine/viewport-theme';
+import type { ViewportThemePalette } from '../engine/appearance/viewport-theme';
 import { disposeObject } from './renderer-resource-disposal';
 
 export interface DecorationGhostPresenterCallbacks {

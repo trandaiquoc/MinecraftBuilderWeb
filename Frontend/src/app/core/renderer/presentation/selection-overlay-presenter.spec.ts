@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { viewportThemePalette } from '../engine/viewport-theme';
+import { viewportThemePalette } from '../engine/appearance/viewport-theme';
 import { SelectionOverlayPresenter } from './selection-overlay-presenter';
 
 describe('SelectionOverlayPresenter', () => {

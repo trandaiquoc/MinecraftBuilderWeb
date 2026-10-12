@@ -1,5 +1,5 @@
-import type { PlacedBlock } from '../../domain/project.types';
-import { yieldToBrowser } from '../../assets/cooperative-yield';
+import type { PlacedBlock } from '../../../domain/project.types';
+import { yieldToBrowser } from '../../../assets/cooperative-yield';
 
 export const Y_LAYER_PRELOAD_SLICE_MS = 6;
 export const Y_LAYER_PRELOAD_MAX_VARIANTS = 4096;

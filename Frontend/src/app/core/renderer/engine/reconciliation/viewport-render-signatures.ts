@@ -1,6 +1,6 @@
-import type { ProjectDocument } from '../../domain/project.types';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
-import { stableValueKey } from '../../domain/stable-value-key';
+import type { ProjectDocument } from '../../../domain/project.types';
+import type { ViewportRenderOptions } from '../viewport-engine-contracts';
+import { stableValueKey } from '../../../domain/stable-value-key';
 
 export function blockRenderSignature(block: ProjectDocument['blocks'][number]): string {
   const state = Object.entries(block.state)
