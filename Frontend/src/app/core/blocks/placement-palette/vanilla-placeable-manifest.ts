@@ -1,19 +1,7 @@
 import type { PlaceableManifestEntry } from './placeable-item.types';
 import { MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
+import { MINECRAFT_SIGN_WOODS } from '../../domain/minecraft-sign-woods';
 
-const WOODS = [
-  'oak',
-  'spruce',
-  'birch',
-  'jungle',
-  'acacia',
-  'dark_oak',
-  'mangrove',
-  'cherry',
-  'bamboo',
-  'crimson',
-  'warped',
-] as const;
 const HEADS = [
   ['skeleton_skull', 'skeleton_wall_skull'],
   ['wither_skeleton_skull', 'wither_skeleton_wall_skull'],
@@ -68,7 +56,7 @@ function buildManifest(): readonly PlaceableManifestEntry[] {
       defaultState: { level: '0' },
     },
   ];
-  for (const wood of WOODS) {
+  for (const wood of MINECRAFT_SIGN_WOODS) {
     entries.push({
       itemId: id(`${wood}_sign`),
       concreteBlockIds: [id(`${wood}_sign`), id(`${wood}_wall_sign`)],

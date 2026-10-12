@@ -11,6 +11,7 @@ import {
   type GenericBehaviorProfile,
 } from '../compatibility/behavior-profiles';
 import { MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
+import { MINECRAFT_SIGN_WOODS } from '../../domain/minecraft-sign-woods';
 
 export interface VanillaBehaviorResourceProvider {
   readJson(path: string): unknown | undefined;
@@ -132,7 +133,7 @@ export class VanillaBehaviorRegistry {
     this.explicit.set('minecraft:conduit', conduitMetadata);
     this.explicit.set('minecraft:water', waterMetadata);
     this.explicit.set('minecraft:lava', lavaMetadata);
-    for (const wood of vanillaSignWoods) {
+    for (const wood of MINECRAFT_SIGN_WOODS) {
       this.explicit.set(`minecraft:${wood}_sign`, standingSignMetadata(wood));
       this.explicit.set(`minecraft:${wood}_wall_sign`, wallSignMetadata);
       this.explicit.set(`minecraft:${wood}_hanging_sign`, hangingSignMetadata(wood));
@@ -511,19 +512,6 @@ const wallSignMetadata: BehaviorMetadata = {
 };
 const signRotationStates = GENERIC_BEHAVIOR_PROFILES.standingSign.stateDefinitions;
 const hangingSignStates = GENERIC_BEHAVIOR_PROFILES.hangingSign.stateDefinitions;
-const vanillaSignWoods = [
-  'oak',
-  'spruce',
-  'birch',
-  'jungle',
-  'acacia',
-  'dark_oak',
-  'mangrove',
-  'cherry',
-  'bamboo',
-  'crimson',
-  'warped',
-] as const;
 const vanillaShulkerBoxIds = [
   'minecraft:shulker_box',
   'minecraft:white_shulker_box',
