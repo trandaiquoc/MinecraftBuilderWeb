@@ -4,9 +4,9 @@ import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { ChunkSurfaceRenderer } from './chunk-surface-renderer';
 import type { TerrainApplyResult } from './chunk-surface-renderer';
-import type { TerrainWorkerLike } from './terrain-mesh-worker-pool';
-import { meshTerrainCore } from './terrain-mesh-core';
-import type { TerrainMeshWorkerRequest, TerrainMeshWorkerResponse } from './terrain-mesh-protocol';
+import type { TerrainWorkerLike } from './meshing/terrain-mesh-worker-pool';
+import { meshTerrainCore } from './meshing/terrain-mesh-core';
+import type { TerrainMeshWorkerRequest, TerrainMeshWorkerResponse } from './meshing/terrain-mesh-protocol';
 
 class ImmediateTerrainWorker implements TerrainWorkerLike {
   onmessage: ((event: MessageEvent<TerrainMeshWorkerResponse>) => void) | null = null;

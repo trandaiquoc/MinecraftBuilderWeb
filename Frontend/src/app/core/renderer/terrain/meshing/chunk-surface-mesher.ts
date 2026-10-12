@@ -1,14 +1,14 @@
 import * as THREE from 'three';
-import type { VoxelCoordinate } from '../../domain/project.types';
-import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
-import type { SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
+import type { VoxelCoordinate } from '../../../domain/project.types';
+import type { SurfaceFaceTemplate } from '../../batching/surface-face-batch-renderer';
+import type { SurfaceFaceDirection } from '../../visibility/exposed-face-rendering';
 import {
   instanceGeometryCompatibilityKey,
   instanceMaterialCompatibilityKey,
-} from '../batching/instance-template-cache';
-import type { TerrainOccupancyLookup } from './chunk-occupancy';
-import type { TerrainChunkCoordinate } from './chunk-coordinate';
-import type { TerrainTextureAtlas } from './atlas/terrain-texture-atlas';
+} from '../../batching/instance-template-cache';
+import type { TerrainOccupancyLookup } from '../chunks/chunk-occupancy';
+import type { TerrainChunkCoordinate } from '../chunks/chunk-coordinate';
+import type { TerrainTextureAtlas } from '../atlas/terrain-texture-atlas';
 import { meshTerrainCore } from './terrain-mesh-core';
 import type { TerrainMeshJob, TerrainMeshTemplateData } from './terrain-mesh-protocol';
 

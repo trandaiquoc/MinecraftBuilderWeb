@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import type { PlacedBlock } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
-import { meshTerrainCore } from './terrain-mesh-core';
+import { meshTerrainCore } from './meshing/terrain-mesh-core';
 import { ChunkSurfaceRenderer, type TerrainSurfaceRecord } from './chunk-surface-renderer';
-import type { TerrainMeshWorkerRequest, TerrainMeshWorkerResponse } from './terrain-mesh-protocol';
-import type { TerrainWorkerLike } from './terrain-mesh-worker-pool';
+import type { TerrainMeshWorkerRequest, TerrainMeshWorkerResponse } from './meshing/terrain-mesh-protocol';
+import type { TerrainWorkerLike } from './meshing/terrain-mesh-worker-pool';
 
 class DeferredWorker implements TerrainWorkerLike {
   onmessage: ((event: MessageEvent<TerrainMeshWorkerResponse>) => void) | null = null;

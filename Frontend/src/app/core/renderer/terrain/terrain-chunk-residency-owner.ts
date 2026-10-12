@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import type { TerrainChunkCoordinate } from './chunk-coordinate';
-import { terrainChunkBounds } from './chunk-coordinate';
-import { terrainPresentationRole, type CompiledTerrainChunk } from './chunk-surface-mesher';
+import type { TerrainChunkCoordinate } from './chunks/chunk-coordinate';
+import { terrainChunkBounds } from './chunks/chunk-coordinate';
+import { terrainPresentationRole, type CompiledTerrainChunk } from './meshing/chunk-surface-mesher';
 
 export interface TerrainOwnershipEvidence {
   readonly key: string;

@@ -6,19 +6,19 @@ import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-rendere
 import { ViewportBlockRepresentationStore } from '../engine/viewport-block-representation-store';
 import type { ViewportRenderOptions } from '../engine/viewport-engine-contracts';
 import type { VisibleBlockProjectionEntry } from '../engine/projection/y-layer-presentation-owner';
-import { meshTerrainCore } from './terrain-mesh-core';
+import { meshTerrainCore } from './meshing/terrain-mesh-core';
 import type {
   TerrainMeshJob,
   TerrainMeshResult,
   TerrainMeshWorkerRequest,
   TerrainMeshWorkerResponse,
-} from './terrain-mesh-protocol';
+} from './meshing/terrain-mesh-protocol';
 import {
   ChunkSurfaceRenderer,
   type TerrainApplyResult,
   type TerrainSurfaceRecord,
 } from './chunk-surface-renderer';
-import type { TerrainWorkerLike } from './terrain-mesh-worker-pool';
+import type { TerrainWorkerLike } from './meshing/terrain-mesh-worker-pool';
 import {
   ViewportTerrainWorkflowOwner,
   type TerrainWorkflowPorts,

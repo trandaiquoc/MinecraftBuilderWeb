@@ -1,26 +1,26 @@
-import type { TerrainChunkCoordinate } from './chunk-coordinate';
-import { terrainPresentationBucketKey } from './chunk-surface-mesher';
+import type { TerrainChunkCoordinate } from './chunks/chunk-coordinate';
+import { terrainPresentationBucketKey } from './meshing/chunk-surface-mesher';
 import {
   TerrainCommitScheduler,
   type TerrainCommitSchedulerEvidence,
-} from './terrain-commit-scheduler';
-import { TerrainChunkLogicalStore } from './terrain-chunk-logical-store';
-import { TerrainHydrationSettlementOwner } from './terrain-hydration-settlement-owner';
+} from './commits/terrain-commit-scheduler';
+import { TerrainChunkLogicalStore } from './chunks/terrain-chunk-logical-store';
+import { TerrainHydrationSettlementOwner } from './commits/terrain-hydration-settlement-owner';
 import type { TerrainApplyResult, TerrainSurfaceRecord } from './terrain-render-contracts';
 import {
   TerrainMeshWorkerPool,
   type TerrainMeshWorkerPoolEvidence,
   type TerrainWorkerLike,
-} from './terrain-mesh-worker-pool';
+} from './meshing/terrain-mesh-worker-pool';
 import type {
   TerrainMeshFace,
   TerrainMeshJob,
   TerrainMeshResult,
   TerrainMeshTemplateData,
-} from './terrain-mesh-protocol';
-import { TerrainChunkResultCommitOwner } from './terrain-chunk-result-commit-owner';
+} from './meshing/terrain-mesh-protocol';
+import { TerrainChunkResultCommitOwner } from './commits/terrain-chunk-result-commit-owner';
 import { TerrainTemplateResourceOwner } from './terrain-template-resource-owner';
-import { terrainChunkVariantSignature } from './terrain-chunk-variant-signature';
+import { terrainChunkVariantSignature } from './chunks/terrain-chunk-variant-signature';
 
 interface TerrainChunkWorkState {
   readonly revision: number;
@@ -256,7 +256,7 @@ export class TerrainChunkWorkOwner {
     )
       return;
     const templateIndexes = new WeakMap<
-      readonly import('./chunk-surface-mesher').PrecompiledTerrainFace[],
+      readonly import('./meshing/chunk-surface-mesher').PrecompiledTerrainFace[],
       number
     >();
     const templates: TerrainMeshTemplateData[] = [];

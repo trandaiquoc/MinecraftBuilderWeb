@@ -1,22 +1,22 @@
 import * as THREE from 'three';
-import type { TerrainChunkCoordinate } from './chunk-coordinate';
+import type { TerrainChunkCoordinate } from '../chunks/chunk-coordinate';
 import {
   meshTerrainChunk,
   terrainPresentationBucketKey,
   type CompiledTerrainChunk,
-} from './chunk-surface-mesher';
+} from '../meshing/chunk-surface-mesher';
 import {
   TerrainCommitDiagnostics,
   type TerrainCommitDiagnosticsEvidence,
   type TerrainCommitMetrics,
 } from './terrain-commit-diagnostics';
-import { TerrainChunkLogicalStore } from './terrain-chunk-logical-store';
-import { TerrainChunkResidencyOwner } from './terrain-chunk-residency-owner';
+import { TerrainChunkLogicalStore } from '../chunks/terrain-chunk-logical-store';
+import { TerrainChunkResidencyOwner } from '../terrain-chunk-residency-owner';
 import { TerrainHydrationSettlementOwner } from './terrain-hydration-settlement-owner';
-import type { TerrainApplyResult, TerrainSurfaceRecord } from './terrain-render-contracts';
-import type { TerrainMeshResult } from './terrain-mesh-protocol';
-import { TerrainTemplateResourceOwner } from './terrain-template-resource-owner';
-import { terrainChunkVariantSignature } from './terrain-chunk-variant-signature';
+import type { TerrainApplyResult, TerrainSurfaceRecord } from '../terrain-render-contracts';
+import type { TerrainMeshResult } from '../meshing/terrain-mesh-protocol';
+import { TerrainTemplateResourceOwner } from '../terrain-template-resource-owner';
+import { terrainChunkVariantSignature } from '../chunks/terrain-chunk-variant-signature';
 
 export interface TerrainChunkCommitContext {
   readonly key: string;

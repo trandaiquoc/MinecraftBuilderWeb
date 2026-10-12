@@ -1,8 +1,8 @@
-import type { VoxelCoordinate } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
-import { coordinateNeighbors } from '../visibility/interior-occlusion';
-import type { TerrainClassificationEntry } from './terrain-classifier';
-import { isCompiledTerrainEntry } from './terrain-classifier';
+import type { VoxelCoordinate } from '../../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
+import { coordinateNeighbors } from '../../visibility/interior-occlusion';
+import type { TerrainClassificationEntry } from '../terrain-classifier';
+import { isCompiledTerrainEntry } from '../terrain-classifier';
 
 export interface TerrainOccupancyLookup {
   hasOpaque(position: VoxelCoordinate): boolean;

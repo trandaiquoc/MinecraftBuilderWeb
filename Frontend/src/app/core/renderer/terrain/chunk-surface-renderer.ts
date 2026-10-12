@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 import type { VoxelCoordinate } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
-import { terrainChunkKey, worldToTerrainChunk } from './chunk-coordinate';
-import type { CompiledTerrainChunk } from './chunk-surface-mesher';
+import { terrainChunkKey, worldToTerrainChunk } from './chunks/chunk-coordinate';
+import type { CompiledTerrainChunk } from './meshing/chunk-surface-mesher';
 import type { TerrainClassificationEntry } from './terrain-classifier';
 import type { TerrainAtlasEvidence } from './atlas/terrain-texture-atlas';
 import type { TerrainAtlasMode } from './atlas/terrain-texture-atlas';
-import type { TerrainMeshWorkerPoolEvidence, TerrainWorkerLike } from './terrain-mesh-worker-pool';
-import type { TerrainCommitSchedulerEvidence } from './terrain-commit-scheduler';
-import type { TerrainCommitDiagnosticsEvidence } from './terrain-commit-diagnostics';
-import { TerrainChunkLogicalStore } from './terrain-chunk-logical-store';
+import type { TerrainMeshWorkerPoolEvidence, TerrainWorkerLike } from './meshing/terrain-mesh-worker-pool';
+import type { TerrainCommitSchedulerEvidence } from './commits/terrain-commit-scheduler';
+import type { TerrainCommitDiagnosticsEvidence } from './commits/terrain-commit-diagnostics';
+import { TerrainChunkLogicalStore } from './chunks/terrain-chunk-logical-store';
 import type {
   TerrainApplyResult,
   TerrainBlockChange,
@@ -19,14 +19,14 @@ import {
   TerrainChunkResidencyOwner,
   type TerrainOwnershipEvidence,
 } from './terrain-chunk-residency-owner';
-import { TerrainHydrationSettlementOwner } from './terrain-hydration-settlement-owner';
+import { TerrainHydrationSettlementOwner } from './commits/terrain-hydration-settlement-owner';
 import type {
   TerrainRepresentationCommitCallbacks,
   TerrainRepresentationCommitStatus,
   TerrainSettlement,
 } from './terrain-render-contracts';
 import { TerrainChunkWorkOwner } from './terrain-chunk-work-owner';
-import { TerrainChunkResultCommitOwner } from './terrain-chunk-result-commit-owner';
+import { TerrainChunkResultCommitOwner } from './commits/terrain-chunk-result-commit-owner';
 import { TerrainTemplateResourceOwner } from './terrain-template-resource-owner';
 
 export type {

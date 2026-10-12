@@ -1,4 +1,4 @@
-import type { SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
+import type { SurfaceFaceDirection } from '../../visibility/exposed-face-rendering';
 
 export interface TerrainMeshChunkCoordinate {
   readonly x: number;

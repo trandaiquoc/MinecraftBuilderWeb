@@ -1,4 +1,4 @@
-import type { VoxelCoordinate } from '../../domain/project.types';
+import type { VoxelCoordinate } from '../../../domain/project.types';
 
 /** Render-only terrain section size. Project coordinates remain world voxels. */
 export const TERRAIN_CHUNK_SIZE = 16;

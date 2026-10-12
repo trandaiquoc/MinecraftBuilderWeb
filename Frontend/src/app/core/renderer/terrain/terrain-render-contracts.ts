@@ -1,7 +1,7 @@
 import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
-import type { PrecompiledTerrainFace } from './chunk-surface-mesher';
-import type { TerrainCommitMetrics } from './terrain-commit-diagnostics';
+import type { PrecompiledTerrainFace } from './meshing/chunk-surface-mesher';
+import type { TerrainCommitMetrics } from './commits/terrain-commit-diagnostics';
 
 export interface TerrainApplyResult {
   readonly changedKeys: readonly string[];

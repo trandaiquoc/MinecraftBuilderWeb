@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import type { PlacedBlock } from '../../domain/project.types';
-import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
-import { TerrainOccupancy } from './chunk-occupancy';
-import { terrainChunkKey, worldToTerrainChunk } from './chunk-coordinate';
+import type { PlacedBlock } from '../../../domain/project.types';
+import type { SurfaceFaceTemplate } from '../../batching/surface-face-batch-renderer';
+import { TerrainOccupancy } from '../chunks/chunk-occupancy';
+import { terrainChunkKey, worldToTerrainChunk } from '../chunks/chunk-coordinate';
 import {
   meshTerrainChunk,
   precompileTerrainTemplates,
   type TerrainMeshEntry,
 } from './chunk-surface-mesher';
-import { TerrainTextureAtlas } from './atlas/terrain-texture-atlas';
+import { TerrainTextureAtlas } from '../atlas/terrain-texture-atlas';
 
 describe('compiled terrain surface mesher', () => {
   it('preserves transformed normals/UVs and keeps incompatible materials in separate buckets', () => {

@@ -1,7 +1,7 @@
 import type {
   TerrainRepresentationCommitCallbacks,
   TerrainSettlement,
-} from './terrain-render-contracts';
+} from '../terrain-render-contracts';
 
 /** Owns terminal hydration accounting and deferred block-representation commits for terrain chunks. */
 export class TerrainHydrationSettlementOwner {

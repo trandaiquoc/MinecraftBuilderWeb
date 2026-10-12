@@ -13,7 +13,7 @@ import {
   blockMutationHint,
   metadataMutationHint,
 } from '../../editor/mutations/project-mutation-hint';
-import { relevantTerrainChunks, TERRAIN_CHUNK_SIZE } from '../terrain/chunk-coordinate';
+import { relevantTerrainChunks, TERRAIN_CHUNK_SIZE } from '../terrain/chunks/chunk-coordinate';
 
 describe('explicit renderer benchmark', () => {
   it('measures medium and large incremental updates only when explicitly requested', async () => {

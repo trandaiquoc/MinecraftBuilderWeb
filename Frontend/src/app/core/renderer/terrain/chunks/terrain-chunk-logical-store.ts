@@ -1,4 +1,4 @@
-import type { VoxelCoordinate } from '../../domain/project.types';
+import type { VoxelCoordinate } from '../../../domain/project.types';
 import { TerrainOccupancy } from './chunk-occupancy';
 import {
   relevantTerrainChunks,
@@ -7,8 +7,8 @@ import {
   type TerrainChunkCoordinate,
 } from './chunk-coordinate';
 import { dirtyTerrainChunkKeys } from './chunk-dirty-tracker';
-import type { TerrainClassificationEntry } from './terrain-classifier';
-import type { TerrainSurfaceRecord, TerrainBlockChange } from './terrain-render-contracts';
+import type { TerrainClassificationEntry } from '../terrain-classifier';
+import type { TerrainSurfaceRecord, TerrainBlockChange } from '../terrain-render-contracts';
 
 export interface TerrainChunkLogicalStoreOptions {
   readonly record: (name: string, delta?: number) => void;

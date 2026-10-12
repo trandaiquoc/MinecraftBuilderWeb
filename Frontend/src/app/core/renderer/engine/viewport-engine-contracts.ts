@@ -15,7 +15,7 @@ import type {
   ProjectBlockLookupProvider,
   ReadonlyBlockLookup,
 } from '../../domain/project-block-spatial-index';
-import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
+import type { CompiledTerrainChunk } from '../terrain/meshing/chunk-surface-mesher';
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
 import type {
   HydrationFinalizationSnapshot,

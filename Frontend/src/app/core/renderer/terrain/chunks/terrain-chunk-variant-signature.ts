@@ -1,7 +1,7 @@
-import type { VoxelCoordinate } from '../../domain/project.types';
+import type { VoxelCoordinate } from '../../../domain/project.types';
 import type { TerrainChunkCoordinate } from './chunk-coordinate';
-import type { TerrainSurfaceRecord } from './terrain-render-contracts';
-import type { TerrainTemplateResourceOwner } from './terrain-template-resource-owner';
+import type { TerrainSurfaceRecord } from '../terrain-render-contracts';
+import type { TerrainTemplateResourceOwner } from '../terrain-template-resource-owner';
 
 export interface TerrainOpaqueOccupancy {
   hasOpaque(position: VoxelCoordinate): boolean;

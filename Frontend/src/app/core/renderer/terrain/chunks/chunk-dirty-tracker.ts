@@ -1,4 +1,4 @@
-import type { VoxelCoordinate } from '../../domain/project.types';
+import type { VoxelCoordinate } from '../../../domain/project.types';
 import { relevantTerrainChunks, terrainChunkKey } from './chunk-coordinate';
 
 /** Returns the containing chunk plus only directly shared-face neighbors. */
