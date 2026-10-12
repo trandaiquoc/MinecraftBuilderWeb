@@ -138,6 +138,7 @@ export function evaluateCommonBehavior(
   if (
     bed.partial &&
     hasFamilyEvidence(record, bedProfile.family) &&
+    hasBedPartIdentityEvidence(definitions) &&
     canFillCommon(record, definitions, bedProfile.requiredStates)
   )
     return complete(
@@ -430,6 +431,16 @@ function contract(
     if (!values.every((value) => definition.values.includes(value))) complete = false;
   }
   return { complete, partial: present > 0 };
+}
+
+function hasBedPartIdentityEvidence(definitions: readonly BlockStateDefinition[]): boolean {
+  const part = definitions.find((definition) => definition.name === 'part');
+  return (
+    !!part &&
+    part.values.length === 2 &&
+    part.values.includes('foot') &&
+    part.values.includes('head')
+  );
 }
 
 function canFillCommon(

@@ -42,6 +42,105 @@ function createAssetRuntimeStub() {
 }
 
 describe('EditorStatusBarComponent asset bootstrap status', () => {
+  it('labels concurrent asset, import, content, build, and renderer-finalization work by its owner', async () => {
+    const assets = createAssetRuntimeStub();
+    await TestBed.configureTestingModule({
+      imports: [EditorStatusBarComponent],
+      providers: [
+        { provide: ContentAssetRuntimeService, useValue: assets },
+        {
+          provide: ProjectAutosaveService,
+          useValue: { status: signal('saved'), error: signal(undefined) },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(EditorStatusBarComponent);
+    const hydration = TestBed.inject(ViewportHydrationStatusService);
+    const owner = hydration.claim();
+    hydration.activate(owner);
+    const publish = (
+      generation: number,
+      options: {
+        readonly lane?: 'structural' | 'content';
+        readonly status?: 'hydrating' | 'complete';
+        readonly work?: {
+          readonly blockQueued: number;
+          readonly blockRunning: number;
+          readonly decorationQueued: number;
+          readonly terrainPending: number;
+          readonly fluidPending: number;
+          readonly projectionPending: boolean;
+        };
+      } = {},
+    ) =>
+      hydration.publish(owner, {
+        generation,
+        lane: options.lane ?? 'structural',
+        status: options.status ?? 'hydrating',
+        completed: options.status === 'complete' ? 40 : 16,
+        total: 40,
+        blocksCompleted: options.status === 'complete' ? 40 : 16,
+        blocksTotal: 40,
+        decorationsCompleted: 0,
+        decorationsTotal: 0,
+        percent: options.status === 'complete' ? 100 : 40,
+        ...(options.work ? { work: options.work } : {}),
+      });
+    const statusLabel = () =>
+      fixture.nativeElement.querySelector('.asset-status-copy')?.textContent?.trim();
+
+    publish(1);
+    fixture.detectChanges();
+    expect(statusLabel()).toContain('Checking cached assets');
+    const progress = fixture.nativeElement.querySelector('[role="progressbar"]');
+
+    assets.status.set('downloading');
+    fixture.detectChanges();
+    expect(statusLabel()).toContain('Downloading');
+    expect(fixture.nativeElement.querySelector('[role="progressbar"]')).toBe(progress);
+
+    assets.status.set('ready');
+    assets.contentRestore.set({
+      phase: 'restoring-mods',
+      current: 1,
+      total: 2,
+      failed: 0,
+      sourceName: 'Fixture Mod',
+    });
+    fixture.detectChanges();
+    expect(statusLabel()).toContain('Restoring imported Mods');
+
+    assets.contentRestore.set({ phase: 'ready', current: 2, total: 2, failed: 0 });
+    hydration.markNextActivity('import');
+    publish(2);
+    fixture.detectChanges();
+    expect(statusLabel()).toBe('Importing structure');
+
+    publish(3, { lane: 'content' });
+    fixture.detectChanges();
+    expect(statusLabel()).toBe('Updating block assets');
+
+    publish(4);
+    fixture.detectChanges();
+    expect(statusLabel()).toBe('Building structure');
+
+    publish(4, {
+      status: 'complete',
+      work: {
+        blockQueued: 0,
+        blockRunning: 0,
+        decorationQueued: 0,
+        terrainPending: 1,
+        fluidPending: 0,
+        projectionPending: false,
+      },
+    });
+    fixture.detectChanges();
+    expect(hydration.finalization()).toMatchObject({ loading: true });
+    expect(statusLabel()).toBe('Finalizing rendering');
+    expect(fixture.nativeElement.querySelector('[role="progressbar"]')).toBe(progress);
+  });
+
   it('renders one indeterminate progress bar for source download and Mod restore without numeric progress', async () => {
     const assets = createAssetRuntimeStub();
     await TestBed.configureTestingModule({
@@ -234,6 +333,7 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
     const hydration = {
       status: signal(undefined),
       finalization: signal<ViewportFinalizationState | undefined>(finalization),
+      currentActivity: () => 'build' as const,
       settleIfTerminal: () => undefined,
     };
     await TestBed.configureTestingModule({
@@ -384,9 +484,13 @@ describe('EditorStatusBarComponent Y-layer preview', () => {
 
 describe('EditorStatusBarComponent missing-content warning', () => {
   it('uses the current project Missing blocks and opens actionable details', async () => {
+    const assets = createAssetRuntimeStub();
+    assets.status.set('ready');
+    assets.contentRestore.set({ phase: 'ready', current: 0, total: 0, failed: 0 });
     await TestBed.configureTestingModule({
       imports: [EditorStatusBarComponent],
       providers: [
+        { provide: ContentAssetRuntimeService, useValue: assets },
         {
           provide: ProjectAutosaveService,
           useValue: { status: signal('saved'), error: signal(undefined) },

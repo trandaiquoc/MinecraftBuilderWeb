@@ -1,8 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import vanillaRegistry from '../../../../../public/assets/vanilla-block-registry-1.21.1.json';
+import vanillaItemRegistry from '../../../../../public/assets/vanilla-item-registry-1.21.1.json';
 import {
   AssetBlockRecord,
   BlockStateDefinition,
 } from '../../blocks/catalog/block-definition.types';
+import { BlockCatalog } from '../../blocks/catalog/block-catalog';
+import {
+  previewBlocksForItem,
+  buildPlaceableItems,
+} from '../../blocks/placement-palette/placeable-item';
+import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
+import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
+import { HistoryService } from '../../editor/history/history.service';
+import { ProjectMutationHintService } from '../../editor/mutations/project-mutation-hint.service';
+import { SelectionService } from '../../editor/selection/selection.service';
+import { StructureEditorService } from '../../editor/structure/structure-editor.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { evaluateCommonBehavior } from './common-behavior';
 
 function record(
@@ -23,6 +37,157 @@ function record(
 }
 
 describe('common resource behavior evaluation', () => {
+  it('does not infer Bed pairing for Vanilla schemas that only share generic facing state', () => {
+    const registry = vanillaRegistry as unknown as {
+      readonly blocks: readonly {
+        readonly id: string;
+        readonly properties: readonly BlockStateDefinition[];
+        readonly defaultState: Readonly<Record<string, string>>;
+      }[];
+    };
+    const itemIds = new Set(
+      (vanillaItemRegistry as { readonly items: readonly { readonly id: string }[] }).items.map(
+        (item) => item.id,
+      ),
+    );
+    const examples = [
+      'minecraft:chest',
+      'minecraft:trapped_chest',
+      'minecraft:ender_chest',
+      'minecraft:acacia_fence_gate',
+      'minecraft:birch_fence_gate',
+      'minecraft:cherry_fence_gate',
+      'minecraft:bell',
+    ];
+    const entries = examples.map((id) => {
+      const source = registry.blocks.find((block) => block.id === id);
+      expect(source, `official registry entry ${id}`).toBeDefined();
+      const sourceRecord = record(id, source!.properties, undefined, {
+        defaultState: source!.defaultState,
+        itemEvidence: itemIds.has(id) ? { itemId: id, placeable: true } : undefined,
+      });
+      const evaluation = evaluateCommonBehavior(sourceRecord);
+      return {
+        ...sourceRecord,
+        ...(evaluation.behavior ? { behavior: evaluation.behavior } : {}),
+        defaultState: evaluation.defaultState,
+        stateDefinitions: evaluation.stateDefinitions,
+      };
+    });
+
+    expect(entries.map(({ id, behavior }) => [id, behavior?.kind])).toEqual(
+      examples.map((id) => [id, undefined]),
+    );
+    expect(entries.every((entry) => !('part' in entry.defaultState))).toBe(true);
+
+    for (const source of registry.blocks) {
+      const evaluation = evaluateCommonBehavior(
+        record(source.id, source.properties, undefined, {
+          defaultState: source.defaultState,
+          itemEvidence: itemIds.has(source.id) ? { itemId: source.id, placeable: true } : undefined,
+        }),
+      );
+      for (const [name, value] of Object.entries(evaluation.defaultState)) {
+        const property = source.properties.find((definition) => definition.name === name);
+        expect(property?.values, `${source.id}.${name}`).toContain(value);
+      }
+      if (evaluation.behavior?.kind === 'paired-horizontal') {
+        const part = source.properties.find((definition) => definition.name === 'part');
+        expect(part?.values, source.id).toEqual(expect.arrayContaining(['foot', 'head']));
+      }
+    }
+
+    const catalog = new BlockCatalog();
+    catalog.load({ minecraftVersion: '1.21.1', sourceId: 'vanilla', blocks: entries });
+    const definitions = catalog.all();
+    const placeables = buildPlaceableItems(definitions);
+    for (const id of examples) {
+      expect(catalog.get(id)?.logicalPlacement, id).toBeUndefined();
+      const item = placeables.find((candidate) => candidate.itemId === id);
+      expect(item, id).toBeDefined();
+      expect(
+        previewBlocksForItem(item!).map((block) => block.id),
+        id,
+      ).toEqual([id]);
+    }
+
+    const workspace = new WorkspaceStateService();
+    const active = new ActiveBlockService();
+    const selection = new SelectionService();
+    const hints = new ProjectMutationHintService();
+    const history = new HistoryService(workspace, hints);
+    const library = new BlockLibraryService(active);
+    library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'minecraft', blocks: entries });
+    workspace.publishProject({
+      schemaVersion: 1,
+      id: 'vanilla-placement-regression',
+      metadata: {
+        name: 'Vanilla placement regression',
+        minecraftVersion: '1.21.1',
+        createdAt: '',
+        updatedAt: '',
+      },
+      size: { x: 16, y: 16, z: 16 },
+      structureMode: 'vanilla-structure-block',
+      blocks: [],
+      groups: [],
+      editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
+    });
+    const editor = new StructureEditorService(workspace, active, selection, history, library);
+    for (const [index, id] of examples.entries()) {
+      active.select(library.get(id)!);
+      expect(editor.place({ x: index + 1, y: 1, z: 1 }), id).toBe(true);
+      const placed = workspace.project()!.blocks.filter((block) => block.id === id);
+      expect(placed, id).toHaveLength(1);
+      expect(placed[0].state, id).not.toHaveProperty('part');
+      expect(placed[0].state, id).not.toHaveProperty('occupied');
+    }
+    expect(workspace.project()!.blocks).toHaveLength(examples.length);
+    expect(history.undo()).toBe(true);
+    expect(workspace.project()!.blocks).toHaveLength(examples.length - 1);
+    expect(history.redo()).toBe(true);
+    expect(workspace.project()!.blocks).toHaveLength(examples.length);
+
+    const bed = registry.blocks.find((block) => block.id === 'minecraft:red_bed')!;
+    expect(
+      evaluateCommonBehavior(
+        record(bed.id, bed.properties, undefined, {
+          defaultState: bed.defaultState,
+          itemEvidence: { itemId: bed.id, placeable: true },
+        }),
+      ).behavior,
+    ).toMatchObject({ kind: 'paired-horizontal' });
+  });
+
+  it('keeps Bed pairing limited to schemas with the canonical part identity property', () => {
+    const bed = evaluateCommonBehavior(
+      record(
+        'minecraft:legacy_bed_record',
+        [
+          { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+          { name: 'part', values: ['foot', 'head'] },
+        ],
+        undefined,
+        { itemEvidence: { itemId: 'minecraft:legacy_bed_record', placeable: true } },
+      ),
+    );
+    const chest = evaluateCommonBehavior(
+      record(
+        'minecraft:legacy_chest_record',
+        [
+          { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+          { name: 'type', values: ['single', 'left', 'right'] },
+        ],
+        undefined,
+        { itemEvidence: { itemId: 'minecraft:legacy_chest_record', placeable: true } },
+      ),
+    );
+    expect(bed.behavior).toMatchObject({ kind: 'paired-horizontal' });
+    expect(chest.behavior).toBeUndefined();
+    expect(chest.defaultState).not.toHaveProperty('part');
+    expect(chest.defaultState).not.toHaveProperty('occupied');
+  });
+
   it('reuses a complete door contract and derives canonical defaults', () => {
     const result = evaluateCommonBehavior(
       record('example:door', [

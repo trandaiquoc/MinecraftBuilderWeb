@@ -172,31 +172,35 @@ export class EditorStatusBarComponent {
   protected assetStatusLabel(): string {
     const status = this.assetStatus();
     const finalization = this.finalizationState();
-    if (finalization?.loading || this.missingReconciliation.activity() === 'running') {
-      if (
-        this.hydration.status()?.activity === 'content' ||
-        finalization?.progress?.lane === 'content'
-      )
-        return this.i18n.t('updatingBlockAssets');
-      if (this.hydration.status()?.activity === 'import') return this.i18n.t('importingStructure');
-      return this.i18n.t('buildingStructure');
+    if (status.kind === 'loading-cache') return this.i18n.t('checkingAssetCache');
+    if (status.kind === 'downloading') return this.i18n.t('downloadingAsset');
+    if (status.kind === 'restoring-mods') {
+      const label = this.i18n.t('restoringMods');
+      return status.sourceName ? `${label} · ${status.sourceName}` : label;
+    }
+    if (status.kind === 'preparing') return this.i18n.t('preparingAssets');
+
+    const hydrationActivity = this.hydration.currentActivity();
+    if (hydrationActivity === 'import') return this.i18n.t('importingStructure');
+    if (
+      hydrationActivity === 'content' ||
+      finalization?.progress?.lane === 'content' ||
+      this.missingReconciliation.activity() === 'running'
+    )
+      return this.i18n.t('updatingBlockAssets');
+    if (finalization?.loading) {
+      return finalization.progress?.status === 'complete'
+        ? this.i18n.t('finalizingRendering')
+        : this.i18n.t('buildingStructure');
     }
     if (finalization?.issue) return this.i18n.t('blockRenderingIncomplete');
     if (this.missingWarningVisible())
       return this.i18n
         .t('missingAssetsWarning')
         .replace('{count}', this.formatCount(this.missingSummary().totalMissingBlocks));
-    if (this.hydration.status()?.activity === 'content') return this.i18n.t('updatingBlockAssets');
     if (finalization?.warning) {
       if (status.kind === 'unavailable') return this.i18n.t('assetsUnavailableForBrowser');
       return this.i18n.t('assetsReadyWithWarnings');
-    }
-    if (status.kind === 'loading-cache') return this.i18n.t('checkingAssetCache');
-    if (status.kind === 'downloading') return this.i18n.t('downloadingAsset');
-    if (status.kind === 'preparing') return this.i18n.t('preparingAssets');
-    if (status.kind === 'restoring-mods') {
-      const label = this.i18n.t('restoringMods');
-      return status.sourceName ? `${label} · ${status.sourceName}` : label;
     }
     if (status.kind === 'partial')
       return this.i18n.t('assetsReadyWarnings').replace('{count}', String(status.warnings ?? 0));

@@ -35,7 +35,7 @@ export const translations = {
     loadingAssets: 'Loading official Minecraft assets...',
     checkingAssetCache: 'Checking cached assets…',
     resolvingAssetMetadata: 'Resolving Mojang metadata…',
-    downloadingAsset: 'Downloading official assets…',
+    downloadingAsset: 'Downloading Minecraft assets…',
     preparingAssets: 'Preparing resources…',
     verifyingAssets: 'Verifying download…',
     assetsUnavailableRetry:
@@ -1460,6 +1460,7 @@ const supplementalTranslationSource = {
     viewportHydrationItems: 'items',
     importingStructure: 'Importing structure',
     buildingStructure: 'Building structure',
+    finalizingRendering: 'Finalizing rendering',
     structureJsonDecorationCount: 'Decorations',
     structureJsonTotalDecorations: 'Total decorations',
     structureJsonValidDecorations: 'Valid decorations',
@@ -1788,6 +1789,7 @@ const supplementalTranslationSource = {
     viewportHydrationItems: 'mục',
     importingStructure: 'Đang nhập cấu trúc',
     buildingStructure: 'Đang dựng cấu trúc',
+    finalizingRendering: 'Đang hoàn tất kết xuất',
     close: 'Đóng',
     updatingBlockAssets: 'Đang cập nhật tài nguyên khối',
     blockRenderingIncomplete:

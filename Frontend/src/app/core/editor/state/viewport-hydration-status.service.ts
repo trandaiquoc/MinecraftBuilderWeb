@@ -62,6 +62,10 @@ export class ViewportHydrationStatusService {
     this.nextActivity = activity;
   }
 
+  currentActivity(): ViewportHydrationActivity {
+    return this.generationActivity;
+  }
+
   setSourceRestoreState(
     owner: number,
     state: { readonly terminal: boolean; readonly pending: boolean; readonly failed?: boolean },
