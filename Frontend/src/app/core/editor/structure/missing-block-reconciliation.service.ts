@@ -6,7 +6,7 @@ import { reconcileMissingBlocksCooperatively } from './missing-block-reconciliat
 import { ProjectMutationHintService } from '../mutations/project-mutation-hint.service';
 import { blockMutationHint } from '../mutations/project-mutation-hint';
 import { ProjectBlockRuntimeIndex } from '../runtime/project-block-runtime-index';
-import { createAbortError, isAbortError } from '../../assets/mod/mod-import-cancellation';
+import { createAbortError, isAbortError } from '../../assets/asset-operation-cancellation';
 
 @Injectable({ providedIn: 'root' })
 export class MissingBlockReconciliationService {

@@ -5,7 +5,7 @@ import {
 } from '../vanilla/vanilla-asset-provider';
 import { EXTERNAL_MOD_CACHE_SCHEMA_VERSION } from '../mod/import/external-mod-import-contracts';
 import type { SerializedExternalMod } from '../mod/import/external-mod-import-contracts';
-import { throwIfAborted, createAbortError } from '../mod/mod-import-cancellation';
+import { throwIfAborted, createAbortError } from '../asset-operation-cancellation';
 
 const DATABASE_NAME = 'minecraft-builder-assets';
 const STORE_NAME = 'asset-bundles';

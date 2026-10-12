@@ -1,4 +1,4 @@
-import { combineAbortSignals, createAbortError } from './mod/mod-import-cancellation';
+import { combineAbortSignals, createAbortError } from './asset-operation-cancellation';
 
 export type ContentOperationPriority = 'background' | 'foreground';
 

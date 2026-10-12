@@ -26,7 +26,7 @@ import {
 } from '../../content/content-introspection';
 import { StaticJvmSemanticEvidenceProvider } from '../../content/jvm-semantic-evidence';
 import { CooperativeWorkBudget, yieldToBrowser } from '../cooperative-yield';
-import { throwIfAborted } from './mod-import-cancellation';
+import { throwIfAborted } from '../asset-operation-cancellation';
 
 export class ExternalModProvider implements ContentSourceProvider {
   readonly source;

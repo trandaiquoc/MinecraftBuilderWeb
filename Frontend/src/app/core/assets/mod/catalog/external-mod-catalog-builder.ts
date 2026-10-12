@@ -22,7 +22,7 @@ import {
 import { evaluateCommonBehavior } from '../../../block-behavior/compatibility/common-behavior';
 import type { BehaviorClassificationSummary } from '../../../block-behavior/compatibility/behavior-fingerprint';
 import { CooperativeWorkBudget, yieldToBrowser } from '../../cooperative-yield';
-import { throwIfAborted } from '../mod-import-cancellation';
+import { throwIfAborted } from '../../asset-operation-cancellation';
 
 export { discoverPaintingVariants } from './external-mod-painting-catalog';
 export { externalItemEvidence } from './external-mod-item-evidence';

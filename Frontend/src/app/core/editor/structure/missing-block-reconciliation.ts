@@ -2,7 +2,7 @@ import type { BlockDefinition } from '../../blocks/catalog/block-definition.type
 import { materializeBlockState } from '../../blocks/catalog/block-state-compatibility';
 import type { ProjectDocument, ResolvedPlacedBlock } from '../../domain/project.types';
 import type { ProjectMutationChange } from '../mutations/project-mutation-hint';
-import { throwIfAborted } from '../../assets/mod/mod-import-cancellation';
+import { throwIfAborted } from '../../assets/asset-operation-cancellation';
 
 export const MISSING_BLOCK_RECONCILIATION_BATCH_SIZE = 128;
 

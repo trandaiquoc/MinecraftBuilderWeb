@@ -1,5 +1,5 @@
 import { yieldToBrowser } from '../cooperative-yield';
-import { throwIfAborted } from '../mod/mod-import-cancellation';
+import { throwIfAborted } from '../asset-operation-cancellation';
 
 export interface ZipEntry {
   readonly name: string;

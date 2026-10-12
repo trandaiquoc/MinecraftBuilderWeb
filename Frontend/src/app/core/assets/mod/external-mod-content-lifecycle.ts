@@ -19,7 +19,7 @@ import {
   ModImportProgress,
   PreparedModImport,
 } from './import/external-mod-importer';
-import { createPhaseWatchdog, isAbortError, throwIfAborted } from './mod-import-cancellation';
+import { createPhaseWatchdog, isAbortError, throwIfAborted } from '../asset-operation-cancellation';
 import { yieldToBrowser } from '../cooperative-yield';
 import type { ExternalCatalogProgress } from './catalog/external-mod-catalog-builder';
 

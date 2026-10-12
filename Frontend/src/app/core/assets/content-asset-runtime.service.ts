@@ -41,7 +41,7 @@ import { CompatibilityReport } from './vanilla/compatibility/compatibility.types
 import { downloadCompatibilityReport } from './vanilla/compatibility/compatibility-report';
 import { PaintingVariantCatalogService } from '../decorations/catalog/painting-variant-catalog.service';
 import type { ThumbnailTaskPriority } from './vanilla/thumbnails/thumbnail-task-queue';
-import { isAbortError, throwIfAborted } from './mod/mod-import-cancellation';
+import { isAbortError, throwIfAborted } from './asset-operation-cancellation';
 import { ContentOperationCoordinator } from './content-operation-coordinator';
 
 export type VanillaAssetStatus =

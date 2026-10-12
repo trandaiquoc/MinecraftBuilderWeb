@@ -5,7 +5,7 @@ import type {
   ModImportProgress,
   PreparedModImport,
 } from '../../../../core/assets/mod/import/external-mod-importer';
-import { ModImportTimeoutError } from '../../../../core/assets/mod/mod-import-cancellation';
+import { ModImportTimeoutError } from '../../../../core/assets/asset-operation-cancellation';
 import type { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { AssetManagerModImportWorkflow } from './asset-manager-mod-import-workflow';
 

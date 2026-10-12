@@ -14,7 +14,7 @@ import {
 } from './composite-asset-provider';
 import { TagIndex } from '../../content/resources/tag-index';
 import { yieldToBrowser } from '../cooperative-yield';
-import { throwIfAborted } from '../mod/mod-import-cancellation';
+import { throwIfAborted } from '../asset-operation-cancellation';
 
 export interface SourceRegistrationDiagnostic {
   readonly sourceId: string;

@@ -30,7 +30,7 @@ import {
 } from '../../content/content-introspection';
 import type { VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
 import { yieldToBrowser } from '../cooperative-yield';
-import { throwIfAborted } from '../mod/mod-import-cancellation';
+import { throwIfAborted } from '../asset-operation-cancellation';
 import { deriveVanillaInternalBlockIds } from './vanilla-internal-content';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';

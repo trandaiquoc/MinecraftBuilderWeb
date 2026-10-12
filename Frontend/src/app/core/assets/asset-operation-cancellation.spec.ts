@@ -4,7 +4,7 @@ import {
   createPhaseWatchdog,
   isAbortError,
   ModImportTimeoutError,
-} from './mod-import-cancellation';
+} from './asset-operation-cancellation';
 
 describe('mod import cancellation policy', () => {
   afterEach(() => vi.useRealTimers());

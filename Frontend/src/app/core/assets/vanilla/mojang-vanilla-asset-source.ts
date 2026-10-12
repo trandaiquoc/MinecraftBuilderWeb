@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { VanillaAssetProvider } from './vanilla-asset-provider';
-import { throwIfAborted } from '../mod/mod-import-cancellation';
+import { throwIfAborted } from '../asset-operation-cancellation';
 
 const VERSION_MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 const OFFICIAL_METADATA_HOST = 'piston-meta.mojang.com';
