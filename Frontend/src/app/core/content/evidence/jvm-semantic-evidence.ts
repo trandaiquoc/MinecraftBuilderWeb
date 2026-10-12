@@ -66,7 +66,7 @@ export class StaticJvmSemanticEvidenceProvider implements ContentSemanticEvidenc
   readonly diagnostics: readonly ContentIntrospectionDiagnostic[];
   private readonly supplements = new Map<string, readonly ContentSemanticSupplement[]>();
   constructor(
-    private readonly profile: JvmMinecraftSymbolProfile,
+    profile: JvmMinecraftSymbolProfile,
     classes: ReadonlyMap<string, Uint8Array> = new Map(),
   ) {
     const diagnostics: ContentIntrospectionDiagnostic[] = [];

@@ -15,8 +15,9 @@ describe('static JVM semantic evidence boundary', () => {
     expect(result.structure).toMatchObject({ majorVersion: 55, constantPoolCount: 1 });
     const provider = new StaticJvmSemanticEvidenceProvider(
       { minecraftVersion: '1.21.1', classFileMajor: 55 },
-      new Map([['x.class', bytes]]),
+      new Map([['x.class', new Uint8Array([0, 1, 2])]]),
     );
     expect(provider.supplementsFor('example:display')).toEqual([]);
+    expect(provider.diagnostics).toMatchObject([{ sourceId: '1.21.1' }]);
   });
 });

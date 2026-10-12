@@ -41,25 +41,6 @@ export function cameraActionMovementDelta(
   return direction;
 }
 
-export function cameraMovementDelta(
-  keys: ReadonlySet<string>,
-  camera: THREE.Camera,
-  translationSpeed: number,
-  _legacyVerticalSpeed: number,
-  deltaSeconds: number,
-): THREE.Vector3 {
-  const horizontalKeys = new Set(
-    [...keys].filter((key) => key === 'KeyW' || key === 'KeyA' || key === 'KeyS' || key === 'KeyD'),
-  );
-  const direction = cameraMovementDirection(horizontalKeys, camera);
-  if (direction.lengthSq()) direction.normalize().multiplyScalar(deltaSeconds * translationSpeed);
-  direction.y +=
-    ((keys.has('Space') ? 1 : 0) - (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1 : 0)) *
-    deltaSeconds *
-    translationSpeed;
-  return direction;
-}
-
 export function vectorValue(vector: THREE.Vector3): CameraVector {
   return { x: vector.x, y: vector.y, z: vector.z };
 }

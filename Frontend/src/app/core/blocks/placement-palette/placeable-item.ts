@@ -51,11 +51,6 @@ export function isWorldBlockSerializable(blockId: string): boolean {
   return !isTechnicalBlockId(blockId) && !isDecorationEntityId(blockId);
 }
 
-/** @deprecated Use isWorldBlockSerializable; retained for callers during the policy split. */
-export function isNormalBuildingExportEligible(blockId: string): boolean {
-  return isWorldBlockSerializable(blockId);
-}
-
 export function buildPlaceableItems(
   definitions: readonly BlockDefinition[],
   targetItems: readonly PlaceableItemEvidence[] = [],

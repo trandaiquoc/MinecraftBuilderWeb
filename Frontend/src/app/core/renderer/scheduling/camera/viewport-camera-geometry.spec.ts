@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { effectiveCameraMovementSpeed } from './camera-movement-speed';
-import { cameraMovementDelta, cameraMovementDirection } from './viewport-camera-geometry';
+import { cameraActionMovementDelta, cameraMovementDirection } from './viewport-camera-geometry';
 import { rendererBenchmarkProject } from '../../benchmark/renderer-benchmark-fixtures';
 
 describe('viewport camera geometry', () => {
@@ -25,9 +25,9 @@ describe('viewport camera geometry', () => {
   });
 
   it('uses the same translation speed for horizontal and vertical movement', () => {
-    const horizontal = cameraMovementDelta(new Set(['KeyW']), camera, 12, 3, 1);
-    const vertical = cameraMovementDelta(new Set(['Space']), camera, 12, 3, 1);
-    const combined = cameraMovementDelta(new Set(['KeyW', 'Space']), camera, 12, 3, 1);
+    const horizontal = cameraActionMovementDelta(new Set(['move-forward']), camera, 12, 1);
+    const vertical = cameraActionMovementDelta(new Set(['move-up']), camera, 12, 1);
+    const combined = cameraActionMovementDelta(new Set(['move-forward', 'move-up']), camera, 12, 1);
     expect(horizontal.length()).toBeCloseTo(12);
     expect(vertical.y).toBe(12);
     expect(combined.y).toBe(12);
@@ -37,8 +37,8 @@ describe('viewport camera geometry', () => {
   it('keeps vertical movement aligned with adaptive horizontal speed', () => {
     for (const distance of [8, 16, 40]) {
       const speed = effectiveCameraMovementSpeed(15, distance);
-      const horizontal = cameraMovementDelta(new Set(['KeyD']), camera, speed, 1, 1);
-      const vertical = cameraMovementDelta(new Set(['Space']), camera, speed, 1, 1);
+      const horizontal = cameraActionMovementDelta(new Set(['move-right']), camera, speed, 1);
+      const vertical = cameraActionMovementDelta(new Set(['move-up']), camera, speed, 1);
       expect(vertical.length() / horizontal.length()).toBeCloseTo(1);
     }
   });
@@ -46,8 +46,8 @@ describe('viewport camera geometry', () => {
   it('does not mutate the project while resolving camera movement', () => {
     const project = rendererBenchmarkProject('small');
     const before = JSON.stringify(project);
-    for (const key of ['KeyW', 'KeyA', 'KeyS', 'KeyD'])
-      cameraMovementDelta(new Set([key]), camera, 9, 9, 1);
+    for (const action of ['move-forward', 'move-backward', 'move-left', 'move-right'] as const)
+      cameraActionMovementDelta(new Set([action]), camera, 9, 1);
     expect(JSON.stringify(project)).toBe(before);
   });
 });

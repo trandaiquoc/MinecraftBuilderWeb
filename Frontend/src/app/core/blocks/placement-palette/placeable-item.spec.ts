@@ -3,7 +3,6 @@ import { BlockCatalog } from '../catalog/block-catalog';
 import { representativeBlockFixture } from '../catalog/block-catalog.fixture';
 import {
   buildPlaceableItems,
-  isNormalBuildingExportEligible,
   isNormalBuildingPaletteEligible,
   isWorldBlockSerializable,
   placementItemSearch,
@@ -205,9 +204,8 @@ describe('vanilla placeable item layer', () => {
     expect(catalog.get('minecraft:light')).toBeDefined();
     expect(isNormalBuildingPaletteEligible(catalog.get('minecraft:light')!)).toBe(false);
     expect(isNormalBuildingPaletteEligible(catalog.get('minecraft:bedrock')!)).toBe(true);
-    expect(isNormalBuildingExportEligible('minecraft:structure_void')).toBe(false);
-    expect(isNormalBuildingExportEligible('minecraft:item_frame')).toBe(false);
-    expect(isNormalBuildingExportEligible('minecraft:potted_torchflower')).toBe(true);
+    expect(isWorldBlockSerializable('minecraft:structure_void')).toBe(false);
+    expect(isWorldBlockSerializable('minecraft:item_frame')).toBe(false);
     expect(isWorldBlockSerializable('minecraft:potted_torchflower')).toBe(true);
     expect(
       isNormalBuildingPaletteEligible({
