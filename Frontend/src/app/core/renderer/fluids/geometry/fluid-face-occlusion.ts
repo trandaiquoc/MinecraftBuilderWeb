@@ -1,9 +1,9 @@
-import type { VoxelCoordinate } from '../../domain/project.types';
+import type { VoxelCoordinate } from '../../../domain/project.types';
 import type {
   FluidRenderResolver,
   FluidWorldLookup,
   ResolvedFluidRenderState,
-} from './fluid-state';
+} from '../state/fluid-state';
 
 export type FluidFaceDirection = 'down' | 'up' | 'north' | 'south' | 'west' | 'east';
 

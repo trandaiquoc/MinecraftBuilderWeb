@@ -1,17 +1,17 @@
 import * as THREE from 'three';
 import { VoxelCoordinate } from '../../domain/project.types';
-import { fluidChunkKey } from './fluid-mesh-core';
-import type { FluidWorldLookup } from './fluid-state';
-import { FluidChunkRecordStore } from './fluid-chunk-record-store';
+import { fluidChunkKey } from './geometry/fluid-mesh-core';
+import type { FluidWorldLookup } from './state/fluid-state';
+import { FluidChunkRecordStore } from './chunks/fluid-chunk-record-store';
 import type {
   FluidChunkChange,
   FluidChunkRecord,
   FluidChunkSyncResult,
   FluidChunkVisualProvider,
   FluidLayerPresentation,
-} from './fluid-render-contracts';
-import { FluidChunkResidencyOwner } from './fluid-chunk-residency-owner';
-import { FluidChunkBuildOwner } from './fluid-chunk-build-owner';
+} from './state/fluid-render-contracts';
+import { FluidChunkResidencyOwner } from './chunks/fluid-chunk-residency-owner';
+import { FluidChunkBuildOwner } from './chunks/fluid-chunk-build-owner';
 
 export type {
   FluidChunkChange,
@@ -19,7 +19,7 @@ export type {
   FluidChunkSyncResult,
   FluidChunkVisualProvider,
   FluidLayerPresentation,
-} from './fluid-render-contracts';
+} from './state/fluid-render-contracts';
 
 export interface FluidChunkDiagnostics {
   readonly fluidLogicalVoxels: number;
@@ -50,7 +50,7 @@ export interface FluidChunkDiagnostics {
   readonly fluidMeshRoleUpdates: number;
 }
 
-export { FLUID_RESIDENT_VARIANT_BUDGET_BYTES } from './fluid-chunk-residency-owner';
+export { FLUID_RESIDENT_VARIANT_BUDGET_BYTES } from './chunks/fluid-chunk-residency-owner';
 
 /** Public fluid rendering API; records, build work, and GPU residency have dedicated owners. */
 export class FluidChunkRenderer {

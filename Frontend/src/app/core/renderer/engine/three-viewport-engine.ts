@@ -205,7 +205,7 @@ import { collectSceneRenderCost } from '../diagnostics/scene/scene-render-cost';
 import { collectPerformanceEvidence } from '../diagnostics/scene/viewport-performance-evidence';
 import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
 import { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
-import type { FluidWorldLookup } from '../fluids/fluid-state';
+import type { FluidWorldLookup } from '../fluids/state/fluid-state';
 import {
   GroupIsolationPresentation,
   type GroupIsolationSnapshot,

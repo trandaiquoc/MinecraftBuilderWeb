@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
+import type { PlacedBlock, VoxelCoordinate } from '../../../domain/project.types';
 import type { FluidRenderResolver, ResolvedFluidRenderState } from './fluid-state';
 
 export interface FluidChunkRecord {

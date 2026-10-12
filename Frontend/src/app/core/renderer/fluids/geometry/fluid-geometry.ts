@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { PlacedBlock } from '../../domain/project.types';
+import { PlacedBlock } from '../../../domain/project.types';
 import {
   fluidCornerHeightsResolved,
   fluidVelocityResolved,
   FluidRenderResolver,
   FluidWorldLookup,
   vanillaFluidRenderResolver,
-} from './fluid-state';
+} from '../state/fluid-state';
 import { shouldCullFluidFace } from './fluid-face-occlusion';
 import { fluidSideUv } from './fluid-surface-sampler';
 

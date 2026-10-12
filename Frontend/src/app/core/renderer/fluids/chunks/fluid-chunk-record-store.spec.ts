@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { PlacedBlock } from '../../domain/project.types';
+import type { PlacedBlock } from '../../../domain/project.types';
 import { FluidChunkRecordStore } from './fluid-chunk-record-store';
-import { vanillaFluidRenderResolver } from './fluid-state';
-import type { FluidChunkRecord } from './fluid-render-contracts';
+import { vanillaFluidRenderResolver } from '../state/fluid-state';
+import type { FluidChunkRecord } from '../state/fluid-render-contracts';
 
 function record(x: number, level = '0'): FluidChunkRecord {
   const block: PlacedBlock = {

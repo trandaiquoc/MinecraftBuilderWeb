@@ -1,5 +1,5 @@
-import { coordinateKey } from '../../domain/coordinates';
-import type { FluidChunkRecord } from './fluid-render-contracts';
+import { coordinateKey } from '../../../domain/coordinates';
+import type { FluidChunkRecord } from '../state/fluid-render-contracts';
 
 /** Stable visual identity shared by record reconciliation and chunk caching. */
 export function fluidRecordSignature(record: FluidChunkRecord): string {

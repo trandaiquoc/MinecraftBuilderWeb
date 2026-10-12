@@ -1,8 +1,8 @@
-import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
-import type { OcclusionClass } from '../visibility/interior-occlusion';
-import { fluidHorizontalVelocity, sampleFluidCornerHeights } from './fluid-surface-sampler';
-export { calculateFluidHeight } from './fluid-surface-sampler';
+import { BlockDefinition } from '../../../blocks/catalog/block-definition.types';
+import { PlacedBlock, VoxelCoordinate } from '../../../domain/project.types';
+import type { OcclusionClass } from '../../visibility/interior-occlusion';
+import { fluidHorizontalVelocity, sampleFluidCornerHeights } from '../geometry/fluid-surface-sampler';
+export { calculateFluidHeight } from '../geometry/fluid-surface-sampler';
 
 export type FluidKind = 'water' | 'lava';
 export type FluidRenderLayer = 'solid' | 'cutout' | 'translucent';

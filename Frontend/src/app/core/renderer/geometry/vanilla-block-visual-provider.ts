@@ -12,11 +12,11 @@ import { RenderableAssetResourceProvider } from '../../assets/content-source/con
 import { SpecialBlockVisualRegistry } from '../visuals/special-blocks/special-block-visual-registry';
 import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-blocks/special-visual-contracts';
 import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
-import { createFluidGeometry } from '../fluids/fluid-geometry';
-import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
+import { createFluidGeometry } from '../fluids/geometry/fluid-geometry';
+import { vanillaFluidRenderResolver } from '../fluids/state/fluid-state';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { isGrassTintBlock, sampleGrassColormap, tintColorForFace } from './block-tint-resolver';
-import { staticFluidTextureView } from '../fluids/static-fluid-texture';
+import { staticFluidTextureView } from '../fluids/geometry/static-fluid-texture';
 import { faceGeometry, modelCoordinateVector, shadeDirectionFactor } from './block-model-geometry';
 import { BlockThumbnailRenderer } from '../visuals/thumbnails/block-thumbnail-renderer';
 import type {

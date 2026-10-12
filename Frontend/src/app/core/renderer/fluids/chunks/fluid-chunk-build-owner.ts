@@ -1,19 +1,19 @@
 import * as THREE from 'three';
-import { coordinateKey } from '../../domain/coordinates';
-import type { VoxelCoordinate } from '../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
+import type { VoxelCoordinate } from '../../../domain/project.types';
 import {
   buildFluidFallbackMeshData,
   buildFluidMeshData,
   fluidChunkKey,
   type FluidMeshRecord,
-} from './fluid-mesh-core';
-import type { FluidWorldLookup } from './fluid-state';
+} from '../geometry/fluid-mesh-core';
+import type { FluidWorldLookup } from '../state/fluid-state';
 import type {
   FluidChunkChange,
   FluidChunkRecord,
   FluidChunkSyncResult,
   FluidChunkVisualProvider,
-} from './fluid-render-contracts';
+} from '../state/fluid-render-contracts';
 import { FluidChunkRecordStore } from './fluid-chunk-record-store';
 import { FluidChunkResidencyOwner, type FluidResidentChunk } from './fluid-chunk-residency-owner';
 import { fluidRecordSignature } from './fluid-record-signature';

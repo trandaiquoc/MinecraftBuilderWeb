@@ -22,7 +22,7 @@ import {
   blockMutationHint,
   metadataMutationHint,
 } from '../../editor/mutations/project-mutation-hint';
-import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
+import { vanillaFluidRenderResolver } from '../fluids/state/fluid-state';
 import { ViewportRuntimeTrace } from '../diagnostics/trace/viewport-runtime-trace';
 import { ViewportCameraMotionController } from '../scheduling/camera/viewport-camera-motion-controller';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import type { PlacedBlock } from '../../domain/project.types';
-import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
+import { vanillaFluidRenderResolver } from '../fluids/state/fluid-state';
 import {
   GroupIsolationPresentation,
   type GroupIsolationSnapshot,

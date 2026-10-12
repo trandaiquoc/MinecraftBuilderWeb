@@ -8,8 +8,8 @@ import type {
   FluidRenderCoordinator,
   ProjectionFluidChange,
 } from '../../fluids/fluid-render-coordinator';
-import type { FluidWorldLookup } from '../../fluids/fluid-state';
-import { fluidChunkKey } from '../../fluids/fluid-mesh-core';
+import type { FluidWorldLookup } from '../../fluids/state/fluid-state';
+import { fluidChunkKey } from '../../fluids/geometry/fluid-mesh-core';
 import type { ViewportInteriorCullingOwner } from '../../visibility/viewport-interior-culling-owner';
 import type { StaticModelBatchRenderer } from '../../batching/static-model-batch-renderer';
 import type { SurfaceFaceBatchRenderer } from '../../batching/surface-face-batch-renderer';

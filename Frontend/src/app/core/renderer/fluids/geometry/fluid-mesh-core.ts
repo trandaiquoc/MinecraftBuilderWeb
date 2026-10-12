@@ -1,15 +1,15 @@
-import { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
-import { groupIdsOf } from '../../editor/groups/group-membership';
+import { PlacedBlock, VoxelCoordinate } from '../../../domain/project.types';
+import { groupIdsOf } from '../../../editor/groups/group-membership';
 import {
   fluidCornerHeightsResolved,
   fluidVelocityResolved,
   FluidRenderResolver,
   FluidWorldLookup,
   ResolvedFluidRenderState,
-} from './fluid-state';
+} from '../state/fluid-state';
 import { shouldCullFluidFace } from './fluid-face-occlusion';
 import { fluidSideUv } from './fluid-surface-sampler';
-import { fluidMaterialDescriptor, fluidMaterialIdentityKey } from './fluid-material-key';
+import { fluidMaterialDescriptor, fluidMaterialIdentityKey } from '../state/fluid-material-key';
 
 export interface FluidMeshRecord {
   readonly block: PlacedBlock;

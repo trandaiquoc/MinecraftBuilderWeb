@@ -5,8 +5,8 @@ import {
   vanillaFluidRenderResolver,
   type FluidWorldLookup,
   type ResolvedFluidRenderState,
-} from './fluid-state';
-import { PlacedBlock } from '../../domain/project.types';
+} from '../state/fluid-state';
+import { PlacedBlock } from '../../../domain/project.types';
 
 const block = (id: string, position = { x: 0, y: 0, z: 0 }, level = '0'): PlacedBlock => ({
   kind: 'resolved',

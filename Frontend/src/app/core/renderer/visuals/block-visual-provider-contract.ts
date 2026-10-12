@@ -3,7 +3,7 @@ import type { PlacedBlock } from '../../domain/project.types';
 import type { ResolvedBlockModel } from '../../blocks/resolver';
 import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
 import type { NormalizedSpecialVisualDescriptor } from './special-blocks/special-visual-contracts';
-import type { FluidRenderResolver, FluidWorldLookup } from '../fluids/fluid-state';
+import type { FluidRenderResolver, FluidWorldLookup } from '../fluids/state/fluid-state';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import type { ItemVisualKind } from './items/item-visual-resolver';
 

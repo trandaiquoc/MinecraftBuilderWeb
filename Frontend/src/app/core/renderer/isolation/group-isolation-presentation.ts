@@ -21,7 +21,7 @@ import {
   type FluidChunkRecord,
   type FluidChunkVisualProvider,
 } from '../fluids/fluid-chunk-renderer';
-import type { FluidWorldLookup } from '../fluids/fluid-state';
+import type { FluidWorldLookup } from '../fluids/state/fluid-state';
 
 export interface IsolateBlockVisualSnapshot {
   readonly key: string;

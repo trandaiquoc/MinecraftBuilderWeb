@@ -3,7 +3,7 @@ import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
 import type { FluidChunkChange, FluidChunkRecord } from '../fluids/fluid-chunk-renderer';
 import type { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
-import type { FluidRenderResolver, FluidWorldLookup } from '../fluids/fluid-state';
+import type { FluidRenderResolver, FluidWorldLookup } from '../fluids/state/fluid-state';
 
 export interface LocalFluidVisibleEntry {
   readonly block: PlacedBlock;

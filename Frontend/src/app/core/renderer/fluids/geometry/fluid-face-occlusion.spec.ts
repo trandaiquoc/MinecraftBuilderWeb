@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { shouldCullFluidFace } from './fluid-face-occlusion';
-import { vanillaFluidRenderResolver } from './fluid-state';
-import type { FluidWorldLookup } from './fluid-state';
+import { vanillaFluidRenderResolver } from '../state/fluid-state';
+import type { FluidWorldLookup } from '../state/fluid-state';
 
 const block = (id: string, position = { x: 0, y: 0, z: 0 }) => ({
   kind: 'resolved' as const,

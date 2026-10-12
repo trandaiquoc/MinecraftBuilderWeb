@@ -8,8 +8,8 @@ import type {
   FluidChunkSyncResult,
   FluidChunkVisualProvider,
   FluidLayerPresentation,
-} from './fluid-render-contracts';
-import { FluidRenderResolver, FluidWorldLookup } from './fluid-state';
+} from './state/fluid-render-contracts';
+import { FluidRenderResolver, FluidWorldLookup } from './state/fluid-state';
 
 export interface ProjectionFluidEntry {
   readonly block: PlacedBlock;

@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import type { PlacedBlock } from '../../domain/project.types';
+import type { PlacedBlock } from '../../../domain/project.types';
 import { FluidChunkRecordStore } from './fluid-chunk-record-store';
 import { FluidChunkResidencyOwner } from './fluid-chunk-residency-owner';
 import { FluidChunkBuildOwner } from './fluid-chunk-build-owner';
-import { vanillaFluidRenderResolver } from './fluid-state';
-import type { FluidChunkRecord, FluidChunkVisualProvider } from './fluid-render-contracts';
-import type { FluidWorldLookup } from './fluid-state';
+import { vanillaFluidRenderResolver } from '../state/fluid-state';
+import type { FluidChunkRecord, FluidChunkVisualProvider } from '../state/fluid-render-contracts';
+import type { FluidWorldLookup } from '../state/fluid-state';
 
 function waterRecord(): FluidChunkRecord {
   const block: PlacedBlock = {

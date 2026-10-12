@@ -7,7 +7,7 @@ import {
   vanillaFluidRenderResolver,
   type FluidRenderResolver,
   type FluidWorldLookup,
-} from './fluid-state';
+} from './state/fluid-state';
 
 const block = (x: number, id = 'minecraft:water'): PlacedBlock => ({
   kind: 'resolved',

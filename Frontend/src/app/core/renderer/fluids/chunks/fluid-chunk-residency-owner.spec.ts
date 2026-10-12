@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { FluidChunkResidencyOwner, type FluidResidentChunk } from './fluid-chunk-residency-owner';
-import { vanillaFluidRenderResolver } from './fluid-state';
-import type { FluidMeshBuildResult } from './fluid-mesh-core';
+import { vanillaFluidRenderResolver } from '../state/fluid-state';
+import type { FluidMeshBuildResult } from '../geometry/fluid-mesh-core';
 
 function buildData(): FluidMeshBuildResult {
   return {

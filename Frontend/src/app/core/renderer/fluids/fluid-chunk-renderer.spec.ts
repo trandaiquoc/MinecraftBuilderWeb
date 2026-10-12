@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { FluidChunkRenderer } from './fluid-chunk-renderer';
-import { vanillaFluidRenderResolver, type FluidWorldLookup } from './fluid-state';
+import { vanillaFluidRenderResolver, type FluidWorldLookup } from './state/fluid-state';
 import { PlacedBlock } from '../../domain/project.types';
 
 const block = (id: string, position: { x: number; y: number; z: number }): PlacedBlock => ({

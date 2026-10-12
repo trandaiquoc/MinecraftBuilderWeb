@@ -1,7 +1,7 @@
-import { VoxelCoordinate } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
-import { fluidChunkKey } from './fluid-mesh-core';
-import type { FluidChunkChange, FluidChunkRecord } from './fluid-render-contracts';
+import { VoxelCoordinate } from '../../../domain/project.types';
+import { coordinateKey } from '../../../domain/coordinates';
+import { fluidChunkKey } from '../geometry/fluid-mesh-core';
+import type { FluidChunkChange, FluidChunkRecord } from '../state/fluid-render-contracts';
 import { fluidRecordSignature } from './fluid-record-signature';
 
 export interface FluidChunkReconcileResult {
