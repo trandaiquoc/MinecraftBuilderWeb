@@ -6,6 +6,7 @@ import type { BlockLibraryService } from '../../../blocks/catalog/block-library.
 import type { VanillaBlockVisualProvider } from '../../../renderer/geometry/vanilla-block-visual-provider';
 import type { PerspectiveThumbnailResult } from '../../../renderer/visuals/block-visual-provider-contract';
 import type { VanillaAssetProvider } from '../vanilla-asset-provider';
+import { stableValueKey } from '../../../domain/stable-value-key';
 import { ThumbnailTaskQueue, type ThumbnailTaskPriority } from './thumbnail-task-queue';
 
 export type ThumbnailPreviewQuality = 'none' | 'fallback' | 'enhanced';
@@ -264,11 +265,14 @@ export function thumbnailKey(
   recipe = 'single',
   concreteBlockIds: readonly string[] = [],
 ): string {
-  const serializedState = Object.entries(state)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, value]) => `${name}=${value}`)
-    .join(',');
-  return `thumbnail-v6|${generation}|${gameVersion}|item-preview-v3|${recipe}|${blockId}|${concreteBlockIds.slice().sort().join(',')}|${serializedState}`;
+  return `thumbnail-v7|${stableValueKey({
+    generation,
+    gameVersion,
+    recipe,
+    blockId,
+    concreteBlockIds: [...concreteBlockIds].sort(),
+    state,
+  })}`;
 }
 
 export function thumbnailIdentityForItem(

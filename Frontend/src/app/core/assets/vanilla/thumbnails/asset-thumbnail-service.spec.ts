@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PlaceableItemDefinition } from '../../../blocks/placement-palette/placeable-item.types';
 import type { VanillaBlockVisualProvider } from '../../../renderer/geometry/vanilla-block-visual-provider';
 import type { VanillaAssetProvider } from '../vanilla-asset-provider';
-import { AssetThumbnailService } from './asset-thumbnail-service';
+import { AssetThumbnailService, thumbnailKey } from './asset-thumbnail-service';
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value: T) => void } {
@@ -48,6 +48,12 @@ function visual(overrides: Partial<VanillaBlockVisualProvider>): VanillaBlockVis
 }
 
 describe('AssetThumbnailService', () => {
+  it('keeps distinct BlockStates in distinct thumbnail cache identities', () => {
+    expect(thumbnailKey(1, '1.21.1', 'minecraft:stone', { a: 'x,b=y' })).not.toBe(
+      thumbnailKey(1, '1.21.1', 'minecraft:stone', { a: 'x', b: 'y' }),
+    );
+  });
+
   it('keeps a flat preview visible while selected work upgrades it once', async () => {
     const { runtime, service } = createService();
     const render = vi.fn(async () => ({ url: 'blob:enhanced', quality: 'enhanced' as const }));
