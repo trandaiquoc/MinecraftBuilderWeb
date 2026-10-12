@@ -16,7 +16,7 @@ import {
   mergeBlockStateDefinitions,
   inspectContentProperty,
   representativeContentState,
-} from './content-property-inspector';
+} from './evidence/content-property-inspector';
 import {
   buildBlockResourceGraph,
   buildItemResourceGraph,
@@ -24,7 +24,7 @@ import {
   resourceSourceMetadata,
   type ResourceDependencyGraph,
 } from './resources/content-resource-graph';
-import { mergeContentEvidence, uniqueDiagnostics } from './content-evidence-merger';
+import { mergeContentEvidence, uniqueDiagnostics } from './evidence/content-evidence-merger';
 import type { ContentSemanticEvidenceProvider, EvidenceProvenance } from './content-semantic-types';
 import type {
   ContentRelationship,
@@ -60,8 +60,8 @@ export type {
 export {
   SemanticManifestEvidenceProvider,
   parseSemanticManifest,
-} from './semantic-manifest-evidence';
-export type { SemanticManifestParseResult } from './semantic-manifest-evidence';
+} from './evidence/semantic-manifest-evidence';
+export type { SemanticManifestParseResult } from './evidence/semantic-manifest-evidence';
 
 export type { NormalizedPredicate, NormalizedPropertyPredicate } from './resources/normalized-predicate';
 
@@ -328,7 +328,7 @@ export class ContentIntrospectionEngine {
   }
 }
 
-export { mergeContentEvidence } from './content-evidence-merger';
+export { mergeContentEvidence } from './evidence/content-evidence-merger';
 
 export function extractPredicates(document: unknown): readonly NormalizedPredicate[] {
   return blockStatePredicates(document);

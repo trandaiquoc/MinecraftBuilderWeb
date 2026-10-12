@@ -2,8 +2,8 @@ import type {
   ContentPropertyEffects,
   ContentSemanticSupplement,
   ContentIntrospectionDiagnostic,
-} from './content-semantic-types';
-import type { NormalizedContentDescriptor } from './content-introspection.types';
+} from '../content-semantic-types';
+import type { NormalizedContentDescriptor } from '../content-introspection.types';
 
 export function mergeContentEvidence(
   staticDescriptor: NormalizedContentDescriptor,

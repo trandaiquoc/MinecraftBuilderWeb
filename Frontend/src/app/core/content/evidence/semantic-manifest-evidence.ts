@@ -1,6 +1,6 @@
-import type { AssetResourceProvider } from '../blocks/resolver/resolver.types';
-import type { BlockCapabilityProfile } from '../blocks/capabilities/block-capability.types';
-import type { PlacementSupportRequirement } from '../blocks/catalog/block-definition.types';
+import type { AssetResourceProvider } from '../../blocks/resolver/resolver.types';
+import type { BlockCapabilityProfile } from '../../blocks/capabilities/block-capability.types';
+import type { PlacementSupportRequirement } from '../../blocks/catalog/block-definition.types';
 import type {
   ContentIntrospectionDiagnostic,
   ContentItemHostVisualDescriptor,
@@ -10,7 +10,7 @@ import type {
   ContentSemanticEvidenceProvider,
   ContentSemanticSupplement,
   ContentSpecialVisualDescriptor,
-} from './content-semantic-types';
+} from '../content-semantic-types';
 
 /** Reads the optional MinecraftBuilder-owned semantic manifest without making
  * assumptions about the namespace or loader that supplied the resources. */

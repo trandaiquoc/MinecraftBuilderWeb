@@ -24,7 +24,7 @@ import {
   SemanticManifestEvidenceProvider,
   type ContentSemanticEvidenceProvider,
 } from '../../content/content-introspection';
-import { StaticJvmSemanticEvidenceProvider } from '../../content/jvm-semantic-evidence';
+import { StaticJvmSemanticEvidenceProvider } from '../../content/evidence/jvm-semantic-evidence';
 import { CooperativeWorkBudget, yieldToBrowser } from '../cooperative-yield';
 import { throwIfAborted } from '../asset-operation-cancellation';
 

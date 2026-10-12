@@ -1,15 +1,15 @@
 import type {
   AssetBlockRecord,
   BlockStateDefinition,
-} from '../blocks/catalog/block-definition.types';
+} from '../../blocks/catalog/block-definition.types';
 import {
   blockCapability,
   hasBlockCapability,
-} from '../blocks/capabilities/block-capability-resolver';
-import type { ResolvedBlockModel } from '../blocks/resolver/resolver.types';
-import { BlockModelResolver } from '../blocks/resolver/block-model-resolver';
-import type { NormalizedPredicate } from './resources/normalized-predicate';
-import type { ContentPropertyDescriptor } from './content-semantic-types';
+} from '../../blocks/capabilities/block-capability-resolver';
+import type { ResolvedBlockModel } from '../../blocks/resolver/resolver.types';
+import { BlockModelResolver } from '../../blocks/resolver/block-model-resolver';
+import type { NormalizedPredicate } from '../resources/normalized-predicate';
+import type { ContentPropertyDescriptor } from '../content-semantic-types';
 
 export function mergeBlockStateDefinitions(
   definitions: readonly BlockStateDefinition[],

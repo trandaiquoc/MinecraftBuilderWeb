@@ -2,7 +2,7 @@ import type {
   ContentIntrospectionDiagnostic,
   ContentSemanticSupplement,
   ContentSemanticEvidenceProvider,
-} from './content-introspection';
+} from '../content-introspection';
 
 /** Version-specific names belong here, at the format boundary.  The current
  * profile intentionally contains no mod/content names and proves no runtime
