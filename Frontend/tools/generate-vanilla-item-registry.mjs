@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { compareRegistryKeys } from './registry-key-order.mjs';
 
 const [inputArgument, outputArgument] = process.argv.slice(2);
 if (!inputArgument || !outputArgument)
@@ -11,7 +12,7 @@ const report = JSON.parse(await readFile(resolve(inputArgument), 'utf8'));
 if (!report || typeof report !== 'object' || Array.isArray(report))
   throw new Error('Malformed item report');
 const items = Object.entries(report)
-  .sort(([left], [right]) => left.localeCompare(right))
+  .sort(([left], [right]) => compareRegistryKeys(left, right))
   .map(([id, value]) => {
     if (!/^minecraft:[a-z0-9_./-]+$/.test(id)) throw new Error(`Invalid item ID: ${id}`);
     if (!value || typeof value !== 'object' || Array.isArray(value))

@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { compareRegistryKeys } from './registry-key-order.mjs';
 
 const [inputArgument, outputArgument] = process.argv.slice(2);
 if (!inputArgument || !outputArgument)
@@ -11,7 +12,7 @@ const input = resolve(inputArgument);
 const output = resolve(outputArgument);
 const report = JSON.parse(await readFile(input, 'utf8'));
 const blocks = Object.entries(report)
-  .sort(([left], [right]) => left.localeCompare(right))
+  .sort(([left], [right]) => compareRegistryKeys(left, right))
   .map(([id, value]) => {
     if (!value || typeof value !== 'object' || !Array.isArray(value.states))
       throw new Error(`Malformed block report entry: ${id}`);
@@ -19,7 +20,7 @@ const blocks = Object.entries(report)
     if (defaults.length !== 1)
       throw new Error(`${id} must have exactly one default state; found ${defaults.length}`);
     const properties = Object.entries(value.properties ?? {})
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([left], [right]) => compareRegistryKeys(left, right))
       .map(([name, values]) => {
         if (
           !Array.isArray(values) ||

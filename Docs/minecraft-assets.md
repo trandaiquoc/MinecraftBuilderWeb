@@ -388,6 +388,9 @@ output `reports/blocks.json` with:
 node tools/generate-vanilla-block-registry.mjs <reports/blocks.json> public/assets/vanilla-block-registry-1.21.1.json
 ```
 
+Registry IDs and block property names use locale-independent code-point order,
+so generation output is stable across developer and CI locales.
+
 Generation fails if an entry has anything other than exactly one state marked
 `default: true`, or if a default value is absent from its property's allowed
 values. The authoritative report contains 1060 block entries. The earlier
