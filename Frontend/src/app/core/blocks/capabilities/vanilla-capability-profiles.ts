@@ -68,7 +68,17 @@ const VERIFIED_PILLAR_IDS = new Set([
   'minecraft:stripped_warped_hyphae',
 ]);
 
+const VERIFIED_INVISIBLE_IDS = new Set([
+  'minecraft:air',
+  'minecraft:cave_air',
+  'minecraft:void_air',
+  'minecraft:structure_void',
+  'minecraft:light',
+]);
+
 export function verifiedVanillaCapabilityProfile(id: string): readonly BlockCapability[] {
+  if (VERIFIED_INVISIBLE_IDS.has(id))
+    return [{ kind: 'intentionally-invisible', evidence: 'verified' }];
   if (VERIFIED_SHELF_IDS.has(id))
     return [{ kind: 'item-storage-display', slotCount: 3, evidence: 'verified' }];
   const inventory = verifiedInventoryContainerSchema(id);

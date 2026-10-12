@@ -302,6 +302,31 @@ describe('VanillaAssetProvider', () => {
     expect(catalog.get('minecraft:custom_visual')?.behavior).toBeUndefined();
   });
 
+  it('uses the verified capability profile for intentionally invisible blocks', () => {
+    const invisibleIds = ['air', 'cave_air', 'void_air', 'structure_void', 'light'];
+    const provider = new VanillaAssetProvider(
+      'fixture.jar',
+      Object.fromEntries(
+        invisibleIds.map((name) => [
+          `assets/minecraft/blockstates/${name}.json`,
+          { variants: { '': { model: `minecraft:block/${name}` } } },
+        ]),
+      ),
+      new Map(),
+    );
+
+    for (const name of invisibleIds) {
+      expect(
+        provider.catalog().blocks.find((block) => block.id === `minecraft:${name}`),
+      ).toMatchObject({
+        visualClassification: 'intentionally-invisible',
+        capabilities: expect.arrayContaining([
+          { kind: 'intentionally-invisible', evidence: 'verified' },
+        ]),
+      });
+    }
+  });
+
   it('applies the verified three-slot Shelf host contract only to the known Vanilla family', () => {
     const provider = new VanillaAssetProvider(
       '26.3.jar',

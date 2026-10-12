@@ -354,9 +354,9 @@ export class VanillaAssetProvider implements ContentSourceProvider, VanillaAsset
             ? 'fallback'
             : 'partial';
       const intentionallyInvisible =
-        intentionallyInvisibleBlocks.has(id) ||
-        known?.capabilities?.some((capability) => capability.kind === 'intentionally-invisible') ===
-          true;
+        enriched.capabilities?.some(
+          (capability) => capability.kind === 'intentionally-invisible',
+        ) === true;
       const specialRenderer =
         !intentionallyInvisible &&
         (fluid ||
@@ -571,10 +571,3 @@ function humanize(value: string): string {
     .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
     .join(' ');
 }
-const intentionallyInvisibleBlocks = new Set([
-  'minecraft:air',
-  'minecraft:cave_air',
-  'minecraft:void_air',
-  'minecraft:structure_void',
-  'minecraft:light',
-]);

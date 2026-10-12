@@ -43,7 +43,9 @@ export async function auditVanillaAssetEntry(
   )
     reasons.add('MULTIPART_NO_MATCH');
   if (!resolved.trace.elementCount) reasons.add('NO_ELEMENTS');
-  const intentionallyInvisible = intentionallyInvisibleBlocks.has(definition.id);
+  const intentionallyInvisible =
+    definition.capabilities?.some((capability) => capability.kind === 'intentionally-invisible') ===
+    true;
   const specialRenderer =
     !intentionallyInvisible &&
     (hasSpecialModel(resolved.trace.modelResources, provider) ||
@@ -229,13 +231,6 @@ function hasSpecialModel(
     );
   });
 }
-const intentionallyInvisibleBlocks = new Set([
-  'minecraft:air',
-  'minecraft:cave_air',
-  'minecraft:void_air',
-  'minecraft:structure_void',
-  'minecraft:light',
-]);
 function reportFamily(id: string): string {
   const name = id.slice(id.indexOf(':') + 1);
   const groups: readonly [RegExp, string][] = [
