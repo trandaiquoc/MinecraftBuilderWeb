@@ -24,7 +24,7 @@ import {
   isDecorationEntityId,
 } from '../../content/classification/content-classifier';
 import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vanilla-capability-profiles';
-import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catalog';
+import { loadPaintingVariants } from '../../decorations/catalog/painting-catalog';
 import { textureResourcePath } from '../../content/resources/resource-location';
 import { stateDefinitionsFromBlockstate } from '../../content/resources/normalized-predicate';
 import {
@@ -378,8 +378,6 @@ export class VanillaAssetProvider implements ContentSourceProvider, VanillaAsset
       };
       return { ...finalRecord, contentDescriptor: introspection.inspectBlock(finalRecord) };
     });
-    const paintingCatalog = new PaintingVariantCatalog();
-    paintingCatalog.load(this, this.source.id, this.source.displayName);
     return {
       minecraftVersion: this.minecraftVersion,
       sourceId: this.source.id,
@@ -401,7 +399,7 @@ export class VanillaAssetProvider implements ContentSourceProvider, VanillaAsset
       // target resource format contains no usable item definitions. Keep an
       // empty/unknown catalog conservative rather than exposing every block.
       itemEvidenceAvailable: true,
-      paintingVariants: paintingCatalog.all(),
+      paintingVariants: loadPaintingVariants(this, this.source.id, this.source.displayName),
     };
   }
 }

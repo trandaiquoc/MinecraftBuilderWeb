@@ -1,7 +1,7 @@
 import { computed } from '@angular/core';
 import { describe, expect, it } from 'vitest';
 import { PaintingVariantCatalogService } from './painting-variant-catalog.service';
-import { allPaintingVariants, PaintingVariantCatalog, paintingVariant } from './painting-catalog';
+import { allPaintingVariants, loadPaintingVariants, paintingVariant } from './painting-catalog';
 
 describe('PaintingVariantCatalogService', () => {
   it('normalizes legacy vanilla variants and filters external paintings by source', () => {
@@ -27,8 +27,7 @@ describe('PaintingVariantCatalogService', () => {
   });
 
   it('canonicalizes asset ids when loading a source catalog', () => {
-    const catalog = new PaintingVariantCatalog();
-    catalog.load(
+    const catalog = loadPaintingVariants(
       {
         paths: () => ['data/example/painting_variant/gallery.json'],
         readJson: () => ({ width: 1, height: 1, asset_id: 'example:gallery/poster' }),
@@ -36,7 +35,8 @@ describe('PaintingVariantCatalogService', () => {
       'example-source',
       'Example',
     );
-    expect(catalog.get('example:gallery')).toMatchObject({
+    expect(catalog[0]).toMatchObject({
+      id: 'example:gallery',
       assetPath: 'example:painting/gallery/poster',
     });
   });
