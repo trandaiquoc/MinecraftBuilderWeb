@@ -26,6 +26,7 @@ export class BlockThumbnailRenderer {
   private readonly itemThumbnailCache = new Map<string, Promise<PerspectiveThumbnailResult>>();
   private readonly itemVisualPreviewCache = new Map<string, Promise<PerspectiveThumbnailResult>>();
   private readonly objectUrls = new Set<string>();
+  private readonly liveThumbnailVisuals = new Set<THREE.Group>();
   private renderer?: THREE.WebGLRenderer;
   private disposed = false;
 
@@ -115,6 +116,7 @@ export class BlockThumbnailRenderer {
     this.disposed = true;
     this.renderer?.dispose();
     this.renderer = undefined;
+    for (const object of [...this.liveThumbnailVisuals]) this.releaseThumbnailVisual(object);
     for (const url of this.objectUrls) URL.revokeObjectURL?.(url);
     this.objectUrls.clear();
     this.thumbnailCache.clear();
@@ -140,17 +142,34 @@ export class BlockThumbnailRenderer {
   private async renderThumbnailBlocks(blocks: readonly PlacedBlock[]): Promise<string | undefined> {
     if (this.disposed || typeof document === 'undefined') return undefined;
     const renderer = this.getRenderer();
-    const visuals = (
-      await Promise.all(
-        blocks.map(async (block) => ({
-          block,
-          visual: await this.source.createBlockVisual(block),
-        })),
-      )
-    )
+    let failed = false;
+    const attemptVisuals = new Set<THREE.Group>();
+    let created: { block: PlacedBlock; visual: BlockVisualResult }[];
+    try {
+      created = await Promise.all(
+        blocks.map(async (block) => {
+          const visual = await this.source.createBlockVisual(block);
+          if (visual.object) {
+            if (this.disposed || failed) disposeObject(visual.object);
+            else {
+              attemptVisuals.add(visual.object);
+              this.liveThumbnailVisuals.add(visual.object);
+            }
+          }
+          return { block, visual };
+        }),
+      );
+    } catch (error) {
+      failed = true;
+      for (const object of attemptVisuals) this.releaseThumbnailVisual(object);
+      attemptVisuals.clear();
+      throw error;
+    }
+
+    const visuals = created
       .map(({ block, visual }) => {
         if (this.disposed) {
-          if (visual.object) disposeObject(visual.object);
+          if (visual.object) this.releaseThumbnailVisual(visual.object);
           return undefined;
         }
         if (!visual.object) return undefined;
@@ -183,8 +202,13 @@ export class BlockThumbnailRenderer {
       for (const object of visuals) scene.remove(object);
       return await this.canvasUrl(renderer.domElement);
     } finally {
-      for (const object of visuals) disposeObject(object);
+      for (const object of visuals) this.releaseThumbnailVisual(object);
     }
+  }
+
+  private releaseThumbnailVisual(object: THREE.Group): void {
+    if (!this.liveThumbnailVisuals.delete(object)) return;
+    disposeObject(object);
   }
 
   private itemThumbnailResource(itemId: string): string | undefined {

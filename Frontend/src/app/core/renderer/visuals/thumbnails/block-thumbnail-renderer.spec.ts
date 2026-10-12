@@ -83,6 +83,119 @@ describe('block thumbnail renderer', () => {
     expect(createObjectURL).not.toHaveBeenCalled();
   });
 
+  it('disposes visuals that resolved before another block visual rejects', async () => {
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshBasicMaterial();
+    const geometryDisposed = vi.fn();
+    const materialDisposed = vi.fn();
+    geometry.addEventListener('dispose', geometryDisposed);
+    material.addEventListener('dispose', materialDisposed);
+    const visualObject = new THREE.Group().add(new THREE.Mesh(geometry, material));
+    const fakeRenderer = {
+      domElement: document.createElement('canvas'),
+      setSize: vi.fn(),
+      setClearColor: vi.fn(),
+      render: vi.fn(),
+      dispose: vi.fn(),
+    };
+    const renderer = new BlockThumbnailRenderer(
+      { readJson: () => undefined, readBinary: () => undefined } as any,
+      new SpecialBlockVisualRegistry(),
+      {
+        createBlockVisual: vi.fn((block) =>
+          block.id === 'example:broken'
+            ? Promise.reject(new Error('visual creation failed'))
+            : Promise.resolve({ object: visualObject } as any),
+        ),
+        resolveBlockModel: vi.fn(),
+        resolveItemModel: vi.fn(),
+        createModelPart: vi.fn(),
+        loadTexture: vi.fn(),
+      },
+    );
+    (renderer as any).getRenderer = () => fakeRenderer;
+
+    await expect(
+      (renderer as any).renderThumbnailBlocks([
+        {
+          kind: 'resolved',
+          id: 'example:working',
+          namespace: 'example',
+          position: { x: 0, y: 0, z: 0 },
+          state: {},
+        },
+        {
+          kind: 'resolved',
+          id: 'example:broken',
+          namespace: 'example',
+          position: { x: 1, y: 0, z: 0 },
+          state: {},
+        },
+      ]),
+    ).rejects.toThrow('visual creation failed');
+
+    expect(geometryDisposed).toHaveBeenCalledOnce();
+    expect(materialDisposed).toHaveBeenCalledOnce();
+    expect(fakeRenderer.render).not.toHaveBeenCalled();
+  });
+
+  it('keeps rejection fail-fast and disposes visuals that resolve after the failure', async () => {
+    let resolveVisual!: (visual: any) => void;
+    const pendingVisual = new Promise<any>((resolve) => (resolveVisual = resolve));
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshBasicMaterial();
+    let markDisposed!: () => void;
+    const disposed = new Promise<void>((resolve) => (markDisposed = resolve));
+    geometry.addEventListener('dispose', markDisposed);
+    const visualObject = new THREE.Group().add(new THREE.Mesh(geometry, material));
+    const fakeRenderer = {
+      domElement: document.createElement('canvas'),
+      setSize: vi.fn(),
+      setClearColor: vi.fn(),
+      render: vi.fn(),
+      dispose: vi.fn(),
+    };
+    const renderer = new BlockThumbnailRenderer(
+      { readJson: () => undefined, readBinary: () => undefined } as any,
+      new SpecialBlockVisualRegistry(),
+      {
+        createBlockVisual: vi.fn((block) =>
+          block.id === 'example:broken'
+            ? Promise.reject(new Error('visual creation failed'))
+            : pendingVisual,
+        ),
+        resolveBlockModel: vi.fn(),
+        resolveItemModel: vi.fn(),
+        createModelPart: vi.fn(),
+        loadTexture: vi.fn(),
+      },
+    );
+    (renderer as any).getRenderer = () => fakeRenderer;
+
+    const pending = (renderer as any).renderThumbnailBlocks([
+      {
+        kind: 'resolved',
+        id: 'example:delayed',
+        namespace: 'example',
+        position: { x: 0, y: 0, z: 0 },
+        state: {},
+      },
+      {
+        kind: 'resolved',
+        id: 'example:broken',
+        namespace: 'example',
+        position: { x: 1, y: 0, z: 0 },
+        state: {},
+      },
+    ]);
+
+    await expect(pending).rejects.toThrow('visual creation failed');
+    expect(fakeRenderer.render).not.toHaveBeenCalled();
+
+    resolveVisual({ object: visualObject });
+    await disposed;
+  });
+
   it('disposes generated-layer GPU objects without disposing shared textures', async () => {
     const geometryDisposed = vi.fn();
     const materialDisposed = vi.fn();
