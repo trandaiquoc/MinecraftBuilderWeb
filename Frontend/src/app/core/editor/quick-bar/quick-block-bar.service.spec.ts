@@ -91,6 +91,54 @@ describe('quick block active state contract', () => {
     expect(quickStateKey({ a: 'x,b=y' })).not.toBe(quickStateKey({ a: 'x', b: 'y' }));
   });
 
+  it('ignores malformed persisted entries without dropping valid neighboring slots', async () => {
+    localStorage.setItem(
+      'minecraft-builder.quick-blocks.project-1',
+      JSON.stringify([
+        {
+          id: 'minecraft:stone',
+          itemId: 'minecraft:stone',
+          displayName: 'Stone',
+          state: { axis: 'y' },
+        },
+        {
+          id: 'minecraft:dirt',
+          itemId: 42,
+          displayName: 'Dirt',
+          state: {},
+        },
+        {
+          id: 'minecraft:grass_block',
+          itemId: 'minecraft:grass_block',
+          displayName: 'Grass Block',
+          state: { snowy: false },
+        },
+      ]),
+    );
+    const project = signal({ id: 'project-1' });
+    await TestBed.configureTestingModule({
+      providers: [
+        { provide: WorkspaceStateService, useValue: { project } },
+        ActiveBlockService,
+        BlockLibraryService,
+        { provide: DecorationService, useValue: { clearActive: () => undefined } },
+        QuickBlockBarService,
+      ],
+    }).compileComponents();
+
+    const quickBar = TestBed.inject(QuickBlockBarService);
+    TestBed.flushEffects();
+    const entries = quickBar.entries();
+    localStorage.removeItem('minecraft-builder.quick-blocks.project-1');
+    expect(entries).toEqual([
+      expect.objectContaining({
+        id: 'minecraft:stone',
+        itemId: 'minecraft:stone',
+        state: { axis: 'y' },
+      }),
+    ]);
+  });
+
   it('does not mark an unavailable source entry active', () => {
     expect(
       quickEntryMatchesActive(

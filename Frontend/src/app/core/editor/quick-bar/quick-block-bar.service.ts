@@ -122,7 +122,7 @@ function load(projectId: string): readonly QuickBlockEntry[] {
     const value: unknown = raw ? JSON.parse(raw) : [];
     return Array.isArray(value)
       ? value
-          .filter(valid)
+          .filter(isPersistedQuickEntry)
           .map((entry) => {
             const itemId = canonicalPlaceableItemId(entry.itemId ?? entry.id);
             return { ...entry, id: itemId, itemId };
@@ -133,13 +133,17 @@ function load(projectId: string): readonly QuickBlockEntry[] {
     return [];
   }
 }
-function valid(value: unknown): value is QuickBlockEntry {
+function isPersistedQuickEntry(value: unknown): value is QuickBlockEntry {
   if (!value || typeof value !== 'object') return false;
   const entry = value as Partial<QuickBlockEntry>;
+  const state = entry.state;
   return (
     typeof entry.id === 'string' &&
     typeof entry.displayName === 'string' &&
-    !!entry.state &&
-    typeof entry.state === 'object'
+    (entry.itemId === undefined || typeof entry.itemId === 'string') &&
+    !!state &&
+    typeof state === 'object' &&
+    !Array.isArray(state) &&
+    Object.values(state).every((value) => typeof value === 'string')
   );
 }
