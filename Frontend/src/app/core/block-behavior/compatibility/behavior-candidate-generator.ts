@@ -97,7 +97,7 @@ export function generateBehaviorCandidates(
       'state-schema',
       'blockstate',
       'model',
-      'support',
+      'attachment',
       'tag',
     ]);
     candidates.push({
@@ -116,7 +116,7 @@ export function generateBehaviorCandidates(
       rejected(
         attachedProfile.family,
         'attachment contract conflicts with the observed six-face schema',
-        evidenceFor(fingerprint, ['state-schema', 'support']),
+        evidenceFor(fingerprint, ['state-schema', 'attachment']),
       ),
     );
 

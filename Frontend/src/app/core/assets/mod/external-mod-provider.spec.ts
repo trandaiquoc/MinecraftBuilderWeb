@@ -353,11 +353,24 @@ describe('ExternalModProvider', () => {
           },
         ],
         ['assets/example/models/block/crystal.json', { parent: 'minecraft:block/cross' }],
+        [
+          'data/minecraftbuilder/semantic-manifest.json',
+          {
+            schemaVersion: 1,
+            content: { 'example:crystal': { supportContracts: ['six-face-attachment'] } },
+          },
+        ],
       ]),
       resources: new Map(),
     });
     const initialDefinition = provider.catalog().blocks[0]!;
     expect(initialDefinition.behavior).toBeUndefined();
+    expect(initialDefinition.supportContracts).toEqual(['six-face-attachment']);
+    expect(initialDefinition.behaviorFingerprint?.supportContracts).toEqual([
+      'six-face-attachment',
+    ]);
+    expect(initialDefinition.behaviorFingerprint?.verifiedAttachmentContracts).toEqual([]);
+    expect(initialDefinition.behaviorFingerprint?.supportRequirements).toEqual([]);
     expect(initialDefinition.behaviorClassification?.traits).toContain('six-face-orientation');
     expect(initialDefinition.behaviorClassification?.traits).not.toContain('face-attachment');
     expect(initialDefinition.stateDefinitions).toContainEqual({
@@ -409,6 +422,8 @@ describe('ExternalModProvider', () => {
     const restored = ExternalModProvider.deserialize(provider.serialize());
     const restoredDefinition = restored.catalog().blocks[0]!;
     expect(restoredDefinition.behavior).toBeUndefined();
+    expect(restoredDefinition.supportContracts).toEqual(['six-face-attachment']);
+    expect(restoredDefinition.behaviorFingerprint?.verifiedAttachmentContracts).toEqual([]);
     expect(restoredDefinition.defaultState).toEqual(initialDefinition.defaultState);
     expect(restoredDefinition.stateDefinitions).toEqual(initialDefinition.stateDefinitions);
     expect(restoredDefinition.resources).toEqual(initialDefinition.resources);
@@ -442,7 +457,12 @@ describe('ExternalModProvider', () => {
           'data/minecraftbuilder/semantic-manifest.json',
           {
             schemaVersion: 1,
-            content: { 'example:crystal': { behaviorContracts: ['six-face-attachment'] } },
+            content: {
+              'example:crystal': {
+                behaviorContracts: ['six-face-attachment'],
+                supportContracts: ['plantable-soil'],
+              },
+            },
           },
         ],
       ]),
@@ -456,6 +476,10 @@ describe('ExternalModProvider', () => {
     expect(definition.behaviorFingerprint?.verifiedAttachmentContracts).toEqual([
       'six-face-attachment',
     ]);
+    expect(definition.supportContracts).toEqual(['plantable-soil']);
+    expect(definition.behaviorFingerprint?.supportContracts).toEqual(['plantable-soil']);
+    expect(definition.behaviorFingerprint?.supportRequirements).toEqual([]);
+    expect(definition.behaviorFingerprint?.traits).not.toContain('floor-support');
     const catalog = new BlockCatalog();
     catalog.load(provider.catalog());
     expect(catalog.get('example:crystal')?.capabilities).toContainEqual(
@@ -492,9 +516,15 @@ describe('ExternalModProvider', () => {
     expect(placement.project).toBeUndefined();
 
     const restored = ExternalModProvider.deserialize(provider.serialize());
-    expect(restored.catalog().blocks[0]?.behavior).toMatchObject({
+    const restoredDefinition = restored.catalog().blocks[0]!;
+    expect(restoredDefinition.behavior).toMatchObject({
       kind: 'attached-six-face-placement',
     });
+    expect(restoredDefinition.supportContracts).toEqual(['plantable-soil']);
+    expect(restoredDefinition.behaviorFingerprint?.supportContracts).toEqual(['plantable-soil']);
+    expect(restoredDefinition.behaviorFingerprint?.verifiedAttachmentContracts).toEqual([
+      'six-face-attachment',
+    ]);
   });
 
   it('does not classify an external six-direction cube as an attached block', () => {

@@ -16,7 +16,15 @@ export type BehaviorTrait =
 
 export interface BehaviorEvidenceRecord {
   readonly source:
-    'tag' | 'jvm' | 'state-schema' | 'blockstate' | 'model' | 'relationship' | 'support' | 'name';
+    | 'tag'
+    | 'jvm'
+    | 'state-schema'
+    | 'blockstate'
+    | 'model'
+    | 'relationship'
+    | 'support'
+    | 'attachment'
+    | 'name';
   readonly strength: 'strong' | 'partial' | 'weak';
   readonly provenance?: EvidenceProvenance;
   readonly detail: string;

@@ -29,17 +29,9 @@ export function inferBehaviorTraits(
   if (sixFace && hasFaceAttachmentEvidence(fingerprint)) traits.add('face-attachment');
   if (has('waterlogged', BOOLEAN_VALUES)) traits.add('waterloggable');
   if (has('axis', ['x', 'y', 'z'])) traits.add('axis-orientation');
-  if (
-    fingerprint.supportContracts.some(
-      (contract) => contract === 'floor' || contract === 'plantable-soil',
-    ) ||
-    fingerprint.supportRequirements.some((requirement) => requirement.startsWith('below:'))
-  )
+  if (fingerprint.supportRequirements.some((requirement) => requirement.startsWith('below:')))
     traits.add('floor-support');
-  if (
-    fingerprint.supportContracts.some((contract) => contract === 'ceiling') ||
-    fingerprint.supportRequirements.some((requirement) => requirement.startsWith('above:'))
-  )
+  if (fingerprint.supportRequirements.some((requirement) => requirement.startsWith('above:')))
     traits.add('ceiling-support');
   if (fingerprint.capabilities.some((capability) => capability === 'block-entity'))
     traits.add('block-entity');

@@ -68,7 +68,6 @@ export function extractBehaviorFingerprint(
   const supportContracts = uniqueStrings([
     ...(record.supportContracts ?? []),
     ...(descriptor?.supportContracts ?? []),
-    ...verifiedAttachmentContracts,
   ]);
   const supportRequirements = uniqueStrings([
     ...(record.supportRequirements ?? []).map(
@@ -105,19 +104,17 @@ export function extractBehaviorFingerprint(
     ...(tags.length
       ? [{ source: 'tag' as const, strength: 'strong' as const, detail: `tags:${tags.join(',')}` }]
       : []),
-    ...(supportContracts.some((contract) => !verifiedAttachmentContracts.includes(contract))
+    ...(supportContracts.length
       ? [
           {
             source: 'support' as const,
             strength: 'partial' as const,
-            detail: `unverified contracts:${supportContracts
-              .filter((contract) => !verifiedAttachmentContracts.includes(contract))
-              .join(',')}`,
+            detail: `provider contracts:${supportContracts.join(',')}`,
           },
         ]
       : []),
     ...verifiedAttachmentEvidence.map((entry) => ({
-      source: 'support' as const,
+      source: 'attachment' as const,
       strength: 'strong' as const,
       provenance: entry.provenance,
       detail: `semantic contract:${entry.contractId}`,

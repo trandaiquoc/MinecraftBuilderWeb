@@ -130,13 +130,15 @@ describe('generic behavior fingerprint candidates', () => {
       },
     );
     const verifiedResult = matchVanillaBehaviorCandidates(verifiedAttachment);
+    expect(verifiedAttachment.supportContracts).toEqual([]);
+    expect(verifiedAttachment.supportRequirements).toEqual([]);
     expect(verifiedResult.behavior).toMatchObject({
       kind: 'attached-six-face-placement',
     });
     expect(verifiedResult.classification.selectionReason).toBe('evidence');
     expect(verifiedResult.classification.supportingEvidence).toContainEqual(
       expect.objectContaining({
-        source: 'support',
+        source: 'attachment',
         strength: 'strong',
         provenance: 'trusted-data',
         detail: 'semantic contract:six-face-attachment',
@@ -205,7 +207,16 @@ describe('generic behavior fingerprint candidates', () => {
       ...value,
       supportContracts: ['six-face-attachment'],
     });
+    expect(unverifiedContract.supportContracts).toEqual(['six-face-attachment']);
     expect(unverifiedContract.verifiedAttachmentContracts).toEqual([]);
+    expect(unverifiedContract.supportRequirements).toEqual([]);
+    expect(unverifiedContract.traits).not.toContain('floor-support');
+    expect(unverifiedContract.evidence).toContainEqual(
+      expect.objectContaining({
+        source: 'support',
+        detail: 'provider contracts:six-face-attachment',
+      }),
+    );
     expect(matchVanillaBehaviorCandidates(unverifiedContract).behavior).toBeUndefined();
   });
 
