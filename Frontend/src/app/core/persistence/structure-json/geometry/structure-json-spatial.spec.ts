@@ -4,8 +4,8 @@ import {
   buildStructureImportSpatialContext,
   queryDecorationSpatialIndex,
 } from './structure-json-spatial';
-import type { PlacedBlock } from '../../domain/project.types';
-import type { PlacedDecoration } from '../../decorations/decoration.types';
+import type { PlacedBlock } from '../../../domain/project.types';
+import type { PlacedDecoration } from '../../../decorations/decoration.types';
 
 function block(x: number, y = 0, z = 0): PlacedBlock {
   return {

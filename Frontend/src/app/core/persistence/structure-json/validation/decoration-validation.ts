@@ -16,7 +16,7 @@ import {
   buildStructureImportSpatialContext,
   buildStructureImportSpatialContextAsync,
   queryDecorationSpatialIndex,
-} from '../structure-json-spatial';
+} from '../geometry/structure-json-spatial';
 import type {
   NormalizedValidationContentLimits,
   StructureJsonDecorationIssue,

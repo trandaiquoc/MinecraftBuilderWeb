@@ -9,7 +9,7 @@ import {
   buildStructureImportSpatialContext,
   buildStructureImportSpatialContextAsync,
   queryDecorationSpatialIndex,
-} from '../structure-json-spatial';
+} from '../geometry/structure-json-spatial';
 import type { StructureJsonBlock } from '../structure-json';
 import type { StructureJsonValidationCancellation } from './structure-json-import';
 export interface StructureJsonProjectConflict {

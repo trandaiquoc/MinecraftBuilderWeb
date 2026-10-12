@@ -5,8 +5,8 @@ import {
   inspectStructureJsonBounds,
   resizeProjectForStructureJsonImport,
 } from './structure-json-bounds';
-import type { ProjectDocument } from '../../domain/project.types';
-import type { StructureJson } from './structure-json';
+import type { ProjectDocument } from '../../../domain/project.types';
+import type { StructureJson } from '../structure-json';
 
 const source: StructureJson = {
   format: 'minecraftbuilder-structure',

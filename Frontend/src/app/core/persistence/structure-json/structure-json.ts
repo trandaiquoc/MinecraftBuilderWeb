@@ -6,7 +6,7 @@ export {
   validateStructureJsonValue,
   validateStructureJsonBlockEntity,
 } from './validation/structure-json-validation';
-export { projectBlockEntityDataFromStructureJson } from './structure-json-block-entity-mapping';
+export { projectBlockEntityDataFromStructureJson } from './block-entities/structure-json-block-entity-mapping';
 export {
   structureJsonFromProject,
   hasUnsupportedProjectBlockEntities,

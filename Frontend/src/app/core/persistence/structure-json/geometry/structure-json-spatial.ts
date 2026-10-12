@@ -1,11 +1,11 @@
-import { coordinateKey } from '../../domain/coordinates';
-import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
-import type { PlacedDecoration } from '../../decorations/decoration.types';
+import { coordinateKey } from '../../../domain/coordinates';
+import type { PlacedBlock, VoxelCoordinate } from '../../../domain/project.types';
+import type { PlacedDecoration } from '../../../decorations/decoration.types';
 import {
   decorationAabb,
   decorationOverlaps,
-} from '../../decorations/placement/decoration-placement';
-import { CooperativeWorkBudget, yieldToBrowser } from '../../assets/cooperative-yield';
+} from '../../../decorations/placement/decoration-placement';
+import { CooperativeWorkBudget, yieldToBrowser } from '../../../assets/cooperative-yield';
 
 export type SpatialAabb = ReturnType<typeof decorationAabb>;
 

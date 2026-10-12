@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { validateParsedStructureJsonPreviewAsync } from './import/structure-json-import';
-import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
+import { validateParsedStructureJsonPreviewAsync } from '../import/structure-json-import';
+import type { BlockDefinition } from '../../../blocks/catalog/block-definition.types';
 
 const enabled =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[

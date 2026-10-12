@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
+import type { BlockDefinition } from '../../../blocks/catalog/block-definition.types';
 import { isStructureJsonSignHost } from './structure-json-block-entity-host';
 
 describe('Structure JSON sign host recognition', () => {

@@ -1,12 +1,12 @@
-import { canonicalStructureModeForSize } from '../../domain/structure-size-policy';
+import { canonicalStructureModeForSize } from '../../../domain/structure-size-policy';
 import type {
   ProjectDocument,
   ProjectSize,
   StructureMode,
   VoxelCoordinate,
-} from '../../domain/project.types';
-import { isWithinBounds } from '../../domain/coordinates';
-import type { StructureJson } from './structure-json';
+} from '../../../domain/project.types';
+import { isWithinBounds } from '../../../domain/coordinates';
+import type { StructureJson } from '../structure-json';
 
 export interface StructureJsonBoundsPreflight {
   readonly requiredSize: ProjectSize;

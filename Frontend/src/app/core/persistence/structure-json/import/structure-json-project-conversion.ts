@@ -13,7 +13,7 @@ import type {
 import {
   blockEntityToStructureJson,
   toStructureJsonItem,
-} from '../structure-json-block-entity-mapping';
+} from '../block-entities/structure-json-block-entity-mapping';
 
 export function structureJsonFromProject(
   project: ProjectDocument,

@@ -5,7 +5,7 @@ import { validateItemStack } from '../../../items/item-stack-validation';
 import type { BlockDefinition } from '../../../blocks/catalog/block-definition.types';
 import { blockCapability } from '../../../blocks/capabilities/block-capability-resolver';
 import { parseStructureJson } from '../import/structure-json-parser';
-import { isStructureJsonSignHost } from '../structure-json-block-entity-host';
+import { isStructureJsonSignHost } from '../block-entities/structure-json-block-entity-host';
 import type {
   StructureJson,
   StructureJsonBlockEntity,

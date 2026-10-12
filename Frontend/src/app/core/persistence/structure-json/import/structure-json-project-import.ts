@@ -14,7 +14,7 @@ import {
 import {
   inspectStructureJsonBounds,
   inferRequiredStructureJsonSize,
-} from '../structure-json-bounds';
+} from '../geometry/structure-json-bounds';
 import {
   validateParsedStructureJsonPreviewAsync,
   type StructureJsonValidationCancellation,

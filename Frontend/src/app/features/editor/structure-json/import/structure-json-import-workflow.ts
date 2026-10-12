@@ -12,7 +12,7 @@ import {
   clipStructureJsonToBounds,
   inspectStructureJsonBounds,
   resizeProjectForStructureJsonImport,
-} from '../../../../core/persistence/structure-json/structure-json-bounds';
+} from '../../../../core/persistence/structure-json/geometry/structure-json-bounds';
 import type { StructureJson } from '../../../../core/persistence/structure-json/structure-json';
 import {
   parseStructureJsonWithWorker,
@@ -30,7 +30,7 @@ import type {
   StructureJsonImportMode,
   StructureJsonImportPlan,
 } from '../../../../core/persistence/structure-json/import/structure-json-import-plan';
-import type { StructureJsonBoundsPreflight } from '../../../../core/persistence/structure-json/structure-json-bounds';
+import type { StructureJsonBoundsPreflight } from '../../../../core/persistence/structure-json/geometry/structure-json-bounds';
 
 export type StructureJsonImportProgress =
   'idle' | 'reading' | 'parsing' | 'checking' | 'planning' | 'ready' | 'complete';

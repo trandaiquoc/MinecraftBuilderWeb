@@ -1,21 +1,21 @@
 /** Conversion between Structure JSON block entities and project semantic data. */
 
-import type { ProjectBlockEntityData, SignSide } from '../../domain/project.types';
-import { verifiedInventoryContainerSchema } from '../../block-entities/item-display/inventory-storage-schema';
-import type { ItemStackData } from '../../items/item-stack.types';
-import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import { blockCapability } from '../../blocks/capabilities/block-capability-resolver';
+import type { ProjectBlockEntityData, SignSide } from '../../../domain/project.types';
+import { verifiedInventoryContainerSchema } from '../../../block-entities/item-display/inventory-storage-schema';
+import type { ItemStackData } from '../../../items/item-stack.types';
+import type { BlockDefinition } from '../../../blocks/catalog/block-definition.types';
+import { blockCapability } from '../../../blocks/capabilities/block-capability-resolver';
 import {
   defaultItemContainerData,
   setItemContainerSlot,
-} from '../../block-entities/item-display/item-container';
-import { defaultDecoratedPotData } from '../../block-entities/decorated-pot/decorated-pot';
+} from '../../../block-entities/item-display/item-container';
+import { defaultDecoratedPotData } from '../../../block-entities/decorated-pot/decorated-pot';
 import { isStructureJsonSignHost } from './structure-json-block-entity-host';
 import type {
   StructureJsonBlockEntity,
   StructureJsonItem,
   StructureJsonSignSide,
-} from './structure-json-contracts';
+} from '../structure-json-contracts';
 
 export function projectBlockEntityDataFromStructureJson(
   value: StructureJsonBlockEntity,
@@ -116,7 +116,7 @@ export function blockEntityToStructureJson(
   }
   if (value.kind === 'item-container') {
     const data =
-      value as import('../../block-entities/item-display/item-container').ItemContainerBlockEntityData;
+      value as import('../../../block-entities/item-display/item-container').ItemContainerBlockEntityData;
     const capability =
       blockCapability(definition, 'item-display') ??
       blockCapability(definition, 'item-storage-display');
