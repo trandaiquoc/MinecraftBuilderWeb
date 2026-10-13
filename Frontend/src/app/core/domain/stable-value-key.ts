@@ -1,9 +1,13 @@
 export function stableValueKey(value: unknown): string {
-  return stableValuePart(value) ?? 'undefined';
+  return stableValuePart(value);
 }
 
-function stableValuePart(value: unknown): string | undefined {
-  if (Array.isArray(value)) return `[${value.map(stableValuePart).join(',')}]`;
+function stableValuePart(value: unknown): string {
+  if (value === undefined) return 'undefined';
+  if (Array.isArray(value))
+    return `[${Array.from({ length: value.length }, (_, index) =>
+      index in value ? stableValuePart(value[index]) : '<hole>',
+    ).join(',')}]`;
   if (value && typeof value === 'object') {
     return `{${Object.keys(value as Record<string, unknown>)
       .sort()
@@ -13,5 +17,5 @@ function stableValuePart(value: unknown): string | undefined {
       )
       .join(',')}}`;
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? String(value);
 }

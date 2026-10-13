@@ -12,7 +12,10 @@ describe('stableValueKey', () => {
     );
   });
 
-  it('preserves the established array serialization of undefined entries', () => {
-    expect(stableValueKey([undefined, 1])).toBe('[,1]');
+  it('keeps undefined array entries distinct from missing entries', () => {
+    expect(stableValueKey([undefined, 1])).toBe('[undefined,1]');
+    expect(stableValueKey([undefined])).not.toBe(stableValueKey([]));
+    expect(stableValueKey(Array(1))).not.toBe(stableValueKey([]));
+    expect(stableValueKey(Array(1))).not.toBe(stableValueKey([undefined]));
   });
 });
