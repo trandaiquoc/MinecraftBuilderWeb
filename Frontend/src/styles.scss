@@ -243,6 +243,212 @@
   --status-invalid: #f18a80;
   --focus-ring: 0 0 0 2px rgb(217 154 112 / 0.55);
 }
+
+/* Workspace Palette V1. Root application tokens remain owned by Project Screen. */
+:root[data-theme='craft'] {
+  --workspace-color-scheme: light;
+  --workspace-app-bg: #445449;
+  --workspace-header-bg: #344536;
+  --workspace-sidebar-bg: #69776a;
+  --workspace-panel-bg: #d9ddcf;
+  --workspace-raised: #eef0e5;
+  --workspace-muted: #c8d0c0;
+  --workspace-hover: #cbd6c3;
+  --workspace-selected: #b3c7a8;
+  --workspace-border: #899a86;
+  --workspace-text-primary: #283629;
+  --workspace-text-secondary: #435545;
+  --workspace-header-text: #f5f2e7;
+  --workspace-sidebar-text: #ffffff;
+  --workspace-text-disabled: #667567;
+  --workspace-primary: #30752d;
+  --workspace-primary-hover: #245e24;
+  --workspace-text-on-primary: #ffffff;
+  --workspace-secondary-accent: #b78d5f;
+  --workspace-focus: #246824;
+  --workspace-success: #206b3e;
+  --workspace-warning: #81531b;
+  --workspace-danger: #a92e2e;
+  --workspace-info: #36657d;
+  --workspace-status-valid: color-mix(
+    in srgb,
+    var(--workspace-success) 40%,
+    var(--workspace-header-text)
+  );
+  --workspace-status-warning: color-mix(
+    in srgb,
+    var(--workspace-warning) 40%,
+    var(--workspace-header-text)
+  );
+  --workspace-status-danger: color-mix(
+    in srgb,
+    var(--workspace-danger) 40%,
+    var(--workspace-header-text)
+  );
+  --workspace-status-info: color-mix(
+    in srgb,
+    var(--workspace-info) 40%,
+    var(--workspace-header-text)
+  );
+}
+:root[data-theme='light'] {
+  --workspace-color-scheme: light;
+  --workspace-app-bg: #f5f7fa;
+  --workspace-header-bg: #ffffff;
+  --workspace-sidebar-bg: #edf1f5;
+  --workspace-panel-bg: #ffffff;
+  --workspace-raised: #f4f7fa;
+  --workspace-muted: #eff2f7;
+  --workspace-hover: #e4ecf4;
+  --workspace-selected: #d9e6f2;
+  --workspace-border: #ced7e2;
+  --workspace-text-primary: #1c2935;
+  --workspace-text-secondary: #526272;
+  --workspace-header-text: #1c2935;
+  --workspace-sidebar-text: #1c2935;
+  --workspace-text-disabled: #7e8e9d;
+  --workspace-primary: #344d68;
+  --workspace-primary-hover: #293f59;
+  --workspace-text-on-primary: #ffffff;
+  --workspace-secondary-accent: #7d91a8;
+  --workspace-focus: #344d68;
+  --workspace-success: #176c49;
+  --workspace-warning: #8c571a;
+  --workspace-danger: #b32e35;
+  --workspace-info: #285a96;
+  --workspace-status-valid: var(--workspace-success);
+  --workspace-status-warning: var(--workspace-warning);
+  --workspace-status-danger: var(--workspace-danger);
+  --workspace-status-info: var(--workspace-info);
+}
+:root[data-theme='raccoon'] {
+  --workspace-color-scheme: light;
+  --workspace-app-bg: #ccc8c6;
+  --workspace-header-bg: #494c4e;
+  --workspace-sidebar-bg: #b5b7b5;
+  --workspace-panel-bg: #eae6e2;
+  --workspace-raised: #f5f1ec;
+  --workspace-muted: #ddd8d3;
+  --workspace-hover: #ded6d0;
+  --workspace-selected: #cdc5c0;
+  --workspace-border: #ada7a3;
+  --workspace-text-primary: #282d31;
+  --workspace-text-secondary: #50575b;
+  --workspace-header-text: #f7f4f0;
+  --workspace-sidebar-text: #282d31;
+  --workspace-text-disabled: #72787a;
+  --workspace-primary: #596977;
+  --workspace-primary-hover: #465863;
+  --workspace-text-on-primary: #ffffff;
+  --workspace-secondary-accent: #c49a6c;
+  --workspace-focus: #465863;
+  --workspace-success: #2d7059;
+  --workspace-warning: #865521;
+  --workspace-danger: #a23e43;
+  --workspace-info: #496b85;
+  --workspace-status-valid: color-mix(
+    in srgb,
+    var(--workspace-success) 32%,
+    var(--workspace-header-text)
+  );
+  --workspace-status-warning: color-mix(
+    in srgb,
+    var(--workspace-warning) 32%,
+    var(--workspace-header-text)
+  );
+  --workspace-status-danger: color-mix(
+    in srgb,
+    var(--workspace-danger) 32%,
+    var(--workspace-header-text)
+  );
+  --workspace-status-info: color-mix(
+    in srgb,
+    var(--workspace-info) 32%,
+    var(--workspace-header-text)
+  );
+}
+:root[data-theme='dark'] {
+  --workspace-color-scheme: dark;
+  --workspace-app-bg: #0b1422;
+  --workspace-header-bg: #09101d;
+  --workspace-sidebar-bg: #142136;
+  --workspace-panel-bg: #1a2940;
+  --workspace-raised: #20314a;
+  --workspace-muted: #111c2d;
+  --workspace-hover: #293c59;
+  --workspace-selected: #304b6b;
+  --workspace-border: #344b67;
+  --workspace-text-primary: #e8f0fa;
+  --workspace-text-secondary: #aabdd2;
+  --workspace-header-text: #e8f0fa;
+  --workspace-sidebar-text: #e8f0fa;
+  --workspace-text-disabled: #7c8da4;
+  --workspace-primary: #7ebbe7;
+  --workspace-primary-hover: #a7d5f4;
+  --workspace-text-on-primary: #11263d;
+  --workspace-secondary-accent: #b9c7df;
+  --workspace-focus: #7ebbe7;
+  --workspace-success: #79c99e;
+  --workspace-warning: #e2b16b;
+  --workspace-danger: #f08590;
+  --workspace-info: #9eb8ff;
+  --workspace-status-valid: var(--workspace-success);
+  --workspace-status-warning: var(--workspace-warning);
+  --workspace-status-danger: var(--workspace-danger);
+  --workspace-status-info: var(--workspace-info);
+}
+
+:root[data-theme] app-editor-shell,
+:root[data-theme]:has(app-editor-shell) .cdk-overlay-container {
+  --app-bg: var(--workspace-app-bg);
+  --surface: var(--workspace-panel-bg);
+  --surface-raised: var(--workspace-raised);
+  --surface-muted: var(--workspace-muted);
+  --surface-hover: var(--workspace-hover);
+  --surface-selected: var(--workspace-selected);
+  --text: var(--workspace-text-primary);
+  --text-muted: var(--workspace-text-secondary);
+  --text-disabled: var(--workspace-text-disabled);
+  --border: var(--workspace-border);
+  --border-strong: var(--workspace-focus);
+  --accent: var(--workspace-primary);
+  --accent-hover: var(--workspace-primary-hover);
+  --accent-soft: color-mix(in srgb, var(--workspace-primary) 14%, transparent);
+  --accent-contrast: var(--workspace-text-on-primary);
+  --control-normal: var(--workspace-raised);
+  --control-hover: var(--workspace-hover);
+  --control-selected: var(--workspace-selected);
+  --control-selected-text: var(--workspace-text-primary);
+  --control-separator: var(--workspace-focus);
+  --button-primary-bg: var(--workspace-primary);
+  --button-primary-hover: var(--workspace-primary-hover);
+  --button-primary-hover-text: var(--workspace-text-on-primary);
+  --button-primary-text: var(--workspace-text-on-primary);
+  --button-secondary-bg: var(--workspace-muted);
+  --button-secondary-hover: var(--workspace-hover);
+  --button-secondary-hover-text: var(--workspace-text-primary);
+  --button-secondary-text: var(--workspace-text-primary);
+  --button-selected-bg: var(--workspace-selected);
+  --button-selected-text: var(--workspace-text-primary);
+  --button-danger-bg: var(--workspace-danger);
+  --button-danger-hover: var(--workspace-danger);
+  --button-danger-hover-text: var(--workspace-text-on-primary);
+  --button-danger-text: var(--workspace-text-on-primary);
+  --danger: var(--workspace-danger);
+  --warning: var(--workspace-warning);
+  --success: var(--workspace-success);
+  --info: var(--workspace-info);
+  --status-valid: var(--workspace-success);
+  --status-warning: var(--workspace-warning);
+  --status-unknown: var(--workspace-info);
+  --status-invalid: var(--workspace-danger);
+  --focus-color: var(--workspace-focus);
+  --focus-ring: 0 0 0 2px var(--workspace-focus);
+  --secondary-accent: var(--workspace-secondary-accent);
+  --panel-muted: var(--workspace-muted);
+  color-scheme: var(--workspace-color-scheme);
+}
+
 :root[data-theme='light'] {
   --shadow-control: 0 1px 2px rgb(23 32 43 / 0.12);
   --shadow-control-raised: 0 3px 8px rgb(23 32 43 / 0.14);
@@ -269,7 +475,7 @@ select:focus-visible,
 textarea:focus-visible,
 a:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-color, var(--accent));
   outline-offset: 2px;
   box-shadow: var(--focus-ring);
 }
@@ -514,8 +720,7 @@ svg[class*='lucide'] {
 }
 :root[data-theme='craft'] .panel,
 :root[data-theme='craft'] .left-panel,
-:root[data-theme='craft'] .right-panel,
-:root[data-theme='craft'] .status-bar {
+:root[data-theme='craft'] .right-panel {
   background: var(--surface);
   border-color: transparent;
   box-shadow: 0 2px 0 rgb(0 0 0 / 0.18);
@@ -527,12 +732,12 @@ svg[class*='lucide'] {
 :root[data-theme='craft'] .camera-popover,
 :root[data-theme='craft'] .dropdown-popover {
   border-color: transparent;
-  background: var(--surface-raised);
+  background: var(--surface);
   box-shadow: 0 12px 28px rgb(0 0 0 / 0.45);
 }
 :root[data-theme='craft'] .menu-popover button.active {
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--control-selected);
+  color: var(--control-selected-text);
 }
 :root[data-theme='craft'] .active-block,
 :root[data-theme='craft'] .group-move-toolbar,
@@ -566,25 +771,25 @@ svg[class*='lucide'] {
 }
 :root[data-theme='craft'] .shell-header,
 :root[data-theme='craft'] .editor-toolbar-row {
-  background: var(--accent);
-  color: var(--button-primary-text);
+  background: var(--workspace-header-bg);
+  color: var(--workspace-header-text);
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
 }
 :root[data-theme='craft'] .app-menu-row {
   position: relative;
   z-index: 2;
-  background: var(--accent);
+  background: var(--workspace-header-bg);
   box-shadow: 0 3px 8px rgb(0 0 0 / 0.28);
 }
 :root[data-theme='craft'] .editor-toolbar-row {
   position: relative;
   z-index: 1;
-  background: color-mix(in srgb, var(--accent) 82%, var(--app-bg) 18%);
+  background: var(--workspace-header-bg);
   box-shadow: none;
 }
 :root[data-theme='craft'] .shell-header .brand,
 :root[data-theme='craft'] .app-menus button {
-  color: var(--button-primary-text);
+  color: var(--workspace-header-text);
 }
 .ui-close-button {
   display: inline-grid;

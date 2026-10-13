@@ -8,6 +8,37 @@
   color: var(--text);
   font-family: var(--font-ui);
 }
+.shell-header,
+.editor-toolbar-row {
+  background: var(--workspace-header-bg);
+  color: var(--workspace-header-text);
+}
+.shell-header {
+  border-color: var(--border);
+}
+.editor-toolbar-row {
+  border-color: color-mix(in srgb, var(--workspace-header-text) 18%, transparent);
+}
+.app-menu-row .app-menus button {
+  color: var(--workspace-header-text);
+}
+.app-menu-row > .brand:focus-visible,
+.app-menu-row .app-menu-trigger:focus-visible,
+.editor-toolbar-row .toolbar-group > button:focus-visible,
+.editor-toolbar-row .tool-switch > button:focus-visible {
+  outline-color: var(--workspace-header-text);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-header-text) 62%, transparent);
+}
+.panel.left-panel,
+.panel.right-panel {
+  background: var(--workspace-sidebar-bg);
+  color: var(--workspace-sidebar-text);
+}
+.panel .sidebar-tabs button:not(.active),
+.panel .ui-close-button,
+.panel .ui-close-button:hover:not(:disabled) {
+  color: var(--workspace-sidebar-text);
+}
 .editor-startup-state {
   display: grid;
   align-content: center;

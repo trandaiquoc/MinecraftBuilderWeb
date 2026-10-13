@@ -18,12 +18,12 @@ vector artwork and has not been redrawn or optimized.
 The references share one composition and differ by palette, lighting, and
 scene:
 
-| Direction | Palette and atmosphere                             | Status                                                                 |
-| --------- | -------------------------------------------------- | ---------------------------------------------------------------------- |
-| Minecraft | Minecraft grass green with warm afternoon sunlight | Runtime theme (`craft` compatibility key)                              |
-| Light     | Predominantly white, bright morning light          | Runtime theme                                                           |
-| Raccoon   | Warm neutral gray surfaces                         | Independent runtime theme                                               |
-| Dark      | Navy and charcoal surfaces                         | Runtime theme                                                           |
+| Direction | Palette and atmosphere                             | Status                                    |
+| --------- | -------------------------------------------------- | ----------------------------------------- |
+| Minecraft | Minecraft grass green with warm afternoon sunlight | Runtime theme (`craft` compatibility key) |
+| Light     | Predominantly white, bright morning light          | Runtime theme                             |
+| Raccoon   | Warm neutral gray surfaces                         | Independent runtime theme                 |
+| Dark      | Navy and charcoal surfaces                         | Runtime theme                             |
 
 The same layout should serve all four directions. Time-of-day language is
 descriptive art direction, not a separate feature or setting.
@@ -41,6 +41,11 @@ The editor workspace background remains an independent Dark/Light preference;
 it controls the 3D and Y-Layer renderer palette without changing application
 chrome. Colorful is a later phase. Workspace background changes apply directly,
 without a scene-transition animation.
+
+Workspace application colors follow the canonical four-theme [Workspace Color
+Palette V1](design/workspace-color-palette.md). That palette is scoped to the
+editor workspace and its overlays; the Project Screen keeps its existing color
+tokens. The renderer's Dark/Light background remains independent of both.
 
 ## Homepage Concept
 

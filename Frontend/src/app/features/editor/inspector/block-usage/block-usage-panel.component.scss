@@ -22,7 +22,7 @@ h2 {
 }
 .usage-heading p {
   margin: 0.2rem 0 0;
-  color: var(--text-muted);
+  color: var(--workspace-sidebar-text);
   font-size: 0.7rem;
 }
 .usage-metrics {
@@ -52,7 +52,7 @@ h2 {
   display: grid;
   gap: 0.25rem;
   font-size: 0.7rem;
-  color: var(--text-muted);
+  color: var(--workspace-sidebar-text);
 }
 .usage-search input,
 .usage-sort select {
@@ -115,13 +115,14 @@ h2 {
 }
 .usage-copy code {
   font-size: 0.62rem;
-  color: var(--text-muted);
+  color: var(--workspace-sidebar-text);
 }
 .usage-copy small {
   font-size: 0.62rem;
-  color: var(--text-muted);
+  color: var(--workspace-sidebar-text);
 }
 .usage-empty {
   margin: 1rem 0;
+  color: var(--workspace-sidebar-text);
   text-align: center;
 }

@@ -36,7 +36,7 @@
   min-width: 0;
 }
 .search-label {
-  color: var(--text-muted);
+  color: var(--workspace-sidebar-text);
   font-size: 0.78rem;
 }
 .block-browser input {
@@ -202,7 +202,7 @@
   font-size: 0.68rem;
 }
 .muted {
-  color: var(--text-muted);
+  color: var(--workspace-sidebar-text);
   font-size: 0.75rem;
 }
 .block-item.active .block-copy small {

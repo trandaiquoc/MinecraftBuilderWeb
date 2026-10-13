@@ -44,7 +44,7 @@
 }
 .helper-text {
   margin: 0;
-  color: var(--text-muted);
+  color: var(--workspace-sidebar-text);
   font: 0.68rem/1.35 var(--font-ui);
 }
 .sign-lines {
@@ -58,7 +58,7 @@
   gap: 0.35rem;
 }
 .sign-lines label > span {
-  color: var(--text-muted);
+  color: var(--workspace-sidebar-text);
   font-size: 0.72rem;
   text-align: center;
 }
@@ -81,7 +81,7 @@
 }
 .sign-control span {
   min-width: 0;
-  color: var(--text-muted);
+  color: var(--workspace-sidebar-text);
   font-size: 0.72rem;
 }
 .sign-control select {

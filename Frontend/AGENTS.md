@@ -229,6 +229,9 @@ change must be checked in all four themes and in both English and Vietnamese.
 Do not use hard-coded colors that make one theme unusable.
 
 Use design tokens/CSS custom properties or the repository's established theme system when available.
+Workspace color values and their Project Screen boundary are owned by
+`Docs/design/workspace-color-palette.md` and `src/styles.scss`. Do not duplicate
+palette values in component stylesheets.
 
 ## 17. Imported Files and External Data
 

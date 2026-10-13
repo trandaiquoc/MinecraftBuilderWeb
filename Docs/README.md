@@ -7,6 +7,8 @@ and product planning.
 
 - `design-foundation-branding.md` — current product brand, approved visual
   direction, supplied references, and explicit implementation boundaries.
+- `design/workspace-color-palette.md` — canonical four-theme Workspace palette,
+  CSS token mapping, Project Screen boundary, and accessibility contract.
 - `MinecraftBuilder_Requirements_VI.docx` — version 0.2 product and technical
   requirement baseline for the local-first MVP. It records intended scope, not
   implementation status; it does not replace the more specific current
