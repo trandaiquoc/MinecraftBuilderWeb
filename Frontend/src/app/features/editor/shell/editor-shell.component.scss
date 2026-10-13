@@ -19,9 +19,6 @@
 .editor-toolbar-row {
   border-color: color-mix(in srgb, var(--workspace-header-text) 18%, transparent);
 }
-.app-menu-row .app-menus button {
-  color: var(--workspace-header-text);
-}
 .app-menu-row > .brand:focus-visible,
 .app-menu-row .app-menu-trigger:focus-visible,
 .editor-toolbar-row .toolbar-group > button:focus-visible,
@@ -127,16 +124,22 @@
   position: relative;
   display: inline-flex;
 }
-.app-menus button {
+.app-menus > .menu-entry > .app-menu-trigger {
   border: 0;
   background: transparent;
-  color: var(--text);
+  color: var(--workspace-header-text);
   padding: 0.4rem 0.5rem;
   cursor: pointer;
 }
-.app-menus button.active,
-.app-menus button:hover {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+.app-menus > .menu-entry > .app-menu-trigger.active,
+.app-menus > .menu-entry > .app-menu-trigger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--workspace-header-text) 12%, var(--workspace-header-bg));
+  color: var(--workspace-header-text);
+}
+.app-menus > .menu-entry > .app-menu-trigger:disabled {
+  color: var(--workspace-header-text);
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 .menu-popover {
   position: absolute;
@@ -153,6 +156,7 @@
   border: 1px solid var(--border-strong);
   border-radius: 5px;
   background: var(--surface);
+  color: var(--text);
   box-shadow: 0 8px 22px rgb(0 0 0 / 0.25);
 }
 .menu-entry:last-child .menu-popover,
@@ -164,11 +168,29 @@
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
   text-align: left;
   white-space: nowrap;
 }
-.menu-popover button:hover {
-  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+.menu-popover button:hover:not(:disabled),
+.menu-popover button:active:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.menu-popover button.active,
+.menu-popover button[aria-selected='true'],
+.menu-popover button[aria-pressed='true'] {
+  background: var(--control-selected);
+  color: var(--control-selected-text);
+}
+.menu-popover button:disabled {
+  background: transparent;
+  color: var(--text-disabled);
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 .menu-popover hr {
   width: auto;
@@ -230,16 +252,13 @@
   gap: 0.5rem;
   margin-left: auto;
 }
-.app-menu-row .brand {
+.app-menu-row > .brand {
   margin-right: 0.35rem;
+  color: var(--workspace-header-text);
 }
-.app-menu-row .app-menus button {
+.app-menu-row > .app-menus > .menu-entry > .app-menu-trigger {
   border: 0;
-  background: transparent;
   padding: 0.3rem 0.45rem;
-}
-.app-menu-row .app-menus button:hover {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .tool-switch {
   display: flex;
@@ -690,9 +709,9 @@
   background: transparent;
 }
 .menu-popover button.menu-danger-action:hover:not(:disabled),
-.menu-popover button.menu-danger-action:focus-visible {
-  color: var(--danger);
-  background: var(--surface-hover);
+.menu-popover button.menu-danger-action:active:not(:disabled) {
+  color: var(--button-danger-text);
+  background: var(--button-danger-bg);
 }
 .menu-popover button.menu-danger-action:disabled {
   cursor: not-allowed;

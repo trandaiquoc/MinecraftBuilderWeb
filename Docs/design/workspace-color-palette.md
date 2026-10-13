@@ -64,6 +64,21 @@ Hex values below are exact approved targets; preserve them by semantic role. Add
 
 ## Accessibility and verified checks
 
+### Floating-surface regression contract
+
+- Header triggers use the header foreground; their styles must not target
+  descendant buttons inside an opened menu.
+- Menus, dropdowns, dialogs, and shared overlays own a foreground token that
+  matches their actual floating-surface background. Sidebar/header foregrounds
+  must not leak into these descendants.
+- Check normal, hover, selected/active, disabled, and keyboard-focus states for
+  floating surfaces in all four themes. Danger actions must retain readable
+  foreground/background pairs in normal and interactive states.
+- Normal text must meet WCAG AA >= 4.5:1; meaningful control and focus
+  indicators must meet >= 3:1 against adjacent colors.
+- Resolve selector or mapping regressions without changing the 92 canonical
+  HEX values.
+
 Contrast values below were computed using WCAG relative luminance from the exact hex values (text/background ratios). These are _only audited pairs_, not a guarantee for every UI state.
 
 | Audited pair                    | Minecraft |   Light | Raccoon |    Dark |

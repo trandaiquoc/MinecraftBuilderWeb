@@ -68,8 +68,9 @@
   text-decoration: underline;
 }
 .asset-status--action:focus-visible {
-  outline: 2px solid var(--focus-color, var(--accent));
+  outline: 2px solid var(--workspace-header-text);
   outline-offset: 2px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-header-text) 62%, transparent);
 }
 app-ui-progress.block-loading-progress {
   display: block;

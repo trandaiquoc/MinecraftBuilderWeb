@@ -135,7 +135,7 @@ describe('Workspace color palette contract', () => {
           'utf8',
         ),
       ),
-    ).toContain('outline: 2px solid var(--focus-color, var(--accent));');
+    ).toContain('outline: 2px solid var(--workspace-header-text);');
     expect(
       String(readFileSync('src/app/features/editor/shell/editor-shell.component.scss', 'utf8')),
     ).toContain('outline-color: var(--workspace-header-text);');
@@ -166,6 +166,77 @@ describe('Workspace color palette contract', () => {
       expect(start, `${path} ${selector}`).toBeGreaterThanOrEqual(0);
       expect(componentStyles.slice(start, end)).toContain('color: var(--workspace-sidebar-text);');
     }
+  });
+
+  it('keeps menu triggers and floating-surface content in separate color scopes', () => {
+    const shellStyles = String(
+      readFileSync('src/app/features/editor/shell/editor-shell.component.scss', 'utf8'),
+    );
+    const globalStyles = String(readFileSync('src/styles.scss', 'utf8'));
+    const dropdownStyles = String(
+      readFileSync(
+        'src/app/shared/ui/searchable-dropdown/searchable-dropdown.component.scss',
+        'utf8',
+      ),
+    );
+
+    expect(shellStyles).toContain('.app-menus > .menu-entry > .app-menu-trigger {');
+    expect(shellStyles).toContain('.app-menu-row > .brand {');
+    expect(shellStyles).toContain('color: var(--workspace-header-text);');
+    expect(shellStyles).not.toContain('.app-menu-row .app-menus button');
+    expect(shellStyles).not.toContain('.app-menus button');
+    expect(globalStyles).not.toContain(":root[data-theme='craft'] .app-menus button");
+    expect(globalStyles).not.toContain(":root[data-theme='craft'] .menu-popover button.active");
+    expect(globalStyles).not.toContain(":root[data-theme='craft'] .shell-header .brand");
+    expect(globalStyles).toContain(":root[data-theme='craft'] app-editor-shell .menu-popover");
+    expect(globalStyles).not.toContain(":root[data-theme='craft'] .dropdown-popover");
+    expect(globalStyles).toContain(
+      ":root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container .dropdown-popover",
+    );
+    expect(shellStyles).toContain('color: var(--workspace-header-text);');
+
+    const popoverStart = shellStyles.indexOf('.menu-popover {');
+    const popoverEnd = shellStyles.indexOf('}', popoverStart);
+    const popoverRule = shellStyles.slice(popoverStart, popoverEnd);
+    expect(popoverRule).toContain('background: var(--surface);');
+    expect(popoverRule).toContain('color: var(--text);');
+
+    const itemStart = shellStyles.indexOf('.menu-popover button {');
+    const itemEnd = shellStyles.indexOf('}', itemStart);
+    const itemRule = shellStyles.slice(itemStart, itemEnd);
+    expect(itemRule).toContain('background: transparent;');
+    expect(itemRule).toContain('color: var(--text);');
+    expect(shellStyles).toContain('.menu-popover button:hover:not(:disabled)');
+    expect(shellStyles).toContain(".menu-popover button[aria-selected='true']");
+    expect(shellStyles).toContain('.menu-popover button:disabled');
+    expect(shellStyles).toContain('.menu-popover button.menu-danger-action:hover:not(:disabled)');
+    expect(shellStyles).toContain('background: var(--surface-hover);');
+    expect(shellStyles).toContain('color: var(--control-selected-text);');
+    expect(shellStyles).toContain('color: var(--text-disabled);');
+    expect(shellStyles).toContain('background: var(--button-danger-bg);');
+    expect(globalStyles).toContain('outline: 2px solid var(--focus-color, var(--accent));');
+    expect(
+      String(
+        readFileSync(
+          'src/app/features/editor/shell/editor-status-bar/editor-status-bar.component.scss',
+          'utf8',
+        ),
+      ),
+    ).toContain('outline: 2px solid var(--workspace-header-text);');
+
+    const dropdownTriggerStart = dropdownStyles.indexOf('.dropdown-trigger {');
+    const dropdownTriggerEnd = dropdownStyles.indexOf('}', dropdownTriggerStart);
+    expect(dropdownStyles.slice(dropdownTriggerStart, dropdownTriggerEnd)).toContain(
+      'color: var(--text);',
+    );
+    expect(dropdownStyles).toContain('.dropdown-trigger:focus-visible');
+    expect(dropdownStyles).toContain('outline: 2px solid var(--focus-color, var(--accent));');
+    expect(dropdownStyles).toContain('.dropdown-trigger:disabled');
+    const dropdownPopoverStart = dropdownStyles.indexOf('.dropdown-popover {');
+    const dropdownPopoverEnd = dropdownStyles.indexOf('}', dropdownPopoverStart);
+    expect(dropdownStyles.slice(dropdownPopoverStart, dropdownPopoverEnd)).toContain(
+      'color: var(--text);',
+    );
   });
 
   it('keeps interactive text, focus, danger, and status combinations accessible', () => {

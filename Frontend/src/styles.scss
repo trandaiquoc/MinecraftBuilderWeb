@@ -728,16 +728,12 @@ svg[class*='lucide'] {
 :root[data-theme='craft'] .sidebar-tabs {
   border-color: transparent;
 }
-:root[data-theme='craft'] .menu-popover,
-:root[data-theme='craft'] .camera-popover,
-:root[data-theme='craft'] .dropdown-popover {
+:root[data-theme='craft'] app-editor-shell .menu-popover,
+:root[data-theme='craft'] app-editor-shell .camera-popover,
+:root[data-theme='craft'] app-editor-shell .dropdown-popover,
+:root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container .dropdown-popover {
   border-color: transparent;
-  background: var(--surface);
   box-shadow: 0 12px 28px rgb(0 0 0 / 0.45);
-}
-:root[data-theme='craft'] .menu-popover button.active {
-  background: var(--control-selected);
-  color: var(--control-selected-text);
 }
 :root[data-theme='craft'] .active-block,
 :root[data-theme='craft'] .group-move-toolbar,
@@ -786,10 +782,6 @@ svg[class*='lucide'] {
   z-index: 1;
   background: var(--workspace-header-bg);
   box-shadow: none;
-}
-:root[data-theme='craft'] .shell-header .brand,
-:root[data-theme='craft'] .app-menus button {
-  color: var(--workspace-header-text);
 }
 .ui-close-button {
   display: inline-grid;
