@@ -153,8 +153,8 @@ export function buildContentLimitsText(
       : 'IDs listed in CONTENT_LIMITS_JSON are forbidden in the generated Structure JSON. Use appropriate unrestricted alternatives. This list restricts content; it never authorizes unavailable mod IDs.';
   const variantNote =
     locale === 'vi'
-      ? 'Block logic đã chọn cũng bao gồm các biến thể đặt tương đương theo semantics của MinecraftBuilder.'
-      : 'A selected logical block also forbids its equivalent placement variants according to MinecraftBuilder semantics.';
+      ? 'Block logic đã chọn cũng bao gồm các biến thể đặt tương đương theo semantics của The Block Laundromat.'
+      : 'A selected logical block also forbids its equivalent placement variants according to The Block Laundromat semantics.';
   return `${heading}\n${explanation}\nCONTENT_LIMITS_JSON\n${serializeExternalAiContentLimits(active)}\n${variantNote}`;
 }
 

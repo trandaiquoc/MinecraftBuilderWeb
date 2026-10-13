@@ -50,12 +50,11 @@
   color: var(--text-muted);
   font: 0.8rem/1.4 var(--font-readable);
 }
-.eyebrow {
-  margin: 0 0 0.15rem;
-  color: var(--text-muted);
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.brand-logo {
+  display: block;
+  width: 7rem;
+  height: auto;
+  margin-bottom: 0.35rem;
 }
 .structure-json-tabs {
   display: flex;

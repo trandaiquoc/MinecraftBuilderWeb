@@ -1,5 +1,6 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { NgOptimizedImage } from '@angular/common';
 import { LucideCopy, LucideDownload, LucideSave, LucideX } from '@lucide/angular';
 import { ProjectDocument } from '../../../../core/domain/project.types';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
@@ -18,7 +19,15 @@ type StructureJsonTab = 'structure';
 
 @Component({
   selector: 'app-structure-json-export-dialog',
-  imports: [CdkTrapFocus, LucideCopy, LucideDownload, LucideSave, LucideX, UiTooltipDirective],
+  imports: [
+    CdkTrapFocus,
+    NgOptimizedImage,
+    LucideCopy,
+    LucideDownload,
+    LucideSave,
+    LucideX,
+    UiTooltipDirective,
+  ],
   templateUrl: './structure-json-export-dialog.component.html',
   styleUrl: './structure-json-export-dialog.component.scss',
   host: { '(document:keydown.escape)': 'onEscape()' },

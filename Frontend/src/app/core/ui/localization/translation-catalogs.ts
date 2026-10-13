@@ -19,7 +19,7 @@ export const translations = {
     importSuccess: 'Project backup imported successfully',
     importError: 'Project backup import failed',
     importInvalidJson: 'Invalid project backup JSON',
-    importNotProjectPackage: 'Not a MinecraftBuilder Project Backup',
+    importNotProjectPackage: 'Not a project backup from The Block Laundromat',
     importUnsupportedPackage: 'Unsupported project backup version',
     importUnsupportedSchema: 'Unsupported project schema',
     importInvalidData: 'Invalid project data',
@@ -56,7 +56,7 @@ export const translations = {
     propertyRuntimeUnknown: 'Runtime unknown',
     behaviorSupport: 'Behavior',
     specialRenderer: 'Special',
-    appName: 'MinecraftBuilder',
+    appName: 'The Block Laundromat',
     applicationMenu: 'Application menu',
     projectTitle: 'Your building workspace',
     recoverySnapshot: 'Recovery snapshot',
@@ -295,7 +295,7 @@ export const translations = {
     projectActions: 'Project actions',
     createFromStructureJson: 'Create from Structure JSON',
     createFromStructureJsonDescription:
-      'Create a new project from a MinecraftBuilder Structure JSON file.',
+      'Create a new project from a Structure JSON file created by The Block Laundromat.',
     structureJsonImportCompatibility: 'Compatibility',
     structureJsonProjectHugeRequired: 'Huge Structure Blocks required',
     structureJsonProjectHugeConfirm:
@@ -529,7 +529,7 @@ export const translations = {
     exportProjectPackage: 'Export Project Backup…',
     exportStructureNbt: 'Export Minecraft Structure (NBT)…',
     structureNbtUnavailable:
-      'Minecraft Structure (NBT) export is not implemented yet. This is separate from MinecraftBuilder Structure JSON.',
+      'Minecraft Structure (NBT) export is not implemented yet. This is separate from The Block Laundromat Structure JSON.',
     importProjectTitle: 'Could not import project backup',
     importProjectError: 'The selected project backup is invalid or could not be opened.',
     exportProjectError: 'The project backup could not be exported.',
@@ -590,8 +590,8 @@ export const translations = {
     controlsShortcuts: 'Controls & Shortcuts',
     controlsShortcutsText:
       'LMB place/select · Ctrl+LMB delete · Alt+LMB pick · RMB orbit · MMB pan · wheel zoom · WASD move · Space/Shift vertical movement · Ctrl+Z undo · Ctrl+Y / Ctrl+Shift+Z redo · Ctrl+A select all · Delete/Backspace delete selection.',
-    about: 'About MinecraftBuilder',
-    aboutText: 'MinecraftBuilder · Local browser-based editor.',
+    about: 'About The Block Laundromat',
+    aboutText: 'The Block Laundromat · Local browser-based Minecraft Java structure editor.',
     leftSidebar: 'Left Sidebar',
     rightSidebar: 'Right Sidebar',
     openLeftSidebar: 'Open block browser',
@@ -678,7 +678,7 @@ export const translations = {
     signGlowing: 'Glowing text',
     signWaxed: 'Waxed',
     signWaxedHint:
-      'Waxed signs cannot normally have text, color, or glowing changed in Minecraft. MinecraftBuilder can still edit authored data.',
+      'Waxed signs cannot normally have text, color, or glowing changed in Minecraft. The Block Laundromat can still edit authored data.',
     waterloggedHint:
       'Stores water in the same block space as the sign. Minecraft normally determines this during placement.',
     attachedHint:
@@ -727,7 +727,7 @@ export const translations = {
     importSuccess: '\u0110\u00e3 nh\u1eadp d\u1ef1 \u00e1n th\u00e0nh c\u00f4ng',
     importError: 'Nh\u1eadp d\u1ef1 \u00e1n th\u1ea5t b\u1ea1i',
     importInvalidJson: 'JSON kh\u00f4ng h\u1ee3p l\u1ec7',
-    importNotProjectPackage: 'Kh\u00f4ng ph\u1ea3i g\u00f3i d\u1ef1 \u00e1n MinecraftBuilder',
+    importNotProjectPackage: 'Không phải bản sao lưu dự án của The Block Laundromat',
     importUnsupportedPackage:
       'Phi\u00ean b\u1ea3n g\u00f3i kh\u00f4ng \u0111\u01b0\u1ee3c h\u1ed7 tr\u1ee3',
     importUnsupportedSchema:
@@ -766,7 +766,7 @@ export const translations = {
     propertyRuntimeUnknown: 'Runtime chưa biết',
     behaviorSupport: 'Hành vi',
     specialRenderer: 'Đặc biệt',
-    appName: 'MinecraftBuilder',
+    appName: 'The Block Laundromat',
     applicationMenu: 'Menu ứng dụng',
     projectTitle: 'Không gian xây dựng của bạn',
     recoverySnapshot: 'Bản khôi phục',
@@ -999,7 +999,7 @@ export const translations = {
     projectActions: 'Thao tác dự án',
     createFromStructureJson: 'Tạo dự án từ Structure JSON',
     createFromStructureJsonDescription:
-      'Tạo một dự án mới từ tệp Structure JSON của MinecraftBuilder.',
+      'Tạo dự án mới từ tệp Structure JSON được tạo bằng The Block Laundromat.',
     structureJsonImportCompatibility: 'Tương thích',
     structureJsonProjectHugeRequired: 'Cần Huge Structure Blocks',
     structureJsonProjectHugeConfirm:
@@ -1237,7 +1237,7 @@ export const translations = {
     exportProjectPackage: 'Xuất bản sao lưu dự án…',
     exportStructureNbt: 'Xuất cấu trúc Minecraft (NBT)…',
     structureNbtUnavailable:
-      'Chưa triển khai xuất cấu trúc Minecraft (NBT). Đây là định dạng riêng với Structure JSON của MinecraftBuilder.',
+      'Chưa triển khai xuất cấu trúc Minecraft (NBT). Đây là định dạng riêng với Structure JSON của The Block Laundromat.',
     importProjectTitle: 'Không thể nhập bản sao lưu dự án',
     importProjectError: 'Bản sao lưu dự án được chọn không hợp lệ hoặc không thể mở.',
     exportProjectError: 'Không thể xuất bản sao lưu dự án.',
@@ -1298,8 +1298,9 @@ export const translations = {
     controlsShortcuts: 'Điều khiển & Phím tắt',
     controlsShortcutsText:
       'Chuột trái đặt/chọn · Ctrl+chuột trái xóa · Alt+chuột trái lấy khối · chuột phải xoay · chuột giữa kéo · con lăn thu phóng · WASD di chuyển · Space/Shift di chuyển dọc · Ctrl+Z hoàn tác · Ctrl+Y / Ctrl+Shift+Z làm lại · Ctrl+A chọn tất cả · Delete/Backspace xóa vùng chọn.',
-    about: 'Giới thiệu MinecraftBuilder',
-    aboutText: 'MinecraftBuilder · Trình chỉnh sửa cục bộ trên trình duyệt.',
+    about: 'Giới thiệu The Block Laundromat',
+    aboutText:
+      'The Block Laundromat · Trình chỉnh sửa structure Minecraft Java cục bộ trên trình duyệt.',
     fontSize: 'Cỡ chữ',
     fontSizeSmall: 'Nhỏ',
     fontSizeNormal: 'Bình thường',
@@ -1374,7 +1375,7 @@ export const translations = {
     signGlowing: 'Văn bản phát sáng',
     signWaxed: 'Đã bôi sáp',
     signWaxedHint:
-      'Biển đã wax thường không thể chỉnh chữ, màu hoặc trạng thái phát sáng trong Minecraft. MinecraftBuilder vẫn cho phép chỉnh dữ liệu thiết kế.',
+      'Biển đã wax thường không thể chỉnh chữ, màu hoặc trạng thái phát sáng trong Minecraft. The Block Laundromat vẫn cho phép chỉnh dữ liệu thiết kế.',
     structureJsonOversizedImportTitle: 'Cấu trúc nhập vào lớn hơn dự án hiện tại',
     structureJsonOversizedImportText:
       'Dự án hiện tại: {current}. Kích thước cần thiết: {required}. Bạn có thể mở rộng để nhập toàn bộ, giữ kích thước hiện tại và cắt phần ngoài giới hạn, hoặc hủy.',
@@ -1593,7 +1594,7 @@ const supplementalTranslationSource = {
     structureJsonProgressComplete: 'Validation complete',
     structureJsonAiWorkspaceTitle: 'Build a structure with an external AI',
     structureJsonAiPrivacyNote:
-      'The prompt is copied locally. MinecraftBuilder does not call an AI service.',
+      'The prompt is copied locally. The Block Laundromat does not call an AI service.',
     structureJsonAiTabs: 'AI workspace sections',
     structureJsonAiTabDescription: 'Description',
     structureJsonAiTabContent: 'Available content',
@@ -1630,7 +1631,7 @@ const supplementalTranslationSource = {
     projectBackupImported: 'Project backup imported successfully',
     projectBackupImportFailed: 'Project backup import failed',
     projectBackupInvalidJson: 'Invalid project backup JSON',
-    projectBackupNotRecognized: 'Not a MinecraftBuilder Project Backup',
+    projectBackupNotRecognized: 'Not a project backup from The Block Laundromat',
     projectBackupUnsupportedVersion: 'Unsupported project backup version',
     projectBackupImportTitle: 'Could not import project backup',
     projectBackupImportError: 'The selected project backup is invalid or could not be opened.',
@@ -1670,7 +1671,7 @@ const supplementalTranslationSource = {
     assetManagerHelp: 'Mod import help',
     assetManagerHelpTitle: 'About Mod imports',
     assetManagerHelpText:
-      'Static resource analysis only. Mod code is never executed. Fabric is supported; Forge, NeoForge and Quilt are detected but not activated. Compatibility is checked before activation. Detected and imported counts can differ. Fully supported means this exact Mod, version, Minecraft version and loader was explicitly tested by MinecraftBuilder.',
+      'Static resource analysis only. Mod code is never executed. Fabric is supported; Forge, NeoForge and Quilt are detected but not activated. Compatibility is checked before activation. Detected and imported counts can differ. Fully supported means this exact Mod, version, Minecraft version and loader was explicitly tested by The Block Laundromat.',
     assetManagerLoader: 'Loader',
     assetManagerLoaderSupport: 'Loader support',
     assetManagerSupported: 'Supported',
@@ -1684,7 +1685,7 @@ const supplementalTranslationSource = {
     assetManagerCannotVerify: 'Cannot verify compatibility',
     assetManagerFullySupported: 'Fully supported',
     assetManagerTestedBadgeTitle:
-      'Tested by MinecraftBuilder for this exact Mod/version/Minecraft/loader combination.',
+      'Tested by The Block Laundromat for this exact Mod/version/Minecraft/loader combination.',
     assetManagerImportReady: 'Import',
     assetManagerCancelPreflight: 'Cancel preflight',
     assetManagerRemoveModTitle: 'Remove imported Mod?',
@@ -1929,7 +1930,7 @@ const supplementalTranslationSource = {
     structureJsonProgressComplete: 'Đã kiểm tra xong',
     structureJsonAiWorkspaceTitle: 'Tạo cấu trúc bằng AI bên ngoài',
     structureJsonAiPrivacyNote:
-      'Prompt được sao chép cục bộ. MinecraftBuilder không gọi dịch vụ AI.',
+      'Prompt được sao chép cục bộ. The Block Laundromat không gọi dịch vụ AI.',
     structureJsonAiTabs: 'Các phần của không gian AI',
     structureJsonAiTabDescription: 'Mô tả',
     structureJsonAiTabContent: 'Nội dung hiện có',
@@ -1966,7 +1967,7 @@ const supplementalTranslationSource = {
     projectBackupImported: 'Đã nhập bản sao lưu dự án thành công',
     projectBackupImportFailed: 'Nhập bản sao lưu dự án thất bại',
     projectBackupInvalidJson: 'JSON bản sao lưu dự án không hợp lệ',
-    projectBackupNotRecognized: 'Không phải bản sao lưu dự án MinecraftBuilder',
+    projectBackupNotRecognized: 'Không phải bản sao lưu dự án của The Block Laundromat',
     projectBackupUnsupportedVersion: 'Phiên bản bản sao lưu dự án không được hỗ trợ',
     projectBackupImportTitle: 'Không thể nhập bản sao lưu dự án',
     projectBackupImportError: 'Bản sao lưu dự án được chọn không hợp lệ hoặc không thể mở.',
@@ -2006,7 +2007,7 @@ const supplementalTranslationSource = {
     assetManagerHelp: 'Trợ giúp nhập mod',
     assetManagerHelpTitle: 'Về nhập Mod',
     assetManagerHelpText:
-      'Chỉ phân tích tài nguyên tĩnh. MinecraftBuilder không chạy mã Mod. Fabric được hỗ trợ; Forge, NeoForge và Quilt được phát hiện nhưng chưa kích hoạt. Tương thích được kiểm tra trước khi kích hoạt. Số phát hiện và đã nhập có thể khác nhau. Được hỗ trợ đầy đủ nghĩa là đúng Mod, phiên bản, Minecraft và loader này đã được MinecraftBuilder kiểm thử.',
+      'Chỉ phân tích tài nguyên tĩnh. The Block Laundromat không chạy mã Mod. Fabric được hỗ trợ; Forge, NeoForge và Quilt được phát hiện nhưng chưa kích hoạt. Tương thích được kiểm tra trước khi kích hoạt. Số phát hiện và đã nhập có thể khác nhau. Được hỗ trợ đầy đủ nghĩa là đúng Mod, phiên bản, Minecraft và loader này đã được The Block Laundromat kiểm thử.',
     assetManagerLoader: 'Loader',
     assetManagerLoaderSupport: 'Hỗ trợ loader',
     assetManagerSupported: 'Được hỗ trợ',
@@ -2020,7 +2021,7 @@ const supplementalTranslationSource = {
     assetManagerCannotVerify: 'Không thể xác minh tương thích',
     assetManagerFullySupported: 'Được hỗ trợ đầy đủ',
     assetManagerTestedBadgeTitle:
-      'Đã được MinecraftBuilder kiểm thử với đúng Mod, phiên bản, Minecraft và loader này.',
+      'Đã được The Block Laundromat kiểm thử với đúng Mod, phiên bản, Minecraft và loader này.',
     assetManagerImportReady: 'Nhập',
     assetManagerCancelPreflight: 'Hủy kiểm tra',
     assetManagerRemoveModTitle: 'Gỡ Mod đã nhập?',
@@ -2094,7 +2095,7 @@ export const supplementalTranslations = {
 
 export const structureJsonProjectUiTranslations = {
   en: {
-    structureJsonCurrentFormat: 'MinecraftBuilder Structure JSON',
+    structureJsonCurrentFormat: 'The Block Laundromat Structure JSON',
     structureJsonLimitations:
       'Structure JSON includes blocks, decorations, and verified semantic block entities. Unsupported opaque data may require Project Backup for full fidelity.',
     structureJsonImportStale:
@@ -2104,7 +2105,7 @@ export const structureJsonProjectUiTranslations = {
     structureJsonValidationShape: 'The document does not match the current Structure JSON shape.',
   },
   vi: {
-    structureJsonCurrentFormat: 'Structure JSON MinecraftBuilder',
+    structureJsonCurrentFormat: 'Structure JSON của The Block Laundromat',
     structureJsonLimitations:
       'Structure JSON bao gom block, do trang tri va block entity semantic da xac minh. Du lieu raw khong duoc ho tro co the can Ban sao luu du an de giu nguyen.',
     structureJsonImportStale:

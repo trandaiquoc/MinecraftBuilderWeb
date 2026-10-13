@@ -97,7 +97,7 @@ export function externalAiInstructionSections(
         id: 'output',
         title: 'KẾT QUẢ',
         lines: [
-          `Bạn đang tạo Structure JSON cho MinecraftBuilder, dùng với Minecraft Java ${minecraftVersion}.`,
+          `Bạn đang tạo Structure JSON cho The Block Laundromat, dùng với Minecraft Java ${minecraftVersion}.`,
           'Chỉ tạo Structure JSON hoàn chỉnh. Nếu môi trường AI có thể tạo file tải xuống hoặc file đính kèm, hãy tạo một file `.json` chứa JSON hoàn chỉnh và trả file đó làm kết quả.',
           'Nếu không thể tạo file, hãy trả đúng một code block Markdown loại `json` chứa toàn bộ JSON. Không in toàn bộ JSON trực tiếp như văn bản thường, không thêm giải thích trước hoặc sau kết quả, không chèn comment vào JSON và không trả đồng thời cả file với bản JSON trùng lặp.',
         ],
@@ -125,7 +125,7 @@ export function externalAiInstructionSections(
         id: 'size',
         title: 'KÍCH THƯỚC CẤU TRÚC',
         lines: [
-          `MinecraftBuilder hỗ trợ cấu trúc tối đa ${maximumSizeText} block. Hãy chọn kích thước phù hợp với công trình và chỉ dùng không gian thực sự cần thiết; không phóng lớn công trình chỉ để tận dụng giới hạn tối đa.`,
+          `The Block Laundromat hỗ trợ cấu trúc tối đa ${maximumSizeText} block. Hãy chọn kích thước phù hợp với công trình và chỉ dùng không gian thực sự cần thiết; không phóng lớn công trình chỉ để tận dụng giới hạn tối đa.`,
           `Tọa độ x, y, z của block và anchor decoration phải là số nguyên không âm và cấu trúc không được vượt quá ${maximumSizeText} block trên bất kỳ trục nào.`,
           'Với cấu trúc thông thường trong không gian cục bộ, hãy chuẩn hóa phần hình học có block về minX = 0, minY = 0, minZ = 0; không thêm khoảng trống do offset tùy ý. Khoảng Air chủ ý do người dùng yêu cầu có thể khiến phần hình học bắt đầu trên y = 0, nhưng không được lấp khoảng đó bằng block hỗ trợ.',
           'Basement, hang, hố, hồ sâu, nền móng sâu, phòng chôn hoặc đường hầm không được dùng tọa độ âm. Hãy tịnh tiến toàn bộ thiết kế lên để phần thấp nhất có y = 0; tương tự, tịnh tiến toàn bộ thiết kế theo X/Z thay vì phát ra x hoặc z âm.',
@@ -172,8 +172,8 @@ export function externalAiInstructionSections(
       id: 'output',
       title: 'OUTPUT',
       lines: [
-        `You are generating a MinecraftBuilder Structure JSON document for Minecraft Java ${minecraftVersion}.`,
-        'Produce only the final MinecraftBuilder Structure JSON. If your environment can create downloadable files or attachments, create one `.json` file containing the final JSON and provide that file as the result.',
+        `You are generating a Structure JSON document for The Block Laundromat for Minecraft Java ${minecraftVersion}.`,
+        'Produce only the final Structure JSON for The Block Laundromat. If your environment can create downloadable files or attachments, create one `.json` file containing the final JSON and provide that file as the result.',
         'If file output is not available, return exactly one Markdown code block marked `json` containing the complete JSON. Do not print the full JSON as ordinary chat text, add explanations before or after the result, include comments inside the JSON, or output both a file and a duplicate code block.',
       ],
     },
@@ -199,7 +199,7 @@ export function externalAiInstructionSections(
       id: 'size',
       title: 'PROJECT SIZE',
       lines: [
-        `MinecraftBuilder supports structures up to ${maximumSizeText} blocks. Choose dimensions appropriate for the requested design and use only the space the design actually needs; do not enlarge a structure merely to use the maximum.`,
+        `The Block Laundromat supports structures up to ${maximumSizeText} blocks. Choose dimensions appropriate for the requested design and use only the space the design actually needs; do not enlarge a structure merely to use the maximum.`,
         `Block coordinates and decoration anchors x, y, and z must be non-negative integers and the structure must not exceed ${maximumSizeText} blocks on any axis.`,
         'For ordinary local-space generation, normalize the occupied structure to minX = 0, minY = 0, minZ = 0 instead of adding arbitrary empty offset space. A user-requested intentional air gap may place occupied geometry above y = 0; do not fill that gap with unwanted support.',
         'Basements, caves, pits, deep lakes, deep foundations, buried rooms, and underground tunnels must not use negative coordinates. Translate the whole design upward so its lowest generated coordinate is y = 0, and translate the whole design on X/Z instead of emitting negative x or z.',
@@ -248,7 +248,7 @@ export function canonicalInstructions(
   projectContext?: ExternalAiProjectContext,
 ): string {
   return [
-    'MINECRAFTBUILDER STRUCTURE JSON',
+    'THE BLOCK LAUNDROMAT STRUCTURE JSON',
     ...externalAiInstructionSections(minecraftVersion, locale, projectContext).flatMap(
       (section) => [section.title, ...section.lines],
     ),
@@ -257,6 +257,6 @@ export function canonicalInstructions(
 
 function minimalPromptFraming(minecraftVersion: string, locale: ExternalAiPromptLocale): string {
   return locale === 'vi'
-    ? `Tạo MinecraftBuilder Structure JSON cho Minecraft Java ${minecraftVersion}. Nếu có thể tạo file, trả một file \`.json\`; nếu không, trả đúng một code block Markdown loại \`json\`. Không thêm giải thích bên ngoài kết quả.`
-    : `Generate MinecraftBuilder Structure JSON for Minecraft Java ${minecraftVersion}. If you can create a file, return one \`.json\` file; otherwise return exactly one Markdown \`json\` code block. Do not add explanations outside the result.`;
+    ? `Tạo Structure JSON cho The Block Laundromat dành cho Minecraft Java ${minecraftVersion}. Nếu có thể tạo file, trả một file \`.json\`; nếu không, trả đúng một code block Markdown loại \`json\`. Không thêm giải thích bên ngoài kết quả.`
+    : `Generate The Block Laundromat Structure JSON for Minecraft Java ${minecraftVersion}. If you can create a file, return one \`.json\` file; otherwise return exactly one Markdown \`json\` code block. Do not add explanations outside the result.`;
 }

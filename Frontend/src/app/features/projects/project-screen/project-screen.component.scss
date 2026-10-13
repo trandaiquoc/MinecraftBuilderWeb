@@ -27,17 +27,11 @@
   font-weight: 750;
   letter-spacing: 0.01em;
 }
-.outer-brand-mark {
-  display: grid;
-  place-items: center;
-  width: 1.8rem;
-  height: 1.8rem;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-size: 1rem;
-  font-weight: 800;
-  box-shadow: var(--shadow-control);
+.outer-brand-logo {
+  display: block;
+  width: clamp(5.5rem, 16vw, 8rem);
+  height: auto;
+  flex: 0 0 auto;
 }
 .outer-topbar-controls {
   display: flex;

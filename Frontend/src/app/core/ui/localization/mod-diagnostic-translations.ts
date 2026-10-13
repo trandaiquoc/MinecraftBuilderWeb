@@ -9,7 +9,7 @@ const templates: DiagnosticTemplates = {
   ],
   'nested-jar-skipped': [
     'Skipped {count} nested JAR file(s); embedded Mod code is never executed.',
-    'Đã bỏ qua {count} JAR lồng nhau; MinecraftBuilder không bao giờ thực thi mã Mod.',
+    'Đã bỏ qua {count} JAR lồng nhau; The Block Laundromat không bao giờ thực thi mã Mod.',
   ],
   'unsupported-loader': [
     'This Mod loader is detected but is not supported yet.',

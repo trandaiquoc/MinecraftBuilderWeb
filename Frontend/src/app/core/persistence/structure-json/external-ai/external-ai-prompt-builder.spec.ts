@@ -86,6 +86,8 @@ describe('external Structure JSON AI prompt', () => {
     expect(prompt).toContain('Bạn đang tạo');
     expect(prompt).toContain('KÍCH THƯỚC CẤU TRÚC');
     expect(prompt).toContain('YÊU CẦU NGƯỜI DÙNG');
+    expect(prompt).toContain('The Block Laundromat');
+    expect(prompt).toContain('minecraftbuilder-structure');
     expect(prompt).toContain(description);
     expect(prompt).not.toContain('You are generating a MinecraftBuilder Structure JSON document');
     expect(prompt).not.toContain('formatVersion');

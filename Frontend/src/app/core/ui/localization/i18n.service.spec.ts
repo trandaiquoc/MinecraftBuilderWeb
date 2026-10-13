@@ -11,6 +11,17 @@ import {
 afterEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
 
 describe('translation dictionaries', () => {
+  it('uses the new product brand consistently in both locales', () => {
+    const service = TestBed.inject(I18nService);
+    service.setLocale('en');
+    expect(service.t('appName')).toBe('The Block Laundromat');
+    expect(service.t('about')).toBe('About The Block Laundromat');
+    service.setLocale('vi');
+    expect(service.t('appName')).toBe('The Block Laundromat');
+    expect(service.t('about')).toBe('Giới thiệu The Block Laundromat');
+    service.setLocale('en');
+  });
+
   it('keeps document language synchronized with the preference owner', () => {
     const service = TestBed.inject(I18nService);
     const preferences = TestBed.inject(UiPreferencesService);
@@ -90,10 +101,10 @@ describe('translation dictionaries', () => {
     service.setLocale('en');
   });
 
-  it('serves Structure JSON copy from catalogs without changing visible wording', () => {
+  it('serves branded Structure JSON labels without changing format guidance', () => {
     const service = TestBed.inject(I18nService);
     service.setLocale('en');
-    expect(service.t('structureJsonCurrentFormat')).toBe('MinecraftBuilder Structure JSON');
+    expect(service.t('structureJsonCurrentFormat')).toBe('The Block Laundromat Structure JSON');
     expect(service.t('structureJsonLimitations')).toBe(
       'Structure JSON includes blocks, decorations, and verified semantic block entities. Unsupported opaque data may require Project Backup for full fidelity.',
     );

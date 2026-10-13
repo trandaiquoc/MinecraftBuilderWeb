@@ -1,4 +1,4 @@
-# MinecraftBuilder Structure JSON
+# The Block Laundromat Structure JSON
 
 Structure JSON is the current human-readable interchange format for blocks, supported decorations, and verified semantic block entities. It is separate from Project Backup, which keeps its own versioned package contract and remains the lossless backup format.
 

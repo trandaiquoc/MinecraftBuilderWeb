@@ -275,7 +275,7 @@ export function deriveStructureExportDefaults(
   const description =
     typeof cached.description === 'string' && cached.description.trim()
       ? cached.description
-      : `MinecraftBuilder export: ${project.metadata.name.trim() || 'Structure'}`;
+      : `The Block Laundromat export: ${project.metadata.name.trim() || 'Structure'}`;
   return {
     namespace,
     structurePath: generatedName,

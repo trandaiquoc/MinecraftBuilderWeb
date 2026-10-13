@@ -1,8 +1,8 @@
-# MinecraftBuilder — Vanilla Behavior Golden Matrix (Minecraft Java 1.21.1)
+# The Block Laundromat — Vanilla Behavior Golden Matrix (Minecraft Java 1.21.1)
 
 > Mục đích: ghi lại các kỳ vọng behavior vanilla Java 1.21.1 đã được xác minh/ghi nhận để đối chiếu với rule engine và regression tests. Các xác nhận manual trong tài liệu là evidence lịch sử được ghi lại tại thời điểm kiểm thử; chúng chưa được chạy lại trong môi trường hiện tại.
 >
-> Phạm vi: các behavior vanilla đại diện, không phải mô phỏng toàn bộ Minecraft physics. Golden Minecraft facts và implementation MinecraftBuilder là hai lớp evidence riêng: bảng này không chứng minh runtime hiện tại đã đạt parity. Với modded behavior cần Java runtime mà chưa có rule xác minh, giữ `Unknown` / `Partial`.
+> Phạm vi: các behavior vanilla đại diện, không phải mô phỏng toàn bộ Minecraft physics. Golden Minecraft facts và implementation The Block Laundromat là hai lớp evidence riêng: bảng này không chứng minh runtime hiện tại đã đạt parity. Với modded behavior cần Java runtime mà chưa có rule xác minh, giữ `Unknown` / `Partial`.
 
 ---
 
@@ -229,7 +229,7 @@ Door còn có:
 - Nếu voxel phía trên bị chiếm → không đặt được Door.
 - Không được có partial placement.
 
-## MinecraftBuilder invariant
+## The Block Laundromat invariant
 
 Các thao tác sau phải luôn mở rộng tới toàn logical object:
 
@@ -271,7 +271,7 @@ Representative block: `minecraft:sunflower`
 - Phá upper → lower mất.
 - Phá support block bên dưới → cả cây mất.
 
-## MinecraftBuilder invariant
+## The Block Laundromat invariant
 
 - logical object gồm 2 voxel;
 - không cho select/group/move một half riêng;
@@ -310,7 +310,7 @@ Representative block tested: vanilla bed.
 - Phá foot → head mất.
 - Phá head → foot mất.
 
-## MinecraftBuilder editor policy
+## The Block Laundromat editor policy
 
 - Placement mới: default `occupied=false`.
 - JSON/NBT import: preserve `occupied` nếu dữ liệu có.
@@ -351,7 +351,7 @@ Không có item inventory riêng bắt buộc cho Wall Torch.
 - Phá Stone support mà Wall Torch đang bám → Wall Torch mất.
 - Không thể đặt Wall Torch lơ lửng nếu không có support hợp lệ.
 
-## MinecraftBuilder implication
+## The Block Laundromat implication
 
 - Support validation phải kiểm tra đúng support direction.
 - Placement context quyết định Torch vs Wall Torch.

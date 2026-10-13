@@ -5,6 +5,8 @@ and product planning.
 
 ## Current source of truth
 
+- `design-foundation-branding.md` — current product brand, approved visual
+  direction, supplied references, and explicit implementation boundaries.
 - `MinecraftBuilder_Requirements_VI.docx` — version 0.2 product and technical
   requirement baseline for the local-first MVP. It records intended scope, not
   implementation status; it does not replace the more specific current

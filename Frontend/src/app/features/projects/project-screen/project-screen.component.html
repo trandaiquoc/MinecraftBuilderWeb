@@ -1,7 +1,14 @@
 <main class="project-page">
   <header class="outer-topbar">
     <div class="outer-brand">
-      <span class="outer-brand-mark" aria-hidden="true">M</span><span>{{ i18n.t('appName') }}</span>
+      <img
+        class="outer-brand-logo"
+        ngSrc="assets/brand/the-block-laundromat-logo.svg"
+        width="1774"
+        height="887"
+        [alt]="i18n.t('appName')"
+        priority
+      />
     </div>
     <div class="outer-topbar-controls">
       <button

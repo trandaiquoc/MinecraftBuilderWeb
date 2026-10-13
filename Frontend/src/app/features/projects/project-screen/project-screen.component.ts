@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgOptimizedImage } from '@angular/common';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Component, computed, inject, signal } from '@angular/core';
 import { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
@@ -39,6 +39,7 @@ import { ProjectScreenWorkflow } from './project-screen-workflow';
   imports: [
     CdkTrapFocus,
     DatePipe,
+    NgOptimizedImage,
     LucideFileUp,
     LucideSettings,
     LucideTrash2,

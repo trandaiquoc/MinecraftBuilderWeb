@@ -1,6 +1,6 @@
 # Minecraft Asset Policy and Versioned Runtime
 
-This document defines how MinecraftBuilder obtains and uses Minecraft assets.
+This document defines how The Block Laundromat obtains and uses Minecraft assets.
 Minecraft Java Edition 1.21.1 remains the verified behavior baseline; the
 current runtime can also load resources for other selected versions as
 described below.
@@ -14,7 +14,7 @@ behavior is documented from section 12 onward.
 
 ## 1. Scope
 
-MinecraftBuilder needs Minecraft Java 1.21.1 resources for:
+The Block Laundromat needs Minecraft Java 1.21.1 resources for:
 
 - block registry/catalog generation;
 - BlockState parsing;
@@ -126,7 +126,7 @@ Do not commit:
 - temporary parser output;
 - machine-specific absolute paths.
 
-MinecraftBuilder should be able to regenerate its local development cache from a locally available Minecraft Java 1.21.1 JAR.
+The Block Laundromat should be able to regenerate its local development cache from a locally available Minecraft Java 1.21.1 JAR.
 
 ## 5a. Authoritative item registry
 
@@ -155,13 +155,13 @@ Asset reader / extractor
         +--> en_us language entries
         |
         v
-Normalized MinecraftBuilder catalog
+Normalized The Block Laundromat catalog
         |
         +--> local development cache
         +--> representative fixtures/tests
 ```
 
-The extractor should read only the resources required by MinecraftBuilder.
+The extractor should read only the resources required by The Block Laundromat.
 
 A full copy of the vanilla asset tree is not required in the repository.
 
@@ -327,7 +327,7 @@ for every registry entry.
 
 ## 12. Browser asset loading implementation
 
-For the selected project version, MinecraftBuilder first restores an exact
+For the selected project version, The Block Laundromat first restores an exact
 version from IndexedDB, then resolves and downloads the official client JAR via
 Mojang's Piston metadata, and finally offers a user-selected JAR/ZIP as a
 manual fallback. The browser reads the ZIP central directory locally and only
@@ -512,7 +512,7 @@ otherwise normalised in the world renderer.
 
 # Java 1.21.1 Sign block entities
 
-MinecraftBuilder keeps the four canonical registry forms for each verified
+The Block Laundromat keeps the four canonical registry forms for each verified
 vanilla wood family: `<wood>_sign`, `<wood>_wall_sign`,
 `<wood>_hanging_sign`, and `<wood>_wall_hanging_sign`. Each is an explicit
 placement contract in the current editor; placement never switches an ID based

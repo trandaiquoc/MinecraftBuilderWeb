@@ -1,8 +1,9 @@
-# MinecraftBuilder
+# The Block Laundromat
 
 [English](README.md) | [Tiếng Việt](README.vi.md)
 
-MinecraftBuilder is a web-based editor for creating, viewing, editing, importing, and exporting Minecraft Java structures.
+The Block Laundromat is a web-based editor for creating, viewing, editing,
+importing, and exporting Minecraft Java structures.
 
 The project is designed around a local-first visual workflow that combines 3D
 editing with Y-layer editing, Minecraft block-state handling, resource-backed
