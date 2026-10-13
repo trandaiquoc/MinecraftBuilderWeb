@@ -20,7 +20,7 @@ describe('exporter-generated datapack smoke structure', () => {
         namespace: 'minecraftbuilder',
         structurePath: 'exporter_datapack_smoke_1_21_1',
         archiveName: 'exporter_datapack_smoke_1_21_1',
-        description: 'MinecraftBuilder 1.21.1 export smoke',
+        description: 'The Block Laundromat 1.21.1 export smoke',
       },
       () => 64,
     );
@@ -48,7 +48,7 @@ describe('exporter-generated datapack smoke structure', () => {
       pack: { pack_format: number; description: string };
     };
     expect(pack).toEqual({
-      pack: { pack_format: 48, description: 'MinecraftBuilder 1.21.1 export smoke' },
+      pack: { pack_format: 48, description: 'The Block Laundromat 1.21.1 export smoke' },
     });
 
     const nbtBytes = files['data/minecraftbuilder/structure/exporter_datapack_smoke_1_21_1.nbt'];

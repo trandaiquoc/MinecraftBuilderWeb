@@ -8,6 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { NgOptimizedImage } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
@@ -74,6 +75,7 @@ export function hasEditorSelectionState(
 @Component({
   selector: 'app-editor-shell',
   imports: [
+    NgOptimizedImage,
     RouterLink,
     BlockBrowserComponent,
     DecorationBrowserComponent,

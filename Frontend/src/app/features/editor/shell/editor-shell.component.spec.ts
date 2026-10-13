@@ -17,6 +17,7 @@ import { PROJECT_STORE } from '../../../core/persistence/project-store/project-s
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { ProjectDeletionService } from '../../../core/persistence/project-deletion.service';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
+import { ThreeViewportEngine } from '../../../core/renderer/engine/three-viewport-engine';
 
 const project: ProjectDocument = {
   schemaVersion: 3,
@@ -83,12 +84,33 @@ describe('editor shell movement/delete routing', () => {
     installIndexedDbStub();
     await TestBed.configureTestingModule({
       imports: [EditorShellComponent],
-      providers: [{ provide: PROJECT_STORE, useFactory: () => new IndexedDbProjectStore() }],
+      providers: [
+        { provide: ActivatedRoute, useValue: {} },
+        { provide: PROJECT_STORE, useFactory: () => new IndexedDbProjectStore() },
+      ],
     }).compileComponents();
   });
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('uses the shared brand logo as the accessible link back to Projects', () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    TestBed.inject(WorkspaceStateService).activate(project, undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const brand = root.querySelector<HTMLAnchorElement>('.shell-header .brand');
+    const logo = brand?.querySelector<HTMLImageElement>('img');
+
+    expect(brand?.getAttribute('href')).toBe('/');
+    expect(logo?.getAttribute('ngSrc')).toBe('assets/brand/the-block-laundromat-logo.svg');
+    expect(logo?.getAttribute('alt')).toBe('The Block Laundromat');
+    fixture.destroy();
+    mount.mockRestore();
   });
 
   it('opens and closes the Structure NBT export dialog from the File action', () => {

@@ -48,7 +48,10 @@ export function parseProjectPackage(serialized: string): ProjectDocument {
     );
   }
   if (!isRecord(value) || value['format'] !== PROJECT_PACKAGE_FORMAT || !('project' in value))
-    throw new ProjectPackageError('not-project-package', 'Not a MinecraftBuilder Project Package');
+    throw new ProjectPackageError(
+      'not-project-package',
+      'Not a project package created by The Block Laundromat',
+    );
   if (value['formatVersion'] !== CURRENT_PROJECT_PACKAGE_VERSION)
     throw new ProjectPackageError(
       'unsupported-package-version',
@@ -56,7 +59,10 @@ export function parseProjectPackage(serialized: string): ProjectDocument {
     );
   const projectValue = value['project'];
   if (!isProjectShape(projectValue))
-    throw new ProjectPackageError('invalid-project-data', 'Invalid MinecraftBuilder project data');
+    throw new ProjectPackageError(
+      'invalid-project-data',
+      'The Block Laundromat project data is invalid',
+    );
   if (projectValue.schemaVersion > CURRENT_PROJECT_SCHEMA_VERSION)
     throw new ProjectPackageError(
       'unsupported-project-schema',

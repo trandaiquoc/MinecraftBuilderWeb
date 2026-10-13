@@ -80,7 +80,7 @@ Large binary files and assets should be stored outside the relational database u
 ## Repository Structure
 
 ```text
-MinecraftBuilderWeb/
+TheBlockLaundromat/
 ├── Docs/
 └── Frontend/
 ```
@@ -146,5 +146,8 @@ generated-artifact policy.
 
 ## Project Name
 
-- Product: **MinecraftBuilder**
-- Repository: **MinecraftBuilderWeb**
+- Product: **The Block Laundromat**
+- Angular project: `TheBlockLaundromat`
+- npm package: `the-block-laundromat`
+- GitHub repository: `trandaiquoc/the-block-laundromat` (rename is external and not performed here)
+- Planned local directory: `TheBlockLaundromat` (rename is external and not performed here)

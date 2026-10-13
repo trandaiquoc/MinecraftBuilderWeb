@@ -78,7 +78,7 @@ Các file binary hoặc asset lớn nên được lưu bằng object/file storag
 ## Cấu trúc repository
 
 ```text
-MinecraftBuilderWeb/
+TheBlockLaundromat/
 ├── Docs/
 └── Frontend/
 ```
@@ -144,5 +144,8 @@ quy tắc artifact sinh tự động.
 
 ## Tên project
 
-- Tên sản phẩm: **MinecraftBuilder**
-- Tên repository: **MinecraftBuilderWeb**
+- Tên sản phẩm: **The Block Laundromat**
+- Tên Angular project: `TheBlockLaundromat`
+- Tên npm package: `the-block-laundromat`
+- Repository GitHub: `trandaiquoc/the-block-laundromat` (đổi tên bên ngoài, chưa thực hiện)
+- Thư mục local dự kiến: `TheBlockLaundromat` (đổi tên bên ngoài, chưa thực hiện)

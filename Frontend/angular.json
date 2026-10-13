@@ -7,7 +7,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "MinecraftBuilder": {
+    "TheBlockLaundromat": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -65,10 +65,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "MinecraftBuilder:build:production"
+              "buildTarget": "TheBlockLaundromat:build:production"
             },
             "development": {
-              "buildTarget": "MinecraftBuilder:build:development"
+              "buildTarget": "TheBlockLaundromat:build:development"
             }
           },
           "defaultConfiguration": "development"

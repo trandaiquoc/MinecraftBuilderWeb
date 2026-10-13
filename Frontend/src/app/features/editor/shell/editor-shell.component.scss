@@ -172,10 +172,19 @@
   right: 0;
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
   color: var(--text);
   font-weight: 750;
   text-decoration: none;
   white-space: nowrap;
+}
+.brand-logo {
+  display: block;
+  width: clamp(4.75rem, 10vw, 7rem);
+  height: auto;
+  flex: 0 1 auto;
 }
 .toolbar-group,
 .tool-switch {

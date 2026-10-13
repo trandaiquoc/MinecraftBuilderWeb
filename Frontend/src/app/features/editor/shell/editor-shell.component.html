@@ -74,7 +74,15 @@
   } @else {
     <header class="shell-header" [class.menu-open]="activeMenu() !== undefined || cameraMenuOpen()">
       <div class="app-menu-row" [class.menu-open]="activeMenu() !== undefined">
-        <a class="brand" routerLink="/">{{ i18n.t('appName') }}</a>
+        <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('appName')">
+          <img
+            class="brand-logo"
+            ngSrc="assets/brand/the-block-laundromat-logo.svg"
+            width="1774"
+            height="887"
+            [alt]="i18n.t('appName')"
+          />
+        </a>
         <nav
           class="app-menus"
           [attr.aria-label]="i18n.t('applicationMenu')"

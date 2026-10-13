@@ -167,7 +167,7 @@ export class ViewportSessionOwner {
         const assetStatus = this.assets.status();
         const assets = this.assets.diagnostics();
         if (typeof ngDevMode !== 'undefined' && ngDevMode)
-          console.debug(`[MinecraftBuilder][${this.modeLabel} bootstrap]`, {
+          console.debug(`[The Block Laundromat][${this.modeLabel} bootstrap]`, {
             projectRestore,
             assetStatus,
             assets,

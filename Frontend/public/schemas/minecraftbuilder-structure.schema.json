@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://minecraftbuilder.app/schemas/minecraftbuilder-structure.schema.json",
-  "title": "MinecraftBuilder Structure JSON",
+  "title": "The Block Laundromat Structure JSON",
   "type": "object",
   "additionalProperties": false,
   "required": ["format", "minecraftVersion", "blocks", "decorations"],

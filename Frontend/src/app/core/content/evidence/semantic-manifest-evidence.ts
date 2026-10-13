@@ -12,7 +12,7 @@ import type {
   ContentSpecialVisualDescriptor,
 } from '../content-semantic-types';
 
-/** Reads the optional MinecraftBuilder-owned semantic manifest without making
+/** Reads the optional application-owned semantic manifest without making
  * assumptions about the namespace or loader that supplied the resources. */
 export class SemanticManifestEvidenceProvider implements ContentSemanticEvidenceProvider {
   readonly diagnostics: readonly ContentIntrospectionDiagnostic[];

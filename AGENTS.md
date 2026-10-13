@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Repository-level instructions for AI coding agents working on **MinecraftBuilder**.
+Repository-level instructions for AI coding agents working on **The Block Laundromat**.
 
 These rules apply to the entire repository unless a more specific `AGENTS.md` exists in the target directory.
 
@@ -22,11 +22,15 @@ Do not continue into another roadmap phase unless the user explicitly requests i
 
 Product name:
 
-`MinecraftBuilder`
+`The Block Laundromat`
 
 Repository name:
 
-`MinecraftBuilderWeb`
+`the-block-laundromat` (planned GitHub repository slug)
+
+The planned local checkout directory is `TheBlockLaundromat`. Do not rename
+the current working directory or remote repository as part of source changes;
+the user will perform those external operations.
 
 Main repository areas:
 
@@ -203,7 +207,7 @@ Do not execute code extracted from uploaded mod JARs in the browser or server me
 
 Do not guess version-specific Minecraft behavior.
 
-MinecraftBuilder currently targets Minecraft Java **1.21.1** unless project documentation says otherwise.
+The Block Laundromat currently targets Minecraft Java **1.21.1** unless project documentation says otherwise.
 
 When implementing or modifying support for any of the following, verify against reference data, official/authoritative documentation, or real fixtures when needed:
 

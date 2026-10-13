@@ -68,15 +68,18 @@ They are documentation-only and are not loaded by the application.
 
 ## Compatibility and Scope
 
-The product-facing brand may change without changing technical contracts. Keep
-the existing `minecraftbuilder` project/Structure JSON identifiers, export
-namespace, storage keys, database names, cache keys, diagnostics schemas,
-Angular project name, npm package name, and repository/root folder unchanged.
-The references to MinecraftBuilder in historical decision records also remain
-as provenance. Renaming repository, root folder, or package identifiers is a
-separate migration with external links, scripts, CI, and consumer compatibility
-risk.
+The product-facing brand is **The Block Laundromat**. Build identifiers are
+`TheBlockLaundromat` (Angular project) and `the-block-laundromat` (npm
+package). The intended GitHub slug is `trandaiquoc/the-block-laundromat` and
+the intended local directory is `TheBlockLaundromat`; changing the remote or
+renaming the current checkout is an external user action and is not performed
+by this source change.
 
-This foundation step changes visible branding and documentation only. It does
+Keep existing `minecraftbuilder` project/Structure JSON identifiers, export
+namespace, storage keys, database names, cache keys, diagnostics schemas, and
+other serialized contracts unchanged. Historical decision records retain
+MinecraftBuilder as provenance.
+
+The brand migration changes visible branding and build identifiers only. It does
 not add a Raccoon theme, change runtime fonts or reset defaults, add the
 Colorful workspace, redesign the homepage, or add account/backend behavior.

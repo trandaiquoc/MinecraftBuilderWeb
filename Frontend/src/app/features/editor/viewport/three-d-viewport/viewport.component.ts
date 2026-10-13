@@ -291,7 +291,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     const project = this.workspace.project();
     this.engine.restoreCamera(this.cameraState.get('3d', project?.id), project?.id);
     this.viewportMounted = true;
-    if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics());
+    if (isDevMode()) console.debug('[The Block Laundromat][3D mounted]', this.engine.diagnostics());
   }
   ngOnDestroy(): void {
     this.clearPointerGesture();
