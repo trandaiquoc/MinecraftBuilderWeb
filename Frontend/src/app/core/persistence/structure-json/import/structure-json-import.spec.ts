@@ -70,7 +70,7 @@ const sapling: BlockDefinition = {
 const size = { x: 2, y: 2, z: 2 };
 const json = (blocks: unknown[]) =>
   JSON.stringify({
-    format: 'minecraftbuilder-structure',
+    format: 'the-block-laundromat-structure',
     minecraftVersion: '1.21.1',
     blocks,
     decorations: [],
@@ -187,7 +187,7 @@ describe('Structure JSON import validation preview', () => {
 
   it('keeps async validation equivalent to the synchronous validator', async () => {
     const parsed = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [
         { id: 'minecraft:stone', x: 0, y: 0, z: 0 },
@@ -239,7 +239,7 @@ describe('Structure JSON import validation preview', () => {
       },
     };
     const parsed = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [
         { id: stone.id, x: 0, y: 0, z: 0 },
@@ -317,7 +317,12 @@ describe('Structure JSON import validation preview', () => {
     );
     const progress: number[] = [];
     const result = await validateParsedStructureJsonPreviewAsync(
-      { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks, decorations: [] },
+      {
+        format: 'the-block-laundromat-structure',
+        minecraftVersion: '1.21.1',
+        blocks,
+        decorations: [],
+      },
       size,
       () => stone,
       (completed) => progress.push(completed),
@@ -338,7 +343,12 @@ describe('Structure JSON import validation preview', () => {
     let cancelled = false;
     let progressCalls = 0;
     const result = await validateParsedStructureJsonPreviewAsync(
-      { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks, decorations: [] },
+      {
+        format: 'the-block-laundromat-structure',
+        minecraftVersion: '1.21.1',
+        blocks,
+        decorations: [],
+      },
       size,
       () => stone,
       () => {
@@ -355,7 +365,7 @@ describe('Structure JSON import validation preview', () => {
     let progressCalls = 0;
     const result = await validateParsedStructureJsonPreviewAsync(
       {
-        format: 'minecraftbuilder-structure',
+        format: 'the-block-laundromat-structure',
         minecraftVersion: '1.21.1',
         blocks: [{ id: 'minecraft:stone', x: 0, y: 0, z: 0 }],
         decorations: [],
@@ -379,7 +389,12 @@ describe('Structure JSON import validation preview', () => {
     }));
     let progressCalls = 0;
     const result = await validateParsedStructureJsonPreviewAsync(
-      { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks, decorations: [] },
+      {
+        format: 'the-block-laundromat-structure',
+        minecraftVersion: '1.21.1',
+        blocks,
+        decorations: [],
+      },
       { x: 1000, y: 100, z: 1 },
       () => stone,
       () => {
@@ -395,7 +410,7 @@ describe('Structure JSON import validation preview', () => {
   it('enforces enabled block limits through canonical placeable identity', () => {
     const get = (id: string) => (id === dragonWallHead.id ? dragonWallHead : undefined);
     const value = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [{ id: dragonWallHead.id, x: 0, y: 0, z: 0 }],
       decorations: [],
@@ -446,7 +461,7 @@ describe('Structure JSON import validation preview', () => {
       },
     };
     const contentSource = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [{ id: stone.id, x: 0, y: 0, z: 0 }],
       decorations: [],
@@ -477,7 +492,7 @@ describe('Structure JSON import validation preview', () => {
     expect(contentPlan.applicable).toBe(false);
 
     const supportSource = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [{ id: dandelion.id, x: 0, y: 1, z: 0 }],
       decorations: [],
@@ -501,7 +516,7 @@ describe('Structure JSON import validation preview', () => {
   it('reports restricted items in container and item-frame payloads', () => {
     const get = (id: string) => (id === chest.id ? chest : id === stone.id ? stone : undefined);
     const value = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [
         {
@@ -549,7 +564,7 @@ describe('Structure JSON import validation preview', () => {
 
   it('reports restricted painting variants without confusing held items', () => {
     const value = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [],
       decorations: [
@@ -577,7 +592,7 @@ describe('Structure JSON import validation preview', () => {
 
   it('keeps unavailable mod restrictions from authorizing missing content', () => {
     const value = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [{ id: 'example:missing', x: 0, y: 0, z: 0 }],
       decorations: [],
@@ -638,7 +653,7 @@ describe('Structure JSON import validation preview', () => {
     const get = (id: string) =>
       id === stone.id ? stone : id === sapling.id ? unverifiedSapling : undefined;
     const value = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [
         { id: stone.id, x: 1, y: 1, z: 1 },

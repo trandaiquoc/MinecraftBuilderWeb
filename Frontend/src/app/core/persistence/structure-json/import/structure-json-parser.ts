@@ -2,7 +2,11 @@
 
 import type { DecorationFacing } from '../../../decorations/decoration.types';
 import { isValidNamespacedResourceLocation } from '../../../content/resources/resource-location';
-import { LEGACY_STRUCTURE_JSON_VERSION, STRUCTURE_JSON_FORMAT } from '../structure-json-contracts';
+import {
+  LEGACY_STRUCTURE_JSON_FORMAT,
+  LEGACY_STRUCTURE_JSON_VERSION,
+  STRUCTURE_JSON_FORMAT,
+} from '../structure-json-contracts';
 import type {
   ParsedStructureJsonResult,
   StructureJsonBlock,
@@ -60,7 +64,7 @@ const wallFacings = new Set(['north', 'south', 'east', 'west']);
 export function parseStructureJson(serialized: string): ParsedStructureJsonResult {
   const raw = parseRaw(serialized);
   if (!raw.ok) return raw.result;
-  if (raw.value['format'] !== STRUCTURE_JSON_FORMAT) return { valid: false, code: 'format' };
+  if (!isSupportedFormat(raw.value['format'])) return { valid: false, code: 'format' };
   const legacy = raw.value['formatVersion'] !== undefined;
   if (legacy && raw.value['formatVersion'] !== LEGACY_STRUCTURE_JSON_VERSION)
     return { valid: false, code: 'version' };
@@ -69,7 +73,7 @@ export function parseStructureJson(serialized: string): ParsedStructureJsonResul
 
 function parseValue(value: Record<string, unknown>, legacy: boolean): ParsedStructureJsonResult {
   const allowed = legacy ? legacyTopLevelKeys : topLevelKeys;
-  if (!hasOnlyKeys(value, allowed) || value['format'] !== STRUCTURE_JSON_FORMAT)
+  if (!hasOnlyKeys(value, allowed) || !isSupportedFormat(value['format']))
     return { valid: false, code: 'shape' };
   const common = validateCommonTopLevel(value);
   if (!common.valid) return common;
@@ -97,6 +101,10 @@ function parseValue(value: Record<string, unknown>, legacy: boolean): ParsedStru
       decorations,
     },
   };
+}
+
+function isSupportedFormat(value: unknown): boolean {
+  return value === STRUCTURE_JSON_FORMAT || value === LEGACY_STRUCTURE_JSON_FORMAT;
 }
 
 function parseRaw(

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ProjectDocument } from '../domain/project.types';
 import { ProjectStore } from '../persistence/project-store/project-store.port';
-import { ACTIVE_PROJECT_KEY, WorkspaceStateService } from './workspace-state.service';
+import {
+  ACTIVE_PROJECT_KEY,
+  LEGACY_ACTIVE_PROJECT_KEY,
+  WorkspaceStateService,
+} from './workspace-state.service';
 
 const project = (id: string, updatedAt: string): ProjectDocument => ({
   schemaVersion: 2,
@@ -47,6 +51,20 @@ describe('WorkspaceStateService', () => {
     const second = new WorkspaceStateService();
     expect((await second.restore(store, storage))?.id).toBe('active');
     expect(second.restoreStatus()).toBe('ready');
+  });
+
+  it('copies a legacy remembered-project pointer without removing its source', async () => {
+    const values = new Map([[LEGACY_ACTIVE_PROJECT_KEY, 'active']]);
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    };
+    const workspace = new WorkspaceStateService();
+    expect(workspace.isRememberedProject('active', storage)).toBe(true);
+    expect(values.get(ACTIVE_PROJECT_KEY)).toBe('active');
+    expect(values.get(LEGACY_ACTIVE_PROJECT_KEY)).toBe('active');
+    workspace.deactivate(storage);
+    expect(workspace.isRememberedProject('active', storage)).toBe(false);
   });
 
   it('falls back to the newest persisted project when no active pointer exists', async () => {
@@ -103,14 +121,14 @@ describe('WorkspaceStateService', () => {
     const values = new Map([[ACTIVE_PROJECT_KEY, 'project-a']]);
     const storage = {
       getItem: (key: string) => values.get(key) ?? null,
-      removeItem: (key: string) => values.delete(key),
+      setItem: (key: string, value: string) => values.set(key, value),
     };
     const workspace = new WorkspaceStateService();
     expect(workspace.isRememberedProject('project-b', storage)).toBe(false);
     workspace.clearRememberedProject('project-b', storage);
     expect(values.get(ACTIVE_PROJECT_KEY)).toBe('project-a');
     workspace.clearRememberedProject('project-a', storage);
-    expect(values.has(ACTIVE_PROJECT_KEY)).toBe(false);
+    expect(values.get(ACTIVE_PROJECT_KEY)).toBe('');
   });
 
   it('holds a newer recovery snapshot before activating the viewport', async () => {

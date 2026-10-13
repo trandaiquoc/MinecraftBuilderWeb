@@ -70,16 +70,24 @@ They are documentation-only and are not loaded by the application.
 
 The product-facing brand is **The Block Laundromat**. Build identifiers are
 `TheBlockLaundromat` (Angular project) and `the-block-laundromat` (npm
-package). The intended GitHub slug is `trandaiquoc/the-block-laundromat` and
-the intended local directory is `TheBlockLaundromat`; changing the remote or
-renaming the current checkout is an external user action and is not performed
-by this source change.
+package). The repository is `trandaiquoc/TheBlockLaundromat`, and the local
+checkout directory is `TheBlockLaundromat`.
 
-Keep existing `minecraftbuilder` project/Structure JSON identifiers, export
-namespace, storage keys, database names, cache keys, diagnostics schemas, and
-other serialized contracts unchanged. Historical decision records retain
-MinecraftBuilder as provenance.
+New Project Backup and Structure JSON exports use The Block Laundromat format
+identifiers; importers continue to accept the former `minecraftbuilder-*`
+formats. New default preferences and NBT export configuration use
+`theblocklaundromat`. Existing saved custom namespace values are preserved.
+Browser-local preferences, active-project references, and Quick Bar data are
+copied to canonical keys on first read while their old keys remain untouched.
+Project and asset IndexedDB database names, the asset-bundle v1 envelope, public
+schema URL, Minecraft resource namespaces, semantic manifests, and diagnostic
+schemas remain compatibility contracts. New asset bundles use the canonical
+brand marker while the legacy marker remains accepted. Historical decision
+records retain MinecraftBuilder as provenance. The existing database names
+remain active rather than copying potentially large projects/assets into a
+second database while retaining the originals. The checked-in public schema
+keeps its established `$id`; no new public domain has been assigned.
 
-The brand migration changes visible branding and build identifiers only. It does
-not add a Raccoon theme, change runtime fonts or reset defaults, add the
+This foundation documents the current branding and compatibility boundaries. It
+does not add a Raccoon theme, change runtime fonts or reset defaults, add the
 Colorful workspace, redesign the homepage, or add account/backend behavior.

@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["format", "minecraftVersion", "blocks", "decorations"],
   "properties": {
-    "format": { "const": "minecraftbuilder-structure" },
+    "format": { "enum": ["the-block-laundromat-structure", "minecraftbuilder-structure"] },
     "minecraftVersion": { "type": "string", "minLength": 1 },
     "name": { "type": "string" },
     "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },

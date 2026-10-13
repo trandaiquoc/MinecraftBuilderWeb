@@ -29,7 +29,7 @@ describe.skipIf(!enabled)('Structure JSON validation benchmark', () => {
       z: 0,
     }));
     const document = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks,
       decorations: [],

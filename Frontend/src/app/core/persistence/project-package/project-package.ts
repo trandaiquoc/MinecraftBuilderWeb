@@ -2,7 +2,8 @@ import { migrateProject } from '../../domain/migrations';
 import { ProjectDocument, CURRENT_PROJECT_SCHEMA_VERSION } from '../../domain/project.types';
 import { validateProject } from '../../domain/validation';
 
-export const PROJECT_PACKAGE_FORMAT = 'minecraftbuilder-project' as const;
+export const PROJECT_PACKAGE_FORMAT = 'the-block-laundromat-project' as const;
+export const LEGACY_PROJECT_PACKAGE_FORMAT = 'minecraftbuilder-project' as const;
 export const CURRENT_PROJECT_PACKAGE_VERSION = 1 as const;
 
 export interface ProjectPackage {
@@ -47,7 +48,12 @@ export function parseProjectPackage(serialized: string): ProjectDocument {
       `Invalid project package JSON: ${error instanceof Error ? error.message : 'unknown error'}`,
     );
   }
-  if (!isRecord(value) || value['format'] !== PROJECT_PACKAGE_FORMAT || !('project' in value))
+  if (
+    !isRecord(value) ||
+    (value['format'] !== PROJECT_PACKAGE_FORMAT &&
+      value['format'] !== LEGACY_PROJECT_PACKAGE_FORMAT) ||
+    !('project' in value)
+  )
     throw new ProjectPackageError(
       'not-project-package',
       'Not a project package created by The Block Laundromat',

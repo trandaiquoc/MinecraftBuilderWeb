@@ -105,7 +105,7 @@ describe('StructureJsonImportDialogComponent', () => {
     await instance.validate();
     expect(instance.preview()).toMatchObject({ structuralValid: false });
     instance.setDraft(
-      '{"format":"minecraftbuilder-structure","formatVersion":2,"minecraftVersion":"1.21.1","blocks":[],"decorations":[]}',
+      '{"format":"the-block-laundromat-structure","formatVersion":2,"minecraftVersion":"1.21.1","blocks":[],"decorations":[]}',
     );
     expect(instance.preview()).toBeUndefined();
     await instance.validate();
@@ -151,7 +151,7 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(viewer).toBeTruthy();
     expect(viewer.querySelector('.readonly-code-viewer-gutter')?.textContent).toContain('1');
     expect(viewer.querySelector('.readonly-code-viewer-code')?.textContent).toContain(
-      'minecraftbuilder-structure',
+      'the-block-laundromat-structure',
     );
     instance.setAiTab('description');
     fixture.detectChanges();
@@ -529,7 +529,7 @@ describe('StructureJsonImportDialogComponent', () => {
     };
     instance.setDraft(
       JSON.stringify({
-        format: 'minecraftbuilder-structure',
+        format: 'the-block-laundromat-structure',
         minecraftVersion: '1.21.1',
         blocks: [{ id: stone.id, x: 0, y: 0, z: 0 }],
         decorations: [],
@@ -579,7 +579,7 @@ describe('StructureJsonImportDialogComponent', () => {
     };
     instance.setDraft(
       JSON.stringify({
-        format: 'minecraftbuilder-structure',
+        format: 'the-block-laundromat-structure',
         minecraftVersion: '1.21.1',
         blocks: [
           { id: stone.id, x: 0, y: 0, z: 0 },
@@ -631,7 +631,7 @@ describe('StructureJsonImportDialogComponent', () => {
     };
     instance.setDraft(
       JSON.stringify({
-        format: 'minecraftbuilder-structure',
+        format: 'the-block-laundromat-structure',
         minecraftVersion: '1.21.1',
         blocks: [{ id: stone.id, x: 2, y: 0, z: 0 }],
         decorations: [],
@@ -677,7 +677,7 @@ describe('StructureJsonImportDialogComponent', () => {
     };
     instance.setDraft(
       JSON.stringify({
-        format: 'minecraftbuilder-structure',
+        format: 'the-block-laundromat-structure',
         minecraftVersion: '1.21.1',
         blocks: [{ id: stone.id, x: 48, y: 0, z: 0 }],
         decorations: [],

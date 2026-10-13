@@ -24,13 +24,9 @@ Product name:
 
 `The Block Laundromat`
 
-Repository name:
+Repository name: `TheBlockLaundromat` (`trandaiquoc/TheBlockLaundromat`)
 
-`the-block-laundromat` (planned GitHub repository slug)
-
-The planned local checkout directory is `TheBlockLaundromat`. Do not rename
-the current working directory or remote repository as part of source changes;
-the user will perform those external operations.
+The local checkout directory is `TheBlockLaundromat`.
 
 Main repository areas:
 

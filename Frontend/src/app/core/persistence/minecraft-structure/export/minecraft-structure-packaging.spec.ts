@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectDocument } from '../../../domain/project.types';
 import {
+  DEFAULT_STRUCTURE_EXPORT_NAMESPACE,
   deriveStructureExportDefaults,
   MINECRAFT_JAVA_1_21_1_PACK_FORMAT,
   prepareStandaloneStructureNbt,
@@ -34,6 +35,11 @@ const project = (overrides: Partial<ProjectDocument> = {}): ProjectDocument => (
 });
 
 describe('Structure NBT packaging contract', () => {
+  it('uses the canonical namespace only as the new-user default', () => {
+    expect(DEFAULT_STRUCTURE_EXPORT_NAMESPACE).toBe('theblocklaundromat');
+    expect(validateStructureNamespace(DEFAULT_STRUCTURE_EXPORT_NAMESPACE)).toEqual([]);
+  });
+
   it('keeps namespace, path and archive validation separate and rejects traversal', () => {
     expect(validateStructureNamespace('minecraftbuilder')).toEqual([]);
     expect(validateStructureNamespace('Example')).toHaveLength(1);
@@ -63,7 +69,7 @@ describe('Structure NBT packaging contract', () => {
   it('derives project-specific paths while reusing only valid cached preferences', () => {
     const defaults = deriveStructureExportDefaults(project());
     expect(defaults).toMatchObject({
-      namespace: 'minecraftbuilder',
+      namespace: 'theblocklaundromat',
       structurePath: 'castle-house',
       archiveName: 'castle-house',
       archiveFilename: 'castle-house.zip',
@@ -85,7 +91,7 @@ describe('Structure NBT packaging contract', () => {
         archiveName: '../bad',
         description: 3 as unknown as string,
       }),
-    ).toMatchObject({ namespace: 'minecraftbuilder', archiveName: 'castle-house' });
+    ).toMatchObject({ namespace: 'theblocklaundromat', archiveName: 'castle-house' });
   });
 
   it('generates deterministic UTF-8 pack.mcmeta with Java 1.21.1 pack_format', async () => {

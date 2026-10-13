@@ -4,6 +4,7 @@ import { PaintingVariantCatalogService } from '../../../core/decorations/catalog
 import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { normalizeSearchText, rankSearchResults } from '../../../core/search/relevance-search';
+import { ALL_CONTENT_SOURCE } from '../../../core/content/source-selection/content-source-selection';
 
 @Component({
   selector: 'app-painting-picker',
@@ -13,7 +14,7 @@ import { normalizeSearchText, rankSearchResults } from '../../../core/search/rel
 export class PaintingPickerComponent {
   readonly selectedId = input('');
   readonly compact = input(false);
-  readonly sourceId = input('__minecraftbuilder_all__');
+  readonly sourceId = input<string>(ALL_CONTENT_SOURCE);
   @Output() readonly selectionChange = new EventEmitter<string>();
   protected readonly i18n = inject(I18nService);
   private readonly assets = inject(ContentAssetRuntimeService);
@@ -36,7 +37,7 @@ export class PaintingPickerComponent {
   protected selectedVariant(): PaintingVariant | undefined {
     const selected = this.catalog.get(this.selectedId());
     return selected &&
-      (this.sourceId() === '__minecraftbuilder_all__' ||
+      (this.sourceId() === ALL_CONTENT_SOURCE ||
         (selected.sourceId ?? 'vanilla') === this.sourceId())
       ? selected
       : undefined;

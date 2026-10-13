@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /** Internal material metadata used to keep brightness changes reversible. */
-const BASE_COLOR_KEY = 'minecraftBuilderBrightnessBaseColor';
+const BASE_COLOR_KEY = 'theBlockLaundromatBrightnessBaseColor';
 export const STRUCTURE_GUIDE_BRIGHTNESS = 18;
 
 export function blockBrightnessMaterialFactor(value: number): number {

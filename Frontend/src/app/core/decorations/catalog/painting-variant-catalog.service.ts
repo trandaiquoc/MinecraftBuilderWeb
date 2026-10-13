@@ -1,5 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 import type { PaintingVariant } from '../decoration.types';
+import { ALL_CONTENT_SOURCE } from '../../content/source-selection/content-source-selection';
 import {
   allPaintingVariants,
   findPaintingVariant,
@@ -49,11 +50,11 @@ export class PaintingVariantCatalogService {
     return this.variants();
   }
 
-  placeable(sourceId = '__minecraftbuilder_all__'): readonly PaintingVariant[] {
+  placeable(sourceId: string = ALL_CONTENT_SOURCE): readonly PaintingVariant[] {
     return this.variants().filter(
       (entry) =>
         entry.placeable !== false &&
-        (sourceId === '__minecraftbuilder_all__' || (entry.sourceId ?? 'vanilla') === sourceId),
+        (sourceId === ALL_CONTENT_SOURCE || (entry.sourceId ?? 'vanilla') === sourceId),
     );
   }
 

@@ -11,9 +11,10 @@ import type { MinecraftJavaNbtCodec } from '../codec/minecraft-structure-codec';
 import type { StructureExportPreferences } from '../../../ui/preferences/ui-preferences.service';
 import type { ZipArchiveOutputEntry, ZipArchiveWriter } from './zip-archive-writer';
 import { FflateZipArchiveWriter } from './fflate-zip-archive-writer';
+import { DEFAULT_STRUCTURE_EXPORT_NAMESPACE } from './structure-export-contracts';
 
 export const MINECRAFT_JAVA_1_21_1_PACK_FORMAT = 48 as const;
-export const DEFAULT_STRUCTURE_EXPORT_NAMESPACE = 'minecraftbuilder' as const;
+export { DEFAULT_STRUCTURE_EXPORT_NAMESPACE } from './structure-export-contracts';
 
 const RESOURCE_NAMESPACE = /^[a-z0-9_.-]+$/;
 const STRUCTURE_PATH = /^[a-z0-9/._-]+$/;

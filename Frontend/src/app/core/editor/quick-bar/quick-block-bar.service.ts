@@ -14,6 +14,8 @@ export interface QuickBlockEntry extends ActiveBlock {
   readonly displayName: string;
 }
 const slots = 10;
+export const QUICK_BLOCKS_KEY_PREFIX = 'the-block-laundromat.quick-blocks.';
+export const LEGACY_QUICK_BLOCKS_KEY_PREFIX = 'minecraft-builder.quick-blocks.';
 
 /** Canonical item identity shared by Block Browser, Pick Block, and Quick Bar. */
 export function activeItemId(
@@ -111,16 +113,36 @@ export class QuickBlockBarService {
 }
 
 function key(projectId: string): string {
-  return `minecraft-builder.quick-blocks.${projectId}`;
+  return `${QUICK_BLOCKS_KEY_PREFIX}${projectId}`;
+}
+function legacyKey(projectId: string): string {
+  return `${LEGACY_QUICK_BLOCKS_KEY_PREFIX}${projectId}`;
 }
 export function quickStateKey(state: Readonly<Record<string, string>>): string {
   return stableValueKey(state);
 }
 function load(projectId: string): readonly QuickBlockEntry[] {
+  const canonicalKey = key(projectId);
+  let current: string | null;
+  let raw: string | null;
   try {
-    const raw = localStorage.getItem(key(projectId));
-    const value: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(value)
+    current = localStorage.getItem(canonicalKey);
+    raw = current ?? localStorage.getItem(legacyKey(projectId));
+  } catch {
+    return [];
+  }
+  try {
+    let value: unknown;
+    try {
+      value = raw ? JSON.parse(raw) : [];
+    } catch {
+      value = undefined;
+    }
+    if (current !== null && !Array.isArray(value)) {
+      raw = localStorage.getItem(legacyKey(projectId));
+      value = raw ? JSON.parse(raw) : [];
+    }
+    const entries = Array.isArray(value)
       ? value
           .filter(isPersistedQuickEntry)
           .map((entry) => {
@@ -129,6 +151,16 @@ function load(projectId: string): readonly QuickBlockEntry[] {
           })
           .slice(0, slots)
       : [];
+    if (current === null && raw !== null) {
+      const serialized = JSON.stringify(entries);
+      try {
+        localStorage.setItem(canonicalKey, serialized);
+        localStorage.getItem(canonicalKey);
+      } catch {
+        /* The old key remains available and the in-memory entries stay usable. */
+      }
+    }
+    return entries;
   } catch {
     return [];
   }

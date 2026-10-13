@@ -149,5 +149,5 @@ generated-artifact policy.
 - Product: **The Block Laundromat**
 - Angular project: `TheBlockLaundromat`
 - npm package: `the-block-laundromat`
-- GitHub repository: `trandaiquoc/the-block-laundromat` (rename is external and not performed here)
-- Planned local directory: `TheBlockLaundromat` (rename is external and not performed here)
+- GitHub repository: [`trandaiquoc/TheBlockLaundromat`](https://github.com/trandaiquoc/TheBlockLaundromat)
+- Local directory: `TheBlockLaundromat`

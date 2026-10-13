@@ -9,7 +9,7 @@ import type { ProjectDocument } from '../../../domain/project.types';
 import type { StructureJson } from '../structure-json';
 
 const source: StructureJson = {
-  format: 'minecraftbuilder-structure',
+  format: 'the-block-laundromat-structure',
   minecraftVersion: '1.21.1',
   blocks: [
     { id: 'minecraft:stone', x: 0, y: 0, z: 0 },
@@ -37,7 +37,7 @@ describe('Structure JSON bounds preflight', () => {
 
   it('reports no inferred size for an empty structure', () => {
     const empty: StructureJson = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [],
       decorations: [],

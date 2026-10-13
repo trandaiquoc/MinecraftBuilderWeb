@@ -33,16 +33,24 @@ const project: ProjectDocument = {
 
 describe('local persistence helpers', () => {
   it('keeps the project backup format and version stable', () => {
-    expect(PROJECT_PACKAGE_FORMAT).toBe('minecraftbuilder-project');
+    expect(PROJECT_PACKAGE_FORMAT).toBe('the-block-laundromat-project');
     expect(CURRENT_PROJECT_PACKAGE_VERSION).toBe(1);
     expect(JSON.parse(serializeProjectPackage(project))).toMatchObject({
-      format: 'minecraftbuilder-project',
+      format: 'the-block-laundromat-project',
       formatVersion: 1,
     });
   });
 
   it('round-trips a versioned project package', () => {
     expect(parseProjectPackage(serializeProjectPackage(project))).toEqual(migrateProject(project));
+  });
+
+  it('continues to read legacy project backup formats without changing project data', () => {
+    const legacy = serializeProjectPackage(project).replace(
+      'the-block-laundromat-project',
+      'minecraftbuilder-project',
+    );
+    expect(parseProjectPackage(legacy)).toEqual(migrateProject(project));
   });
 
   it('preserves semantic inventory and decorated-pot item data across project package persistence', () => {
@@ -101,13 +109,13 @@ describe('local persistence helpers', () => {
       expect(error).toMatchObject({ category: 'not-project-package' });
     }
     const newer = JSON.stringify({
-      format: 'minecraftbuilder-project',
+      format: 'the-block-laundromat-project',
       formatVersion: 1,
       project: { ...project, schemaVersion: 99 },
     });
     expect(() => parseProjectPackage(newer)).toThrowError(/newer than supported/);
     const invalid = JSON.stringify({
-      format: 'minecraftbuilder-project',
+      format: 'the-block-laundromat-project',
       formatVersion: 1,
       project: { ...project, blocks: [{ ...block('minecraft:stone', 99, 0, 0) }] },
     });

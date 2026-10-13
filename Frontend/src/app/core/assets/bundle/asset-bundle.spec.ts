@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { IndexedDbAssetBundleSource, vanillaBundle } from './asset-bundle';
+import { ASSET_BUNDLE_FORMAT, IndexedDbAssetBundleSource, vanillaBundle } from './asset-bundle';
 
 const serialized = {
   schemaVersion: 2 as const,
@@ -15,7 +15,7 @@ describe('asset bundle sources', () => {
       type: 'vanilla',
       version: '1.21.1',
       namespaces: ['minecraft'],
-      manifest: { format: 'minecraft-builder-asset-bundle' },
+      manifest: { format: ASSET_BUNDLE_FORMAT },
     });
   });
   it('adapts an IndexedDB cache payload through the common source interface', async () => {

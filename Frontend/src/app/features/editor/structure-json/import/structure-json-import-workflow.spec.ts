@@ -45,7 +45,7 @@ const context: StructureJsonImportValidationContext = {
 
 function serializedStone(): string {
   return JSON.stringify({
-    format: 'minecraftbuilder-structure',
+    format: 'the-block-laundromat-structure',
     minecraftVersion: '1.21.1',
     blocks: [{ id: stone.id, x: 1, y: 1, z: 1 }],
     decorations: [],

@@ -6,7 +6,7 @@ import { EditorModeService } from './editor-mode.service';
 import { SelectionService } from '../selection/selection.service';
 import { UiPreferencesService } from '../../ui/preferences/ui-preferences.service';
 
-const preferencesKey = 'minecraft-builder.ui-preferences';
+const preferencesKey = 'the-block-laundromat.ui-preferences';
 
 describe('editor mode state', () => {
   beforeEach(() => localStorage.removeItem(preferencesKey));

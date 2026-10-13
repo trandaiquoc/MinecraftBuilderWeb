@@ -4,7 +4,8 @@ import type { VoxelCoordinate } from '../../domain/project.types';
 import type { DecorationFacing } from '../../decorations/decoration.types';
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 
-export const STRUCTURE_JSON_FORMAT = 'minecraftbuilder-structure' as const;
+export const STRUCTURE_JSON_FORMAT = 'the-block-laundromat-structure' as const;
+export const LEGACY_STRUCTURE_JSON_FORMAT = 'minecraftbuilder-structure' as const;
 
 export const LEGACY_STRUCTURE_JSON_VERSION = 2 as const;
 

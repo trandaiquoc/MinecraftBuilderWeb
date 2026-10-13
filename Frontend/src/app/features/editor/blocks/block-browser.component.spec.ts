@@ -94,7 +94,7 @@ describe('BlockBrowserComponent bootstrap presentation', () => {
     const fixture = TestBed.createComponent(BlockBrowserComponent);
     const component = fixture.componentInstance;
     const sources = component['sources']();
-    expect(sources.filter((source) => source.id === '__minecraftbuilder_all__')).toHaveLength(1);
+    expect(sources.filter((source) => source.id === '__theblocklaundromat_all__')).toHaveLength(1);
     expect(sources.filter((source) => source.id === 'vanilla')).toHaveLength(1);
     const item = component['library'].allItems()[0];
     component['select'](item);

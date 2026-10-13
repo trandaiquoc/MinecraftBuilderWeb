@@ -20,7 +20,7 @@ describe('PaintingPickerComponent', () => {
         sourceName: 'Example',
       },
     ]);
-    fixture.componentRef.setInput('sourceId', '__minecraftbuilder_all__');
+    fixture.componentRef.setInput('sourceId', '__theblocklaundromat_all__');
     fixture.detectChanges();
     expect(
       [...fixture.nativeElement.querySelectorAll('.painting-card')].some((card) =>

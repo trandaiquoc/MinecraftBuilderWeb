@@ -1,4 +1,4 @@
-export const ALL_CONTENT_SOURCE = '__minecraftbuilder_all__' as const;
+export const ALL_CONTENT_SOURCE = '__theblocklaundromat_all__' as const;
 
 export type ContentSourceSelection = typeof ALL_CONTENT_SOURCE | string;
 

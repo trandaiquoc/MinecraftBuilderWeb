@@ -9,7 +9,8 @@ import {
 import { validateProject } from '../domain/validation';
 import { installWorkspaceRecoveryDiagnostics } from './workspace-recovery-diagnostics';
 
-export const ACTIVE_PROJECT_KEY = 'minecraft-builder.active-project';
+export const ACTIVE_PROJECT_KEY = 'the-block-laundromat.active-project';
+export const LEGACY_ACTIVE_PROJECT_KEY = 'minecraft-builder.active-project';
 
 export type WorkspaceRestoreStatus =
   'idle' | 'restoring' | 'recovery-pending' | 'recovery-error' | 'ready' | 'empty' | 'error';
@@ -56,13 +57,13 @@ export class WorkspaceStateService {
     }
   }
 
-  deactivate(storage: Pick<Storage, 'removeItem'> | undefined = browserStorage()): void {
+  deactivate(storage: Pick<Storage, 'setItem'> | undefined = browserStorage()): void {
     this.projectState.set(undefined);
     this.restoreStatusState.set('empty');
     this.restoreErrorState.set(undefined);
     this.recoveryCandidateState.set(undefined);
     try {
-      storage?.removeItem(ACTIVE_PROJECT_KEY);
+      storage?.setItem(ACTIVE_PROJECT_KEY, '');
     } catch {
       /* In-memory workspace is still cleared. */
     }
@@ -77,7 +78,7 @@ export class WorkspaceStateService {
     storage: Pick<Storage, 'getItem'> | undefined = browserStorage(),
   ): boolean {
     try {
-      return storage?.getItem(ACTIVE_PROJECT_KEY) === id;
+      return readRememberedProject(storage) === id;
     } catch {
       return false;
     }
@@ -85,10 +86,10 @@ export class WorkspaceStateService {
 
   clearRememberedProject(
     id: string,
-    storage: Pick<Storage, 'getItem' | 'removeItem'> | undefined = browserStorage(),
+    storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = browserStorage(),
   ): void {
     try {
-      if (storage?.getItem(ACTIVE_PROJECT_KEY) === id) storage.removeItem(ACTIVE_PROJECT_KEY);
+      if (readRememberedProject(storage) === id) storage?.setItem(ACTIVE_PROJECT_KEY, '');
     } catch {
       /* The project list remains usable when browser storage is unavailable. */
     }
@@ -180,7 +181,7 @@ export class WorkspaceStateService {
     try {
       let activeId: string | null = null;
       try {
-        activeId = storage?.getItem(ACTIVE_PROJECT_KEY) ?? null;
+        activeId = readRememberedProject(storage);
       } catch {
         /* Fall back to the newest IndexedDB project. */
       }
@@ -263,6 +264,28 @@ function browserStorage(): Storage | undefined {
     return typeof localStorage === 'undefined' ? undefined : localStorage;
   } catch {
     return undefined;
+  }
+}
+
+function readRememberedProject(
+  storage: (Pick<Storage, 'getItem'> & Partial<Pick<Storage, 'setItem'>>) | undefined,
+): string | null {
+  try {
+    const current = storage?.getItem(ACTIVE_PROJECT_KEY);
+    if (current !== null && current !== undefined) return current || null;
+    const legacy = storage?.getItem(LEGACY_ACTIVE_PROJECT_KEY) ?? null;
+    if (!legacy) return null;
+    if (storage?.setItem) {
+      storage.setItem(ACTIVE_PROJECT_KEY, legacy);
+      storage.getItem(ACTIVE_PROJECT_KEY);
+    }
+    return legacy;
+  } catch {
+    try {
+      return storage?.getItem(LEGACY_ACTIVE_PROJECT_KEY) || null;
+    } catch {
+      return null;
+    }
   }
 }
 

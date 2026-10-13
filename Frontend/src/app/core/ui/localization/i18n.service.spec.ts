@@ -8,7 +8,7 @@ import {
   translationKeySets,
 } from './translation-catalogs';
 
-afterEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
+afterEach(() => localStorage.removeItem('the-block-laundromat.ui-preferences'));
 
 describe('translation dictionaries', () => {
   it('uses the new product brand consistently in both locales', () => {

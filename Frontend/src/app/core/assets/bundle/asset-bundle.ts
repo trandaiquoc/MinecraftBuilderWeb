@@ -1,13 +1,17 @@
 import { SerializedVanillaAssets, VanillaAssetProvider } from '../vanilla/vanilla-asset-provider';
 import { DEFAULT_MINECRAFT_VERSION } from '../../domain/project.types';
 
+export const ASSET_BUNDLE_FORMAT = 'the-block-laundromat-asset-bundle' as const;
+export const LEGACY_ASSET_BUNDLE_FORMAT = 'minecraft-builder-asset-bundle' as const;
+type AssetBundleFormat = typeof ASSET_BUNDLE_FORMAT | typeof LEGACY_ASSET_BUNDLE_FORMAT;
+
 /** Portable normalized asset payload. The same shape can be stored for a future mod JAR. */
 export interface VanillaAssetBundle extends SerializedVanillaAssets {
   readonly id: string;
   readonly type: 'vanilla';
   readonly version: string;
   readonly namespaces: readonly string[];
-  readonly manifest: { readonly format: 'minecraft-builder-asset-bundle'; readonly version: 1 };
+  readonly manifest: { readonly format: AssetBundleFormat; readonly version: 1 };
 }
 
 export interface AssetBundleSource {
@@ -48,7 +52,7 @@ export function vanillaBundle(
     type: 'vanilla',
     version: bundle.minecraftVersion,
     namespaces: ['minecraft'],
-    manifest: { format: 'minecraft-builder-asset-bundle', version: 1 },
+    manifest: { format: ASSET_BUNDLE_FORMAT, version: 1 },
   };
 }
 

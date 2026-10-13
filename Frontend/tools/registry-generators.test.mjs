@@ -17,7 +17,7 @@ const expectedOrder = [
 ];
 
 async function runGenerator(scriptName, report, locale) {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'minecraftbuilder-registry-'));
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'theblocklaundromat-registry-'));
   try {
     const input = path.join(directory, 'report.json');
     const output = path.join(directory, 'registry.json');

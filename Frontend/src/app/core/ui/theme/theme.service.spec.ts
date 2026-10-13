@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { UiPreferencesService } from '../preferences/ui-preferences.service';
 import { ThemeService } from './theme.service';
 
-const preferencesKey = 'minecraft-builder.ui-preferences';
+const preferencesKey = 'the-block-laundromat.ui-preferences';
 
 describe('ThemeService font state', () => {
   afterEach(() => localStorage.removeItem(preferencesKey));

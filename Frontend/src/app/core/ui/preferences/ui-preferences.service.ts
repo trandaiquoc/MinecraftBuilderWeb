@@ -14,6 +14,7 @@ import {
   ExternalAiContentLimits,
   normalizeExternalAiContentLimits,
 } from '../../persistence/structure-json/external-ai/external-ai-content-limits';
+import { DEFAULT_STRUCTURE_EXPORT_NAMESPACE } from '../../persistence/minecraft-structure/export/structure-export-contracts';
 
 export type UiLocale = 'en' | 'vi';
 export type ThemePreset = 'dark' | 'light' | 'craft' | 'custom';
@@ -70,14 +71,19 @@ export interface UiPreferences {
   };
 }
 
-const KEY = 'minecraft-builder.ui-preferences';
-const LEGACY_LAYOUT_KEY = 'minecraft-builder.editor-layout';
+export const UI_PREFERENCES_KEY = 'the-block-laundromat.ui-preferences';
+export const LEGACY_UI_PREFERENCES_KEY = 'minecraft-builder.ui-preferences';
+export const LEGACY_LAYOUT_KEY = 'minecraft-builder.editor-layout';
 const defaults: UiPreferences = {
   version: 1,
   locale: 'en',
   autoUseHugeStructureBlocks: false,
   showStructureBlockGuide: true,
-  structureExport: { namespace: 'minecraftbuilder', archiveName: '', description: '' },
+  structureExport: {
+    namespace: DEFAULT_STRUCTURE_EXPORT_NAMESPACE,
+    archiveName: '',
+    description: '',
+  },
   editorMode: '3d',
   appearance: {
     preset: 'craft',
@@ -222,28 +228,66 @@ export class UiPreferencesService {
   private commit(value: UiPreferences): void {
     this.preferencesState.set(value);
     try {
-      localStorage.setItem(KEY, JSON.stringify(value));
+      localStorage.setItem(UI_PREFERENCES_KEY, JSON.stringify(value));
     } catch {
       /* Browser storage is optional. */
     }
   }
 
   private read(): UiPreferences {
+    const storage = browserStorage();
+    if (!storage) return defaults;
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const normalized = normalize(JSON.parse(raw));
-        localStorage.setItem(KEY, JSON.stringify(normalized));
-        return normalized;
+      const raw = storage.getItem(UI_PREFERENCES_KEY);
+      if (raw !== null) {
+        try {
+          const normalized = normalize(JSON.parse(raw));
+          try {
+            storage.setItem(UI_PREFERENCES_KEY, JSON.stringify(normalized));
+          } catch {
+            /* Keep canonical preferences usable when normalization cannot persist. */
+          }
+          return normalized;
+        } catch {
+          return readLegacyPreferences(storage) ?? defaults;
+        }
       }
-      const legacy = localStorage.getItem(LEGACY_LAYOUT_KEY);
-      const layout = legacy ? normalizeLayout(JSON.parse(legacy)) : defaults.layout;
-      const migrated = { ...defaults, layout };
-      localStorage.setItem(KEY, JSON.stringify(migrated));
+      const legacyPreferences = storage.getItem(LEGACY_UI_PREFERENCES_KEY);
+      const legacyLayout = storage.getItem(LEGACY_LAYOUT_KEY);
+      const migrated = legacyPreferences
+        ? normalize(JSON.parse(legacyPreferences))
+        : {
+            ...defaults,
+            layout: legacyLayout ? normalizeLayout(JSON.parse(legacyLayout)) : defaults.layout,
+          };
+      const serialized = JSON.stringify(migrated);
+      storage.setItem(UI_PREFERENCES_KEY, serialized);
+      if (storage.getItem(UI_PREFERENCES_KEY) === serialized) return migrated;
       return migrated;
     } catch {
-      return defaults;
+      return readLegacyPreferences(storage) ?? defaults;
     }
+  }
+}
+
+function browserStorage(): Storage | undefined {
+  try {
+    return typeof localStorage === 'undefined' ? undefined : localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function readLegacyPreferences(storage: Pick<Storage, 'getItem'>): UiPreferences | undefined {
+  try {
+    const legacyPreferences = storage.getItem(LEGACY_UI_PREFERENCES_KEY);
+    if (legacyPreferences) return normalize(JSON.parse(legacyPreferences));
+    const legacyLayout = storage.getItem(LEGACY_LAYOUT_KEY);
+    return legacyLayout
+      ? { ...defaults, layout: normalizeLayout(JSON.parse(legacyLayout)) }
+      : undefined;
+  } catch {
+    return undefined;
   }
 }
 

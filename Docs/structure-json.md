@@ -6,7 +6,7 @@ The top-level shape is:
 
 ```json
 {
-  "format": "minecraftbuilder-structure",
+  "format": "the-block-laundromat-structure",
   "minecraftVersion": "1.21.1",
   "name": "Example",
   "blocks": [],
@@ -25,10 +25,10 @@ required; the older `version`/`size` example format is not accepted. Other
 compatibility path does not change the public TypeScript/schema contract.
 
 The checked-in [JSON Schema](../Frontend/public/schemas/minecraftbuilder-structure.schema.json)
-describes the canonical public shape and is served with the frontend. It does
-not describe the optional legacy `formatVersion: 2` migration field. The
-application parser remains authoritative for ordered validation, semantic
-checks, and the legacy migration behavior.
+describes both supported format identifiers and is served with the frontend.
+It does not describe the optional legacy `formatVersion: 2` migration field.
+The application parser remains authoritative for ordered validation, semantic
+checks, and legacy migration behavior.
 
 Replace import always replaces both `blocks` and `decorations`; an empty decorations array therefore clears current decorations. Merge and new-group modes append the imported content according to the import dialog's conflict checks.
 

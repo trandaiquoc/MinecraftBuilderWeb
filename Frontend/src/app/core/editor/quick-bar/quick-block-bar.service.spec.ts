@@ -6,6 +6,8 @@ import { BlockLibraryService } from '../../blocks/catalog/block-library.service'
 import { DecorationService } from '../../decorations/decoration.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import {
+  LEGACY_QUICK_BLOCKS_KEY_PREFIX,
+  QUICK_BLOCKS_KEY_PREFIX,
   QuickBlockBarService,
   quickEntryMatchesActive,
   quickStateKey,
@@ -93,7 +95,7 @@ describe('quick block active state contract', () => {
 
   it('ignores malformed persisted entries without dropping valid neighboring slots', async () => {
     localStorage.setItem(
-      'minecraft-builder.quick-blocks.project-1',
+      `${LEGACY_QUICK_BLOCKS_KEY_PREFIX}project-1`,
       JSON.stringify([
         {
           id: 'minecraft:stone',
@@ -129,7 +131,9 @@ describe('quick block active state contract', () => {
     const quickBar = TestBed.inject(QuickBlockBarService);
     TestBed.flushEffects();
     const entries = quickBar.entries();
-    localStorage.removeItem('minecraft-builder.quick-blocks.project-1');
+    expect(localStorage.getItem(`${QUICK_BLOCKS_KEY_PREFIX}project-1`)).not.toBeNull();
+    localStorage.removeItem(`${QUICK_BLOCKS_KEY_PREFIX}project-1`);
+    localStorage.removeItem(`${LEGACY_QUICK_BLOCKS_KEY_PREFIX}project-1`);
     expect(entries).toEqual([
       expect.objectContaining({
         id: 'minecraft:stone',
@@ -137,6 +141,37 @@ describe('quick block active state contract', () => {
         state: { axis: 'y' },
       }),
     ]);
+  });
+
+  it('falls back to legacy Quick Bar data if the canonical key is malformed', async () => {
+    const id = 'project-legacy-fallback';
+    const legacyKey = `${LEGACY_QUICK_BLOCKS_KEY_PREFIX}${id}`;
+    const canonicalKey = `${QUICK_BLOCKS_KEY_PREFIX}${id}`;
+    const entry = {
+      id: 'minecraft:stone',
+      itemId: 'minecraft:stone',
+      displayName: 'Stone',
+      state: {},
+    };
+    localStorage.setItem(legacyKey, JSON.stringify([entry]));
+    localStorage.setItem(canonicalKey, '{invalid');
+    const project = signal({ id });
+    await TestBed.configureTestingModule({
+      providers: [
+        { provide: WorkspaceStateService, useValue: { project } },
+        ActiveBlockService,
+        BlockLibraryService,
+        { provide: DecorationService, useValue: { clearActive: () => undefined } },
+        QuickBlockBarService,
+      ],
+    }).compileComponents();
+
+    const quickBar = TestBed.inject(QuickBlockBarService);
+    TestBed.flushEffects();
+    expect(quickBar.entries()).toEqual([expect.objectContaining(entry)]);
+    expect(localStorage.getItem(canonicalKey)).toBe('{invalid');
+    localStorage.removeItem(legacyKey);
+    localStorage.removeItem(canonicalKey);
   });
 
   it('does not mark an unavailable source entry active', () => {

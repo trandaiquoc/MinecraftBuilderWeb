@@ -1,14 +1,21 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { blockBrightnessStopPercent, UiPreferencesService } from './ui-preferences.service';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  blockBrightnessStopPercent,
+  LEGACY_LAYOUT_KEY,
+  LEGACY_UI_PREFERENCES_KEY,
+  UI_PREFERENCES_KEY,
+  UiPreferencesService,
+} from './ui-preferences.service';
 import { DEFAULT_EXTERNAL_AI_CONTENT_LIMITS } from '../../persistence/structure-json/external-ai/external-ai-content-limits';
 
-const key = 'minecraft-builder.ui-preferences';
-const legacyKey = 'minecraft-builder.editor-layout';
+const key = UI_PREFERENCES_KEY;
+const legacyKey = LEGACY_LAYOUT_KEY;
 
 describe('UiPreferencesService', () => {
   afterEach(() => {
     localStorage.removeItem(key);
     localStorage.removeItem(legacyKey);
+    localStorage.removeItem(LEGACY_UI_PREFERENCES_KEY);
   });
 
   it('exposes persisted preferences as read-only state', () => {
@@ -28,6 +35,7 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().controls.zoomSensitivity).toBe(2);
     expect(preferences.preferences().controls.cameraMoveSpeed).toBe(15);
     expect(preferences.preferences().controls.verticalMoveSpeed).toBe(9);
+    expect(preferences.preferences().structureExport.namespace).toBe('theblocklaundromat');
     preferences.setAppearance({ preset: 'craft', base: 'dark' });
     preferences.setAppearance({ editorBackground: 'light' });
     preferences.setLocale('vi');
@@ -109,6 +117,73 @@ describe('UiPreferencesService', () => {
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().layout.leftSidebarVisible).toBe(false);
     expect(preferences.preferences().layout.rightSidebarVisible).toBe(true);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}').layout.leftSidebarVisible).toBe(false);
+    expect(localStorage.getItem(legacyKey)).not.toBeNull();
+  });
+
+  it('copies legacy preferences once, preserves custom export settings, and prefers canonical conflicts', () => {
+    localStorage.setItem(
+      LEGACY_UI_PREFERENCES_KEY,
+      JSON.stringify({
+        locale: 'vi',
+        appearance: { preset: 'light', font: 'minecraft-style' },
+        layout: { leftSidebarWidth: 330 },
+        shortcuts: { undo: 'Ctrl+Shift+Z' },
+        structureExport: { namespace: 'minecraftbuilder', archiveName: 'mine', description: '' },
+      }),
+    );
+    const migrated = new UiPreferencesService();
+    expect(migrated.preferences()).toMatchObject({
+      locale: 'vi',
+      appearance: { preset: 'light', font: 'minecraft-style' },
+      layout: { leftSidebarWidth: 330 },
+      shortcuts: { undo: 'Ctrl+Shift+Z' },
+      structureExport: { namespace: 'minecraftbuilder', archiveName: 'mine' },
+    });
+    expect(localStorage.getItem(key)).not.toBeNull();
+    expect(localStorage.getItem(LEGACY_UI_PREFERENCES_KEY)).not.toBeNull();
+
+    localStorage.setItem(key, JSON.stringify({ locale: 'en' }));
+    expect(new UiPreferencesService().preferences().locale).toBe('en');
+  });
+
+  it('keeps legacy preferences usable when canonical-key migration storage fails', () => {
+    localStorage.setItem(LEGACY_UI_PREFERENCES_KEY, JSON.stringify({ locale: 'vi' }));
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
+    try {
+      expect(new UiPreferencesService().preferences().locale).toBe('vi');
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it('recovers when a legacy preference copy is interrupted after the canonical write', () => {
+    localStorage.setItem(LEGACY_UI_PREFERENCES_KEY, JSON.stringify({ locale: 'vi' }));
+    const originalSetItem = Storage.prototype.setItem;
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      storageKey: string,
+      value: string,
+    ) {
+      originalSetItem.call(this, storageKey, value);
+      if (storageKey === key) throw new Error('interrupted after write');
+    });
+    try {
+      expect(new UiPreferencesService().preferences().locale).toBe('vi');
+      expect(new UiPreferencesService().preferences().locale).toBe('vi');
+      expect(localStorage.getItem(LEGACY_UI_PREFERENCES_KEY)).not.toBeNull();
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it('falls back to intact legacy preferences without overwriting an invalid canonical value', () => {
+    localStorage.setItem(LEGACY_UI_PREFERENCES_KEY, JSON.stringify({ locale: 'vi' }));
+    localStorage.setItem(key, '{invalid');
+    expect(new UiPreferencesService().preferences().locale).toBe('vi');
+    expect(localStorage.getItem(key)).toBe('{invalid');
   });
 
   it('persists and safely normalizes Structure NBT export defaults without storing project paths', () => {
@@ -138,7 +213,7 @@ describe('UiPreferencesService', () => {
       JSON.stringify({ structureExport: { namespace: 4, archiveName: null, description: false } }),
     );
     expect(new UiPreferencesService().preferences().structureExport).toEqual({
-      namespace: 'minecraftbuilder',
+      namespace: 'theblocklaundromat',
       archiveName: '',
       description: '',
     });

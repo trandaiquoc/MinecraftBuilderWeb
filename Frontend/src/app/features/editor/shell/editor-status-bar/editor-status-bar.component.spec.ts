@@ -22,8 +22,8 @@ import { EditorSessionService } from '../../../../core/editor/state/editor-sessi
 import { ViewportStatusService } from '../../../../core/editor/viewport/viewport-status.service';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
 
-beforeEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
-afterEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
+beforeEach(() => localStorage.removeItem('the-block-laundromat.ui-preferences'));
+afterEach(() => localStorage.removeItem('the-block-laundromat.ui-preferences'));
 
 function createAssetRuntimeStub() {
   return {

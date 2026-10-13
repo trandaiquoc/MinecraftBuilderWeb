@@ -147,5 +147,5 @@ quy tắc artifact sinh tự động.
 - Tên sản phẩm: **The Block Laundromat**
 - Tên Angular project: `TheBlockLaundromat`
 - Tên npm package: `the-block-laundromat`
-- Repository GitHub: `trandaiquoc/the-block-laundromat` (đổi tên bên ngoài, chưa thực hiện)
-- Thư mục local dự kiến: `TheBlockLaundromat` (đổi tên bên ngoài, chưa thực hiện)
+- Repository GitHub: [`trandaiquoc/TheBlockLaundromat`](https://github.com/trandaiquoc/TheBlockLaundromat)
+- Thư mục local: `TheBlockLaundromat`

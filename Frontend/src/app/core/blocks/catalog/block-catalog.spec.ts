@@ -290,6 +290,6 @@ describe('BlockCatalog', () => {
     const summaries = library.placeableSourceSummaries();
     expect(summaries.filter((summary) => summary.id === 'vanilla')).toHaveLength(1);
     expect(summaries.filter((summary) => summary.id === 'example')).toHaveLength(1);
-    expect(summaries.some((summary) => summary.id === '__minecraftbuilder_all__')).toBe(false);
+    expect(summaries.some((summary) => summary.id === '__theblocklaundromat_all__')).toBe(false);
   });
 });

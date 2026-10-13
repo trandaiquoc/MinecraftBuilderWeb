@@ -1,4 +1,4 @@
-import { JarImportSource, providerFromBundle } from '../bundle/asset-bundle';
+import { ASSET_BUNDLE_FORMAT, JarImportSource, providerFromBundle } from '../bundle/asset-bundle';
 import type { IndexedDbAssetCache } from '../cache/indexeddb-asset-cache';
 import type {
   MojangVanillaAssetSource,
@@ -49,7 +49,7 @@ export class VanillaAssetLifecycle {
       type: 'vanilla',
       version,
       namespaces: ['minecraft'],
-      manifest: { format: 'minecraft-builder-asset-bundle', version: 1 },
+      manifest: { format: ASSET_BUNDLE_FORMAT, version: 1 },
     });
     provider.assertUsable();
     return provider;

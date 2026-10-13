@@ -108,7 +108,13 @@ describe('Structure JSON codec', () => {
         decorations: [],
       }),
     ).toBe(
-      '{\n  "format": "minecraftbuilder-structure",\n  "minecraftVersion": "1.21.1",\n  "blocks": [],\n  "decorations": []\n}\n',
+      `{
+  "format": "${STRUCTURE_JSON_FORMAT}",
+  "minecraftVersion": "1.21.1",
+  "blocks": [],
+  "decorations": []
+}
+`,
     );
   });
 
@@ -175,7 +181,7 @@ describe('Structure JSON codec', () => {
       decorations: [],
     });
     expect(validateStructureJson(current).valid).toBe(true);
-    expect(validateStructureJson('{"format":"minecraftbuilder-structure"}').code).toBe(
+    expect(validateStructureJson('{"format":"the-block-laundromat-structure"}').code).toBe(
       'minecraft-version',
     );
     expect(validateStructureJson('{')).toMatchObject({ valid: false, code: 'invalid-json' });
@@ -215,7 +221,7 @@ describe('Structure JSON codec', () => {
   it('accepts only the supported legacy v2 shape and normalizes it', () => {
     const parsed = parseStructureJson(
       JSON.stringify({
-        format: STRUCTURE_JSON_FORMAT,
+        format: 'minecraftbuilder-structure',
         formatVersion: 2,
         minecraftVersion: '1.21.1',
         blocks: [],
@@ -235,6 +241,24 @@ describe('Structure JSON codec', () => {
         }),
       ).code,
     ).toBe('version');
+  });
+
+  it('normalizes a prior Structure JSON discriminator without changing project content', () => {
+    const parsed = parseStructureJson(
+      JSON.stringify({
+        format: 'minecraftbuilder-structure',
+        minecraftVersion: '1.21.1',
+        blocks: [{ id: 'minecraft:stone', x: 0, y: 0, z: 0 }],
+        decorations: [],
+      }),
+    );
+    expect(parsed).toMatchObject({
+      valid: true,
+      value: {
+        format: STRUCTURE_JSON_FORMAT,
+        blocks: [{ id: 'minecraft:stone', x: 0, y: 0, z: 0 }],
+      },
+    });
   });
 
   it('preserves parser error precedence and nested diagnostic paths', () => {

@@ -27,7 +27,7 @@ const source = (
   name?: string,
   minecraftVersion = '1.21.1',
 ): StructureJson => ({
-  format: 'minecraftbuilder-structure',
+  format: 'the-block-laundromat-structure',
   minecraftVersion,
   ...(name ? { name } : {}),
   blocks,

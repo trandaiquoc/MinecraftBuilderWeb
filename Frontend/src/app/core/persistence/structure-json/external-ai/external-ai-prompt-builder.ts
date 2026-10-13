@@ -2,7 +2,11 @@ import {
   HUGE_STRUCTURE_BLOCKS_MAX_AXIS,
   VANILLA_STRUCTURE_BLOCK_MAX_AXIS,
 } from '../../../domain/structure-size-policy';
-import { createStructureJsonExample, serializeStructureJsonValue } from '../structure-json';
+import {
+  createStructureJsonExample,
+  serializeStructureJsonValue,
+  STRUCTURE_JSON_FORMAT,
+} from '../structure-json';
 import type {
   ExternalAiPromptContext,
   ExternalAiPromptLocale,
@@ -107,7 +111,7 @@ export function externalAiInstructionSections(
         title: 'CẤU TRÚC JSON',
         lines: [
           'Chỉ sử dụng đúng cấu trúc cấp cao hiện tại này:',
-          `{ "format": "minecraftbuilder-structure", "minecraftVersion": "${minecraftVersion}", "name": "Tên tùy chọn", "blocks": [], "decorations": [] }`,
+          `{ "format": "${STRUCTURE_JSON_FORMAT}", "minecraftVersion": "${minecraftVersion}", "name": "Tên tùy chọn", "blocks": [], "decorations": [] }`,
         ],
       },
       {
@@ -182,7 +186,7 @@ export function externalAiInstructionSections(
       title: 'JSON CONTRACT',
       lines: [
         'Use exactly this current top-level contract:',
-        `{ "format": "minecraftbuilder-structure", "minecraftVersion": "${minecraftVersion}", "name": "Optional name", "blocks": [], "decorations": [] }`,
+        `{ "format": "${STRUCTURE_JSON_FORMAT}", "minecraftVersion": "${minecraftVersion}", "name": "Optional name", "blocks": [], "decorations": [] }`,
       ],
     },
     {

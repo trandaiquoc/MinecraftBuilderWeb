@@ -54,7 +54,7 @@ describe('external Structure JSON AI prompt', () => {
     });
     expect(prompt.indexOf('OUTPUT')).toBeLessThan(prompt.indexOf('AVAILABLE_CONTENT_JSON'));
     expect(prompt.indexOf('AVAILABLE_CONTENT_JSON')).toBeLessThan(prompt.indexOf('USER REQUEST'));
-    expect(prompt).toContain('minecraftbuilder-structure');
+    expect(prompt).toContain('the-block-laundromat-structure');
     expect(prompt).toContain('Small JSON syntax example');
     expect(prompt).toContain('"blocks"');
     expect(prompt).toContain('"blockEntity"');
@@ -87,7 +87,7 @@ describe('external Structure JSON AI prompt', () => {
     expect(prompt).toContain('KÍCH THƯỚC CẤU TRÚC');
     expect(prompt).toContain('YÊU CẦU NGƯỜI DÙNG');
     expect(prompt).toContain('The Block Laundromat');
-    expect(prompt).toContain('minecraftbuilder-structure');
+    expect(prompt).toContain('the-block-laundromat-structure');
     expect(prompt).toContain(description);
     expect(prompt).not.toContain('You are generating a MinecraftBuilder Structure JSON document');
     expect(prompt).not.toContain('formatVersion');

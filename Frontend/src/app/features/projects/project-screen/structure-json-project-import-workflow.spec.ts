@@ -20,7 +20,7 @@ const stone: BlockDefinition = {
   defaultStateSource: 'authoritative-report',
 };
 const source = JSON.stringify({
-  format: 'minecraftbuilder-structure',
+  format: 'the-block-laundromat-structure',
   minecraftVersion: '1.21.1',
   blocks: [{ id: stone.id, x: 0, y: 0, z: 0 }],
   decorations: [],

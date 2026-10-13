@@ -76,7 +76,7 @@ const base: ProjectDocument = {
 
 function source(blocks: readonly StructureJsonBlock[], name?: string): StructureJson {
   return {
-    format: 'minecraftbuilder-structure',
+    format: 'the-block-laundromat-structure',
     minecraftVersion: '1.21.1',
     ...(name ? { name } : {}),
     blocks,
@@ -209,7 +209,7 @@ describe('Structure JSON import plan', () => {
 
   it('validates replacement decorations against the incoming structure, not discarded current decorations', () => {
     const value: StructureJson = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [{ id: stone.id, x: 0, y: 0, z: 1 }],
       decorations: [{ kind: 'item-frame', anchor: { x: 0, y: 0, z: 0 }, facing: 'north' }],
@@ -292,7 +292,7 @@ describe('Structure JSON import plan', () => {
 
   it('replaces decorations and assigns them to a new group without leaking internal fields', () => {
     const value: StructureJson = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       name: 'Decorated',
       blocks: [{ id: stone.id, x: 1, y: 1, z: 1 }],
@@ -337,7 +337,7 @@ describe('Structure JSON import plan', () => {
 
   it('applies glow item-frame payloads without dropping the displayed item', () => {
     const value: StructureJson = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       name: 'Glow',
       blocks: [],
@@ -380,7 +380,7 @@ describe('Structure JSON import plan', () => {
 
   it('blocks decoration conflicts atomically in merge mode', () => {
     const value: StructureJson = {
-      format: 'minecraftbuilder-structure',
+      format: 'the-block-laundromat-structure',
       minecraftVersion: '1.21.1',
       blocks: [],
       decorations: [
