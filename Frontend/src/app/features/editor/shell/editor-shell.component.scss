@@ -85,7 +85,8 @@
   display: grid;
   grid-template-rows: auto auto;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--workspace-header-bg);
+  color: var(--workspace-header-text);
 }
 .app-menu-row,
 .editor-toolbar-row {

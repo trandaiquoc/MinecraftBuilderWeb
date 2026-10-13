@@ -183,6 +183,12 @@ describe('Workspace color palette contract', () => {
     expect(shellStyles).toContain('.app-menus > .menu-entry > .app-menu-trigger {');
     expect(shellStyles).toContain('.app-menu-row > .brand {');
     expect(shellStyles).toContain('color: var(--workspace-header-text);');
+    const headerRuleStart = shellStyles.lastIndexOf('.shell-header {');
+    const headerRuleEnd = shellStyles.indexOf('}', headerRuleStart);
+    const headerRule = shellStyles.slice(headerRuleStart, headerRuleEnd);
+    expect(headerRule).toContain('background: var(--workspace-header-bg);');
+    expect(headerRule).toContain('color: var(--workspace-header-text);');
+    expect(headerRule).not.toContain('background: var(--surface);');
     expect(shellStyles).not.toContain('.app-menu-row .app-menus button');
     expect(shellStyles).not.toContain('.app-menus button');
     expect(globalStyles).not.toContain(":root[data-theme='craft'] .app-menus button");
@@ -237,6 +243,28 @@ describe('Workspace color palette contract', () => {
     expect(dropdownStyles.slice(dropdownPopoverStart, dropdownPopoverEnd)).toContain(
       'color: var(--text);',
     );
+  });
+
+  it('keeps the quick Settings menu limited to non-font preferences', () => {
+    const shellTemplate = String(
+      readFileSync('src/app/features/editor/shell/editor-shell.component.html', 'utf8'),
+    );
+    const settingsTemplate = String(
+      readFileSync(
+        'src/app/features/editor/settings/settings-dialog/settings-dialog.component.html',
+        'utf8',
+      ),
+    );
+    const popoverStart = shellTemplate.indexOf('<div class="menu-popover settings-popover"');
+    const popoverEnd = shellTemplate.indexOf('</div>', popoverStart);
+    const settingsPopover = shellTemplate.slice(popoverStart, popoverEnd);
+
+    expect(settingsPopover).not.toContain('chooseFont(');
+    expect(settingsPopover).not.toContain("i18n.t('comfortaa')");
+    expect(settingsPopover).not.toContain("i18n.t('chakraPetch')");
+    expect(settingsPopover).not.toContain("i18n.t('pangolin')");
+    expect(settingsTemplate).toContain('[options]="fontOptions()"');
+    expect(settingsTemplate).toContain('(selectionChange)="setFont($any($event))"');
   });
 
   it('keeps interactive text, focus, danger, and status combinations accessible', () => {

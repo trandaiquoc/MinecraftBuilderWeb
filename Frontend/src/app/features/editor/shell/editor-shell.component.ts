@@ -374,10 +374,6 @@ export class EditorShellComponent implements OnDestroy {
     this.theme.setPreset(theme);
     this.closeMenus();
   }
-  protected chooseFont(font: 'comfortaa' | 'chakra-petch' | 'pangolin'): void {
-    this.theme.setFont(font);
-    this.closeMenus();
-  }
   protected chooseEditorBackground(background: 'dark' | 'light'): void {
     this.theme.setEditorBackground(background);
     this.closeMenus();
@@ -582,6 +578,7 @@ export class EditorShellComponent implements OnDestroy {
     }
     const action = this.keyboard.actionForEvent(event);
     if (!action) return;
+    if (action === 'tool-toggle' && event.repeat) return;
     if (isMovementAction(action)) {
       this.movementInput.keyDown(action, movementPhysicalKey(event));
       event.preventDefault();
@@ -648,6 +645,10 @@ export class EditorShellComponent implements OnDestroy {
     }
     if (action === 'tool-select') {
       this.tool.select('select');
+      return true;
+    }
+    if (action === 'tool-toggle') {
+      this.tool.select(this.tool.active() === 'place' ? 'select' : 'place');
       return true;
     }
     if (action === 'mode-3d') {

@@ -193,6 +193,39 @@ describe('keyboard binding model', () => {
     expect(normalizeBindings({ 'save-project': '' })['save-project']).toBe('');
   });
 
+  it('uses the physical Backquote key for the Place / Select toggle across layouts', () => {
+    expect(DEFAULT_KEYBINDINGS['tool-toggle']).toBe('Backquote');
+    expect(normalizeBinding('`')).toBe('Backquote');
+    expect(
+      keyboardActionForEvent({ key: '§', code: 'Backquote', target: null }, DEFAULT_KEYBINDINGS),
+    ).toBe('tool-toggle');
+    expect(keyboardActionForEvent({ key: '`', code: '', target: null }, DEFAULT_KEYBINDINGS)).toBe(
+      'tool-toggle',
+    );
+    expect(
+      keyboardActionForEvent(
+        { key: '~', code: 'Backquote', shiftKey: true, target: null },
+        DEFAULT_KEYBINDINGS,
+      ),
+    ).toBeUndefined();
+  });
+
+  it('adds the toggle default to old preferences without replacing custom bindings', () => {
+    const bindings = normalizeBindings({ 'tool-place': 'Alt+P', undo: 'Alt+U' });
+    expect(bindings['tool-toggle']).toBe('Backquote');
+    expect(bindings['tool-place']).toBe('Alt+P');
+    expect(bindings.undo).toBe('Alt+U');
+
+    const remapped = normalizeBindings({ 'tool-toggle': 'Ctrl+T' });
+    expect(remapped['tool-toggle']).toBe('Ctrl+T');
+    expect(keyboardActionForEvent({ key: 't', ctrlKey: true, target: null }, remapped)).toBe(
+      'tool-toggle',
+    );
+    expect(keyboardActionForEvent({ key: '`', code: 'Backquote', target: null }, remapped)).toBe(
+      undefined,
+    );
+  });
+
   it('does not treat cleared bindings as conflicts', () => {
     expect(findBindingConflicts({ ...DEFAULT_KEYBINDINGS, undo: '', redo: '' })).toEqual([]);
   });

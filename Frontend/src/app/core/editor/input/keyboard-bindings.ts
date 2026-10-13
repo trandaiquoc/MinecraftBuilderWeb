@@ -12,6 +12,7 @@ export type KeyboardAction =
   | 'delete-selection'
   | 'tool-place'
   | 'tool-select'
+  | 'tool-toggle'
   | 'mode-3d'
   | 'mode-y-layer'
   | 'fit-structure'
@@ -78,6 +79,7 @@ export const DEFAULT_KEYBINDINGS: Readonly<Record<KeyboardAction, string>> = {
   'delete-selection': 'Delete|Backspace',
   'tool-place': '',
   'tool-select': '',
+  'tool-toggle': 'Backquote',
   'mode-3d': '',
   'mode-y-layer': '',
   'fit-structure': '',
@@ -107,6 +109,7 @@ export const KEYBOARD_ACTIONS: readonly {
   { action: 'move-down', group: 'movement' },
   { action: 'tool-place', group: 'tools-view' },
   { action: 'tool-select', group: 'tools-view' },
+  { action: 'tool-toggle', group: 'tools-view' },
   { action: 'mode-3d', group: 'tools-view' },
   { action: 'mode-y-layer', group: 'tools-view' },
   { action: 'fit-structure', group: 'tools-view' },
@@ -271,6 +274,7 @@ function normalizeToken(value: string): string | undefined {
   const token = value.trim();
   if (!token) return undefined;
   const lower = token.toLocaleLowerCase();
+  if (token === '`' || lower === 'backquote') return 'Backquote';
   if (lower === 'control' || lower === 'ctrl') return 'Ctrl';
   if (lower === 'option' || lower === 'alt') return 'Alt';
   if (lower === 'shift') return 'Shift';
@@ -285,6 +289,7 @@ function normalizeToken(value: string): string | undefined {
 
 function codeToken(code: string | undefined): string | undefined {
   if (!code) return undefined;
+  if (code === 'Backquote') return 'Backquote';
   if (code === 'Space') return 'Space';
   if (code === 'Delete') return 'Delete';
   if (code === 'Backspace') return 'Backspace';

@@ -10,6 +10,7 @@ import { StructureEditorService } from '../../../core/editor/structure/structure
 import { HistoryService } from '../../../core/editor/history/history.service';
 import { ProjectDocument } from '../../../core/domain/project.types';
 import { EditorModeService } from '../../../core/editor/state/editor-mode.service';
+import { EditorToolService } from '../../../core/editor/state/tool.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
@@ -212,6 +213,63 @@ describe('editor shell movement/delete routing', () => {
     expect(workspace.project()?.blocks).toHaveLength(1);
     expect(history.lastLabel()).toBe('Delete selection');
 
+    fixture.destroy();
+  });
+
+  it('toggles Place and Select once per Backquote press in either editor mode', () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const shell = fixture.componentInstance as unknown as {
+      handleEditorShortcut: (event: KeyboardEvent) => void;
+      settingsDialogOpen: { set: (value: boolean) => void };
+    };
+    const tool = TestBed.inject(EditorToolService);
+    const mode = TestBed.inject(EditorModeService);
+    expect(tool.active()).toBe('place');
+
+    const press = (options: KeyboardEventInit = {}) =>
+      shell.handleEditorShortcut(
+        new KeyboardEvent('keydown', {
+          key: '`',
+          code: 'Backquote',
+          cancelable: true,
+          ...options,
+        }),
+      );
+    const firstPress = new KeyboardEvent('keydown', {
+      key: '`',
+      code: 'Backquote',
+      cancelable: true,
+    });
+    shell.handleEditorShortcut(firstPress);
+    expect(firstPress.defaultPrevented).toBe(true);
+    expect(tool.active()).toBe('select');
+
+    const repeatedPress = new KeyboardEvent('keydown', {
+      key: '`',
+      code: 'Backquote',
+      repeat: true,
+      cancelable: true,
+    });
+    shell.handleEditorShortcut(repeatedPress);
+    expect(repeatedPress.defaultPrevented).toBe(false);
+    expect(tool.active()).toBe('select');
+
+    press();
+    expect(tool.active()).toBe('place');
+    mode.setMode('y-layer');
+    press();
+    expect(tool.active()).toBe('select');
+
+    shell.settingsDialogOpen.set(true);
+    const modalPress = new KeyboardEvent('keydown', {
+      key: '`',
+      code: 'Backquote',
+      cancelable: true,
+    });
+    shell.handleEditorShortcut(modalPress);
+    expect(modalPress.defaultPrevented).toBe(false);
+    expect(tool.active()).toBe('select');
+    mode.setMode('3d');
     fixture.destroy();
   });
 

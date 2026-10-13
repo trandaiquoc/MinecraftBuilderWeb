@@ -7,6 +7,15 @@
 
 > Purpose: preserve decisions and implementation snapshots that changed or clarified the original requirements. Entries are historical evidence, not a current status report; use canonical documents in `Docs/README.md` and current source/tests for present behavior.
 
+## Workspace palette and Place / Select shortcut correction
+
+The Workspace header now keeps the semantic header background and foreground
+through the component's later layout rule, including the Raccoon charcoal
+header. The toolbar Settings popover no longer duplicates font selection;
+Appearance remains its owner. A remappable `tool-toggle` keyboard action uses
+the physical Backquote key by default, ignores repeated keydown events, and is
+available in both editor modes. Existing saved custom bindings remain intact.
+
 ## Resident Y-layer presentation checkpoint
 
 Visibility-only transitions now have a separate direct presentation owner for

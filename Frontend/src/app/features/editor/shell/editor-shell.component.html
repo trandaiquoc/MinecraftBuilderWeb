@@ -301,27 +301,6 @@
                 >
                   {{ theme.selectedPreset() === 'raccoon' ? '✓ ' : '' }}{{ i18n.t('raccoon') }}
                 </button>
-                <strong>{{ i18n.t('font') }}</strong
-                ><button
-                  type="button"
-                  [class.active]="theme.font() === 'comfortaa'"
-                  (click)="chooseFont('comfortaa')"
-                >
-                  {{ theme.font() === 'comfortaa' ? '✓ ' : '' }}{{ i18n.t('comfortaa') }}</button
-                ><button
-                  type="button"
-                  [class.active]="theme.font() === 'chakra-petch'"
-                  (click)="chooseFont('chakra-petch')"
-                >
-                  {{ theme.font() === 'chakra-petch' ? '✓ ' : ''
-                  }}{{ i18n.t('chakraPetch') }}</button
-                ><button
-                  type="button"
-                  [class.active]="theme.font() === 'pangolin'"
-                  (click)="chooseFont('pangolin')"
-                >
-                  {{ theme.font() === 'pangolin' ? '✓ ' : '' }}{{ i18n.t('pangolin') }}
-                </button>
                 <strong>{{ i18n.t('editorBackground') }}</strong
                 ><button
                   type="button"

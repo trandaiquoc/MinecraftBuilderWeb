@@ -90,6 +90,22 @@ describe('SettingsDialogSession', () => {
     expect(session.draft().mouseBindings['zoom-out']).toBe('');
   });
 
+  it('captures, persists, and restores the Backquote toggle binding', () => {
+    session.beginShortcutCapture('tool-toggle');
+    session.handleKeydown({
+      key: '§',
+      code: 'Backquote',
+      preventDefault() {},
+      stopPropagation() {},
+    } as KeyboardEvent);
+    expect(session.draft().shortcuts['tool-toggle']).toBe('Backquote');
+    expect(session.apply()).toBe(true);
+    expect(preferences.preferences().shortcuts['tool-toggle']).toBe('Backquote');
+
+    session.restoreShortcutsDefaults();
+    expect(session.draft().shortcuts['tool-toggle']).toBe('Backquote');
+  });
+
   it('asks before discarding a dirty draft and preserves it when cancelled', async () => {
     session.setLocale(session.draft().locale === 'en' ? 'vi' : 'en');
     expect(await session.requestClose()).toBe(false);
