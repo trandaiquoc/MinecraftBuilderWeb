@@ -31,6 +31,32 @@ describe('SettingsDialogSession', () => {
     expect(session.dirty()).toBe(false);
   });
 
+  it('applies independent theme, font, size, and workspace choices; cancel discards later edits', async () => {
+    session.setPreset('raccoon');
+    session.setFont('pangolin');
+    session.setFontSize('large');
+    session.setEditorBackground('light');
+    expect(session.apply()).toBe(true);
+    expect(preferences.preferences().appearance).toMatchObject({
+      preset: 'raccoon',
+      font: 'pangolin',
+      fontSize: 'large',
+      editorBackground: 'light',
+    });
+
+    session.setPreset('dark');
+    session.setFont('chakra-petch');
+    expect(session.dirty()).toBe(true);
+    dialogs.confirm.mockResolvedValueOnce(true);
+    expect(await session.requestClose()).toBe(true);
+    expect(preferences.preferences().appearance).toMatchObject({
+      preset: 'raccoon',
+      font: 'pangolin',
+      fontSize: 'large',
+      editorBackground: 'light',
+    });
+  });
+
   it('rejects Apply while keyboard or mouse bindings conflict', () => {
     const action = session.draft().shortcuts['tool-place'];
     session.beginShortcutCapture('tool-place');

@@ -162,14 +162,14 @@
   color: var(--text-muted);
   font-size: 0.72rem;
 }
-:host-context([data-font='minecraft-style']) .selected-value strong,
-:host-context([data-font='minecraft-style']) .dropdown-option strong {
+:host-context([data-font='chakra-petch']) .selected-value strong,
+:host-context([data-font='chakra-petch']) .dropdown-option strong {
   font-size: 0.94rem;
   line-height: 1.05;
   font-weight: 400;
 }
-:host-context([data-font='minecraft-style']) .selected-value small,
-:host-context([data-font='minecraft-style']) .dropdown-option small {
+:host-context([data-font='chakra-petch']) .selected-value small,
+:host-context([data-font='chakra-petch']) .dropdown-option small {
   font-size: 0.7rem;
   line-height: 1.1;
 }

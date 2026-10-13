@@ -607,17 +607,17 @@
 .camera-actions > button:hover:not(:disabled) {
   background: var(--control-hover);
 }
-:host-context([data-font='minecraft-style']) .brand {
+:host-context([data-font='chakra-petch']) .brand {
   font-size: 1.28rem;
   line-height: 0.9;
   letter-spacing: 0.02em;
 }
-:host-context([data-font='minecraft-style']) .app-menu-trigger {
+:host-context([data-font='chakra-petch']) .app-menu-trigger {
   padding: 0.32rem 0.48rem;
   font-size: 1.08rem;
   line-height: 0.95;
 }
-:host-context([data-font='minecraft-style']) .editor-toolbar-row button {
+:host-context([data-font='chakra-petch']) .editor-toolbar-row button {
   font-size: 0.98rem;
   line-height: 0.95;
   padding-top: 0.36rem;

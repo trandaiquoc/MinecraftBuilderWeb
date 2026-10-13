@@ -370,11 +370,11 @@ export class EditorShellComponent implements OnDestroy {
     this.i18n.setLocale(locale);
     this.closeMenus();
   }
-  protected chooseTheme(theme: 'light' | 'dark' | 'craft'): void {
+  protected chooseTheme(theme: 'light' | 'dark' | 'craft' | 'raccoon'): void {
     this.theme.setPreset(theme);
     this.closeMenus();
   }
-  protected chooseFont(font: 'geist' | 'minecraft-style'): void {
+  protected chooseFont(font: 'comfortaa' | 'chakra-petch' | 'pangolin'): void {
     this.theme.setFont(font);
     this.closeMenus();
   }

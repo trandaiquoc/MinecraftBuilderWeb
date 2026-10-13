@@ -169,12 +169,12 @@
   justify-self: center;
 }
 
-:host-context([data-font='minecraft-style']) .painting-card-meta strong {
+:host-context([data-font='chakra-petch']) .painting-card-meta strong {
   font-size: 0.88rem;
   line-height: 1.05;
   font-weight: 400;
 }
-:host-context([data-font='minecraft-style']) .painting-card-meta small {
+:host-context([data-font='chakra-petch']) .painting-card-meta small {
   font-size: 0.74rem;
   line-height: 1.05;
 }

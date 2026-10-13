@@ -1,8 +1,12 @@
 :root {
   font-family: var(--font-ui);
+  line-height: var(--line-height-body);
   color-scheme: dark;
-  --font-ui: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-readable: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-ui: 'Comfortaa Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-readable: 'Comfortaa Variable', ui-sans-serif, system-ui, sans-serif;
+  --line-height-body: 1.4;
+  --line-height-heading: 1.15;
+  --line-height-control: 1.2;
   --app-bg: #101318;
   --surface: #171b22;
   --surface-raised: #202631;
@@ -191,6 +195,54 @@
   --button-danger-hover-text: #fff4e6;
   --button-danger-text: #e8e2cf;
 }
+:root[data-theme='raccoon'] {
+  color-scheme: dark;
+  --app-bg: #211f20;
+  --surface: #2a2829;
+  --surface-raised: #353233;
+  --surface-muted: #252324;
+  --surface-hover: #403c3d;
+  --surface-selected: #514b49;
+  --viewport-bg: #121314;
+  --editor-viewport-bg: #0c1015;
+  --text: #f1ece8;
+  --text-muted: #bbb1ac;
+  --text-disabled: #817975;
+  --border: #494443;
+  --border-strong: #655c59;
+  --accent: #d99a70;
+  --accent-hover: #ebb18a;
+  --accent-soft: rgb(217 154 112 / 0.18);
+  --accent-contrast: #241a16;
+  --control-normal: #353233;
+  --control-hover: #403c3d;
+  --control-selected: #d99a70;
+  --control-selected-text: #241a16;
+  --control-separator: #82716a;
+  --button-primary-bg: #bd7954;
+  --button-primary-hover: #d08a63;
+  --button-primary-hover-text: #211713;
+  --button-primary-text: #fff8f1;
+  --button-secondary-bg: #423d3c;
+  --button-secondary-hover: #514a48;
+  --button-secondary-hover-text: #f1ece8;
+  --button-secondary-text: #f1ece8;
+  --button-selected-bg: #d99a70;
+  --button-selected-text: #241a16;
+  --button-danger-bg: #8e3e3c;
+  --button-danger-hover: #aa5149;
+  --button-danger-hover-text: #fff;
+  --button-danger-text: #fff4ed;
+  --danger: #f18a80;
+  --warning: #e6b766;
+  --success: #84c69b;
+  --info: #b4a0d1;
+  --status-valid: #84c69b;
+  --status-warning: #e6b766;
+  --status-unknown: #b4a0d1;
+  --status-invalid: #f18a80;
+  --focus-ring: 0 0 0 2px rgb(217 154 112 / 0.55);
+}
 :root[data-theme='light'] {
   --shadow-control: 0 1px 2px rgb(23 32 43 / 0.12);
   --shadow-control-raised: 0 3px 8px rgb(23 32 43 / 0.14);
@@ -199,8 +251,9 @@
   --shadow-control: 0 1px 2px rgb(0 0 0 / 0.2);
   --shadow-control-raised: 0 3px 8px rgb(0 0 0 / 0.24);
 }
-:root[data-font='minecraft-style'] {
-  --font-ui: 'VT323', 'Geist Variable', ui-sans-serif, sans-serif;
+:root[data-theme='raccoon'] {
+  --shadow-control: 0 1px 2px rgb(0 0 0 / 0.24);
+  --shadow-control-raised: 0 3px 8px rgb(0 0 0 / 0.32);
 }
 :root {
   font-size: var(--font-root-size, 16px);
@@ -246,6 +299,12 @@ h4,
 nav,
 button {
   font-family: var(--font-ui);
+}
+h1,
+h2,
+h3,
+h4 {
+  line-height: var(--line-height-heading);
 }
 .ui-tooltip-target {
   position: relative;
@@ -297,7 +356,7 @@ svg[class*='lucide'] {
   box-shadow: var(--shadow-control);
   cursor: pointer;
   font: inherit;
-  line-height: 1.15;
+  line-height: var(--line-height-control);
   transition:
     background 0.12s ease,
     box-shadow 0.12s ease,

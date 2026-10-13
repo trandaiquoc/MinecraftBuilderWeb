@@ -215,15 +215,16 @@ Keep technical identifiers such as Minecraft registry IDs untranslated.
 
 ## 16. Theme
 
-The application must remain compatible with:
+The application supports four independent application themes: Minecraft, Light,
+Raccoon, and Dark. The persisted internal key for Minecraft remains `craft`.
+It also supports Comfortaa, Chakra Petch, and Pangolin independently of theme.
+Workspace background is a separate Dark/Light preference and owns the 3D and
+Y-Layer renderer palette.
 
-- Minecraft theme;
-- light theme;
-- dark theme.
-
-The persisted internal key may remain `craft` where the current code uses it;
-the product-facing label for this theme is **Minecraft**. Every UI change must be checked in
-all three themes and in both English and Vietnamese.
+New/reset appearance defaults are Minecraft (`craft`), Comfortaa, Normal font
+size, and Dark workspace background. Legacy `geist` and `minecraft-style`
+font preference values normalize to Comfortaa and Chakra Petch. Every UI
+change must be checked in all four themes and in both English and Vietnamese.
 
 Do not use hard-coded colors that make one theme unusable.
 

@@ -20,25 +20,27 @@ scene:
 
 | Direction | Palette and atmosphere                             | Status                                                                 |
 | --------- | -------------------------------------------------- | ---------------------------------------------------------------------- |
-| Minecraft | Minecraft grass green with warm afternoon sunlight | Current `craft` preset is labeled Minecraft; future homepage direction |
-| Light     | Predominantly white, bright morning light          | Existing Light theme; future homepage direction                        |
-| Raccoon   | Gray surfaces at dusk with warm lamps              | Concept only; no Raccoon theme is implemented                          |
-| Dark      | Dark surfaces at night                             | Existing Dark theme; future homepage direction                         |
+| Minecraft | Minecraft grass green with warm afternoon sunlight | Runtime theme (`craft` compatibility key)                              |
+| Light     | Predominantly white, bright morning light          | Runtime theme                                                           |
+| Raccoon   | Warm neutral gray surfaces                         | Independent runtime theme                                               |
+| Dark      | Navy and charcoal surfaces                         | Runtime theme                                                           |
 
 The same layout should serve all four directions. Time-of-day language is
 descriptive art direction, not a separate feature or setting.
 
 ## Typography and Workspace
 
-The approved font direction is Comfortaa for general UI, Chakra Petch for
-Minecraft styling, and Pangolin for the future Raccoon theme. Font selection
-is independent from theme. This step does not install or activate these fonts;
-the current font preferences remain unchanged.
+Comfortaa, Chakra Petch, and Pangolin are self-hosted through Fontsource and
+can each be selected independently of all four themes. Small, Normal, and Large
+font sizes scale the shared UI typography. New preferences and Appearance reset
+to Minecraft (`craft`), Comfortaa, and a Dark workspace background. Existing
+saved preferences are retained; legacy Geist and Minecraft-style font values
+migrate to Comfortaa and Chakra Petch when preferences are normalized.
 
-Future workspace backgrounds are Dark, Light, and Colorful. Colorful is planned
-as a Minecraft sky, grass, and grid palette. Workspace background changes
-should apply directly, without a scene-transition animation. Current workspace
-preferences and defaults are unchanged in this step.
+The editor workspace background remains an independent Dark/Light preference;
+it controls the 3D and Y-Layer renderer palette without changing application
+chrome. Colorful is a later phase. Workspace background changes apply directly,
+without a scene-transition animation.
 
 ## Homepage Concept
 
@@ -89,5 +91,5 @@ second database while retaining the originals. The checked-in public schema
 keeps its established `$id`; no new public domain has been assigned.
 
 This foundation documents the current branding and compatibility boundaries. It
-does not add a Raccoon theme, change runtime fonts or reset defaults, add the
-Colorful workspace, redesign the homepage, or add account/backend behavior.
+does not add the Colorful workspace, redesign the homepage, or add
+account/backend behavior.

@@ -63,10 +63,12 @@ export class SettingsDialogComponent implements OnDestroy {
     { id: 'dark', label: this.i18n.t('dark') },
     { id: 'light', label: this.i18n.t('light') },
     { id: 'craft', label: this.i18n.t('craft') },
+    { id: 'raccoon', label: this.i18n.t('raccoon') },
   ]);
   protected readonly fontOptions = computed<readonly ThemedSelectOption[]>(() => [
-    { id: 'geist', label: this.i18n.t('geist') },
-    { id: 'minecraft-style', label: this.i18n.t('minecraftStyle') },
+    { id: 'comfortaa', label: this.i18n.t('comfortaa') },
+    { id: 'chakra-petch', label: this.i18n.t('chakraPetch') },
+    { id: 'pangolin', label: this.i18n.t('pangolin') },
   ]);
   protected readonly editorBackgroundOptions = computed<readonly ThemedSelectOption[]>(() => [
     { id: 'dark', label: this.i18n.t('editorBackgroundDark') },

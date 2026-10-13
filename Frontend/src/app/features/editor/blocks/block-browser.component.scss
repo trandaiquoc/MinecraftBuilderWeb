@@ -212,13 +212,13 @@
   font-family: var(--font-ui);
 }
 
-:host-context([data-font='minecraft-style']) .search-label,
-:host-context([data-font='minecraft-style']) .block-copy strong {
+:host-context([data-font='chakra-petch']) .search-label,
+:host-context([data-font='chakra-petch']) .block-copy strong {
   font-size: 0.84rem;
   line-height: 1.05;
   font-weight: 400;
 }
-:host-context([data-font='minecraft-style']) .block-copy small {
+:host-context([data-font='chakra-petch']) .block-copy small {
   font-size: 0.72rem;
   line-height: 1.1;
 }

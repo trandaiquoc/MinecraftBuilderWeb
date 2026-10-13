@@ -32,8 +32,9 @@
               }
             ],
             "styles": [
-              "node_modules/@fontsource-variable/geist/index.css",
-              "node_modules/@fontsource/vt323/index.css",
+              "node_modules/@fontsource-variable/comfortaa/index.css",
+              "node_modules/@fontsource/chakra-petch/index.css",
+              "node_modules/@fontsource/pangolin/index.css",
               "src/styles.scss"
             ]
           },

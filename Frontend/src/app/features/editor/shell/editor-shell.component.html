@@ -278,36 +278,49 @@
                 <strong>{{ i18n.t('theme') }}</strong
                 ><button
                   type="button"
-                  [class.active]="theme.preset() === 'light'"
+                  [class.active]="theme.selectedPreset() === 'light'"
                   (click)="chooseTheme('light')"
                 >
-                  {{ theme.preset() === 'light' ? '✓ ' : '' }}{{ i18n.t('light') }}</button
+                  {{ theme.selectedPreset() === 'light' ? '✓ ' : '' }}{{ i18n.t('light') }}</button
                 ><button
                   type="button"
-                  [class.active]="theme.preset() === 'dark'"
+                  [class.active]="theme.selectedPreset() === 'dark'"
                   (click)="chooseTheme('dark')"
                 >
-                  {{ theme.preset() === 'dark' ? '✓ ' : '' }}{{ i18n.t('dark') }}</button
+                  {{ theme.selectedPreset() === 'dark' ? '✓ ' : '' }}{{ i18n.t('dark') }}</button
                 ><button
                   type="button"
-                  [class.active]="theme.preset() === 'craft'"
+                  [class.active]="theme.selectedPreset() === 'craft'"
                   (click)="chooseTheme('craft')"
                 >
-                  {{ theme.preset() === 'craft' ? '✓ ' : '' }}{{ i18n.t('craft') }}
+                  {{ theme.selectedPreset() === 'craft' ? '✓ ' : '' }}{{ i18n.t('craft') }}</button
+                ><button
+                  type="button"
+                  [class.active]="theme.selectedPreset() === 'raccoon'"
+                  (click)="chooseTheme('raccoon')"
+                >
+                  {{ theme.selectedPreset() === 'raccoon' ? '✓ ' : '' }}{{ i18n.t('raccoon') }}
                 </button>
                 <strong>{{ i18n.t('font') }}</strong
                 ><button
                   type="button"
-                  [class.active]="theme.font() === 'geist'"
-                  (click)="chooseFont('geist')"
+                  [class.active]="theme.font() === 'comfortaa'"
+                  (click)="chooseFont('comfortaa')"
                 >
-                  {{ theme.font() === 'geist' ? '✓ ' : '' }}{{ i18n.t('geist') }}</button
+                  {{ theme.font() === 'comfortaa' ? '✓ ' : '' }}{{ i18n.t('comfortaa') }}</button
                 ><button
                   type="button"
-                  [class.active]="theme.font() === 'minecraft-style'"
-                  (click)="chooseFont('minecraft-style')"
+                  [class.active]="theme.font() === 'chakra-petch'"
+                  (click)="chooseFont('chakra-petch')"
                 >
-                  {{ theme.font() === 'minecraft-style' ? '✓ ' : '' }}{{ i18n.t('minecraftStyle') }}
+                  {{ theme.font() === 'chakra-petch' ? '✓ ' : ''
+                  }}{{ i18n.t('chakraPetch') }}</button
+                ><button
+                  type="button"
+                  [class.active]="theme.font() === 'pangolin'"
+                  (click)="chooseFont('pangolin')"
+                >
+                  {{ theme.font() === 'pangolin' ? '✓ ' : '' }}{{ i18n.t('pangolin') }}
                 </button>
                 <strong>{{ i18n.t('editorBackground') }}</strong
                 ><button

@@ -86,7 +86,11 @@
               >{{ i18n.t('theme') }}
               <app-themed-select
                 [options]="themeOptions()"
-                [selectedId]="draft().appearance.preset"
+                [selectedId]="
+                  draft().appearance.preset === 'custom'
+                    ? draft().appearance.base
+                    : draft().appearance.preset
+                "
                 [ariaLabel]="i18n.t('theme')"
                 (selectionChange)="setPreset($any($event))"
               />

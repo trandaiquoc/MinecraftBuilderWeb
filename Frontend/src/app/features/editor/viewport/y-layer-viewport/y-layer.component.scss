@@ -93,13 +93,13 @@
   color: var(--status-valid);
 }
 
-:host-context([data-font='minecraft-style']) .layer-controls button,
-:host-context([data-font='minecraft-style']) .layer-controls select,
-:host-context([data-font='minecraft-style']) .layer-controls label {
+:host-context([data-font='chakra-petch']) .layer-controls button,
+:host-context([data-font='chakra-petch']) .layer-controls select,
+:host-context([data-font='chakra-petch']) .layer-controls label {
   font-size: 0.84rem;
   line-height: 1.05;
 }
-:host-context([data-font='minecraft-style']) .viewport-status {
+:host-context([data-font='chakra-petch']) .viewport-status {
   font-size: 0.8rem;
   line-height: 1.1;
 }

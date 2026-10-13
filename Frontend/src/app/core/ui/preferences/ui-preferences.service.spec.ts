@@ -31,7 +31,7 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().autoUseHugeStructureBlocks).toBe(false);
     expect(preferences.preferences().showStructureBlockGuide).toBe(true);
     expect(preferences.preferences().accessibility.blockBrightness).toBe(3);
-    expect(preferences.preferences().appearance.font).toBe('geist');
+    expect(preferences.preferences().appearance.font).toBe('comfortaa');
     expect(preferences.preferences().controls.zoomSensitivity).toBe(2);
     expect(preferences.preferences().controls.cameraMoveSpeed).toBe(15);
     expect(preferences.preferences().controls.verticalMoveSpeed).toBe(9);
@@ -135,7 +135,7 @@ describe('UiPreferencesService', () => {
     const migrated = new UiPreferencesService();
     expect(migrated.preferences()).toMatchObject({
       locale: 'vi',
-      appearance: { preset: 'light', font: 'minecraft-style' },
+      appearance: { preset: 'light', font: 'chakra-petch' },
       layout: { leftSidebarWidth: 330 },
       shortcuts: { undo: 'Ctrl+Shift+Z' },
       structureExport: { namespace: 'minecraftbuilder', archiveName: 'mine' },
@@ -231,20 +231,20 @@ describe('UiPreferencesService', () => {
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().locale).toBe('en');
     expect(preferences.preferences().appearance.preset).toBe('craft');
-    expect(preferences.preferences().appearance.font).toBe('geist');
+    expect(preferences.preferences().appearance.font).toBe('comfortaa');
     expect(preferences.preferences().controls.orbitSensitivity).toBe(3);
     expect(preferences.preferences().controls.clickDragThreshold).toBe(1);
   });
 
   it('keeps font choice independent from theme and restores an explicit Minecraft font', () => {
     const preferences = new UiPreferencesService();
-    expect(preferences.preferences().appearance.font).toBe('geist');
+    expect(preferences.preferences().appearance.font).toBe('comfortaa');
     preferences.setAppearance({ preset: 'light' });
-    expect(preferences.preferences().appearance.font).toBe('geist');
-    preferences.setAppearance({ font: 'minecraft-style' });
+    expect(preferences.preferences().appearance.font).toBe('comfortaa');
+    preferences.setAppearance({ font: 'chakra-petch' });
     preferences.setAppearance({ preset: 'craft' });
-    expect(preferences.preferences().appearance.font).toBe('minecraft-style');
-    expect(new UiPreferencesService().preferences().appearance.font).toBe('minecraft-style');
+    expect(preferences.preferences().appearance.font).toBe('chakra-petch');
+    expect(new UiPreferencesService().preferences().appearance.font).toBe('chakra-petch');
   });
 
   it('keeps saved control values while reset restores the new defaults', () => {
@@ -275,6 +275,57 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().appearance.preset).toBe('light');
     preferences.setAppearance({ fontSize: 'large' });
     expect(new UiPreferencesService().preferences().appearance.fontSize).toBe('large');
+  });
+
+  it('migrates legacy font values idempotently while preserving independent appearance choices', () => {
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        appearance: {
+          preset: 'raccoon',
+          base: 'light',
+          font: 'minecraft-style',
+          fontSize: 'large',
+          editorBackground: 'light',
+        },
+      }),
+    );
+
+    const migrated = new UiPreferencesService();
+    expect(migrated.preferences().appearance).toEqual({
+      preset: 'raccoon',
+      base: 'light',
+      font: 'chakra-petch',
+      fontSize: 'large',
+      editorBackground: 'light',
+    });
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}').appearance.font).toBe('chakra-petch');
+    expect(new UiPreferencesService().preferences().appearance.font).toBe('chakra-petch');
+
+    localStorage.setItem(key, JSON.stringify({ appearance: { font: 'geist' } }));
+    expect(new UiPreferencesService().preferences().appearance.font).toBe('comfortaa');
+  });
+
+  it('uses the official appearance defaults without changing existing saved choices until reset', () => {
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        appearance: { preset: 'dark', font: 'pangolin', editorBackground: 'light' },
+      }),
+    );
+    const saved = new UiPreferencesService();
+    expect(saved.preferences().appearance).toMatchObject({
+      preset: 'dark',
+      font: 'pangolin',
+      editorBackground: 'light',
+    });
+    saved.reset();
+    expect(saved.preferences().appearance).toMatchObject({
+      preset: 'craft',
+      font: 'comfortaa',
+      editorBackground: 'dark',
+      fontSize: 'normal',
+    });
   });
 
   it('normalizes, persists and resets the automatic Huge Structure Blocks preference', () => {

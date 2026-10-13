@@ -17,9 +17,9 @@ import {
 import { DEFAULT_STRUCTURE_EXPORT_NAMESPACE } from '../../persistence/minecraft-structure/export/structure-export-contracts';
 
 export type UiLocale = 'en' | 'vi';
-export type ThemePreset = 'dark' | 'light' | 'craft' | 'custom';
+export type ThemePreset = 'dark' | 'light' | 'craft' | 'raccoon' | 'custom';
 export type BaseTheme = 'dark' | 'light';
-export type UiFont = 'geist' | 'minecraft-style';
+export type UiFont = 'comfortaa' | 'chakra-petch' | 'pangolin';
 export type UiFontSize = 'small' | 'normal' | 'large';
 export type PersistedEditorMode = '3d' | 'y-layer';
 
@@ -88,7 +88,7 @@ const defaults: UiPreferences = {
   appearance: {
     preset: 'craft',
     base: 'dark',
-    font: 'geist',
+    font: 'comfortaa',
     fontSize: 'normal',
     editorBackground: 'dark',
   },
@@ -343,9 +343,7 @@ function normalize(value: unknown): UiPreferences {
       base: isBase((appearance as Partial<UiPreferences['appearance']>).base)
         ? (appearance as Partial<UiPreferences['appearance']>).base!
         : defaults.appearance.base,
-      font: isFont((appearance as Partial<UiPreferences['appearance']>).font)
-        ? (appearance as Partial<UiPreferences['appearance']>).font!
-        : defaults.appearance.font,
+      font: normalizeFont((appearance as Partial<UiPreferences['appearance']>).font),
       fontSize: isFontSize((appearance as Partial<UiPreferences['appearance']>).fontSize)
         ? (appearance as Partial<UiPreferences['appearance']>).fontSize!
         : defaults.appearance.fontSize,
@@ -454,13 +452,23 @@ function isLocale(value: unknown): value is UiLocale {
   return value === 'en' || value === 'vi';
 }
 function isPreset(value: unknown): value is ThemePreset {
-  return value === 'dark' || value === 'light' || value === 'craft' || value === 'custom';
+  return (
+    value === 'dark' ||
+    value === 'light' ||
+    value === 'craft' ||
+    value === 'raccoon' ||
+    value === 'custom'
+  );
 }
 function isBase(value: unknown): value is BaseTheme {
   return value === 'dark' || value === 'light';
 }
-function isFont(value: unknown): value is UiFont {
-  return value === 'geist' || value === 'minecraft-style';
+function normalizeFont(value: unknown): UiFont {
+  if (value === 'geist') return 'comfortaa';
+  if (value === 'minecraft-style') return 'chakra-petch';
+  return value === 'comfortaa' || value === 'chakra-petch' || value === 'pangolin'
+    ? value
+    : defaults.appearance.font;
 }
 function isFontSize(value: unknown): value is UiFontSize {
   return value === 'small' || value === 'normal' || value === 'large';
