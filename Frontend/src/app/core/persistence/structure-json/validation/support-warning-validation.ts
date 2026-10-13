@@ -9,7 +9,7 @@ import type {
   VoxelCoordinate,
 } from '../../../domain/project.types';
 import { ProjectBlockSpatialIndex } from '../../../domain/project-block-spatial-index';
-import type { StructureJson, StructureJsonBlock } from '../structure-json';
+import type { StructureJson, StructureJsonBlock } from '../structure-json-contracts';
 import { issue } from './block-entry-validation';
 import type {
   MutableStructureJsonIssues,

@@ -2,11 +2,9 @@ import {
   HUGE_STRUCTURE_BLOCKS_MAX_AXIS,
   VANILLA_STRUCTURE_BLOCK_MAX_AXIS,
 } from '../../../domain/structure-size-policy';
-import {
-  createStructureJsonExample,
-  serializeStructureJsonValue,
-  STRUCTURE_JSON_FORMAT,
-} from '../structure-json';
+import { createStructureJsonExample } from '../structure-json-example';
+import { serializeStructureJsonValue } from '../import/structure-json-project-conversion';
+import { STRUCTURE_JSON_FORMAT } from '../structure-json-contracts';
 import type {
   ExternalAiPromptContext,
   ExternalAiPromptLocale,

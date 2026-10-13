@@ -6,7 +6,7 @@ import type {
   VoxelCoordinate,
 } from '../../../domain/project.types';
 import { isWithinBounds } from '../../../domain/coordinates';
-import type { StructureJson } from '../structure-json';
+import type { StructureJson } from '../structure-json-contracts';
 
 export interface StructureJsonBoundsPreflight {
   readonly requiredSize: ProjectSize;

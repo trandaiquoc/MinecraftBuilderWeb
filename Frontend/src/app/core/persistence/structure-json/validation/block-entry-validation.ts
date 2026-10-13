@@ -4,8 +4,8 @@ import type { PlaceableItemDefinition } from '../../../blocks/placement-palette/
 import { canonicalPlaceableItemId } from '../../../blocks/placement-palette/placeable-item-resolution';
 import { isWithinBounds } from '../../../domain/coordinates';
 import type { ProjectSize } from '../../../domain/project.types';
-import { validateStructureJsonBlockEntity } from '../structure-json';
-import type { StructureJsonBlock } from '../structure-json';
+import { validateStructureJsonBlockEntity } from './structure-json-validation';
+import type { StructureJsonBlock } from '../structure-json-contracts';
 import type {
   NormalizedValidationContentLimits,
   StructureJsonIssueCategory,

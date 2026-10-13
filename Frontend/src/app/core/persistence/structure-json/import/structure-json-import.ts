@@ -32,8 +32,8 @@ import type {
   StructureJsonValidationOptions,
   StructureJsonValidationPreview,
 } from '../validation/structure-json-validation.types';
-import { parseStructureJson } from '../structure-json';
-import type { StructureJson } from '../structure-json';
+import { parseStructureJson } from './structure-json-parser';
+import type { StructureJson } from '../structure-json-contracts';
 import type { ItemMaxStackResolver } from '../../../items/item-stack-validation';
 
 export type {

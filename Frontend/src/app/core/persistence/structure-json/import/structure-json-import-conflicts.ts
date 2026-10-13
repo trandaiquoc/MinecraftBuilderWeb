@@ -10,7 +10,7 @@ import {
   buildStructureImportSpatialContextAsync,
   queryDecorationSpatialIndex,
 } from '../geometry/structure-json-spatial';
-import type { StructureJsonBlock } from '../structure-json';
+import type { StructureJsonBlock } from '../structure-json-contracts';
 import type { StructureJsonValidationCancellation } from './structure-json-import';
 export interface StructureJsonProjectConflict {
   readonly coordinate: VoxelCoordinate;

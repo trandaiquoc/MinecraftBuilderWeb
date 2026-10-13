@@ -1,6 +1,6 @@
 import type { PlaceableItemDefinition } from '../../../blocks/placement-palette/placeable-item.types';
 import type { VoxelCoordinate } from '../../../domain/project.types';
-import type { StructureJson, StructureJsonDecoration } from '../structure-json';
+import type { StructureJson, StructureJsonDecoration } from '../structure-json-contracts';
 import type { ExternalAiContentLimits } from '../external-ai/external-ai-content-limits';
 
 export type StructureJsonIssueCategory =
@@ -48,7 +48,7 @@ export interface StructureJsonDecorationIssue {
 
 export interface StructureJsonValidationPreview {
   readonly structuralValid: boolean;
-  readonly structuralCode?: import('../structure-json').StructureJsonValidationCode;
+  readonly structuralCode?: import('../structure-json-contracts').StructureJsonValidationCode;
   readonly parsed?: StructureJson;
   readonly totalBlocks: number;
   readonly validBlocks: number;
@@ -96,7 +96,7 @@ export interface StructureJsonWorkerRequest {
 }
 export interface StructureJsonWorkerResponse {
   readonly ok: boolean;
-  readonly result: import('../structure-json').ParsedStructureJsonResult;
+  readonly result: import('../structure-json-contracts').ParsedStructureJsonResult;
 }
 
 export type MutableStructureJsonIssues = {
@@ -122,7 +122,7 @@ export function emptyStructureJsonIssues(): MutableStructureJsonIssues {
 }
 
 export function emptyStructureJsonPreview(
-  code?: import('../structure-json').StructureJsonValidationCode,
+  code?: import('../structure-json-contracts').StructureJsonValidationCode,
 ): StructureJsonValidationPreview {
   return {
     structuralValid: false,

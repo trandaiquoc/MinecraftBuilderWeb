@@ -6,12 +6,12 @@ import {
   decorationEntityTypeId,
   type PlacedDecoration,
 } from '../../../decorations/decoration.types';
-import {
-  projectBlockEntityDataFromStructureJson,
-  type StructureJsonBlock,
-  type StructureJsonDecoration,
-  type StructureJson,
-} from '../structure-json';
+import { projectBlockEntityDataFromStructureJson } from '../block-entities/structure-json-block-entity-mapping';
+import type {
+  StructureJsonBlock,
+  StructureJsonDecoration,
+  StructureJson,
+} from '../structure-json-contracts';
 import {
   validateStructureJsonDecorations,
   validateStructureJsonDecorationsAsync,

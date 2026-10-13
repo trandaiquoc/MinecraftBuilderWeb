@@ -20,7 +20,7 @@ import {
   type StructureJsonValidationCancellation,
   type StructureJsonValidationPreview,
 } from './structure-json-import';
-import type { StructureJson } from '../structure-json';
+import type { StructureJson } from '../structure-json-contracts';
 
 export type StructureJsonProjectImportError =
   | 'empty-structure'

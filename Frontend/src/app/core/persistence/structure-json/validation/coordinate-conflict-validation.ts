@@ -1,6 +1,6 @@
 import { coordinateKey } from '../../../domain/coordinates';
 import type { VoxelCoordinate } from '../../../domain/project.types';
-import type { StructureJsonBlock } from '../structure-json';
+import type { StructureJsonBlock } from '../structure-json-contracts';
 import type { MutableStructureJsonIssues } from './structure-json-validation.types';
 
 export interface CoordinateGroup {

@@ -1,5 +1,5 @@
-import { parseStructureJson } from '../structure-json';
-import type { ParsedStructureJsonResult } from '../structure-json';
+import { parseStructureJson } from '../import/structure-json-parser';
+import type { ParsedStructureJsonResult } from '../structure-json-contracts';
 import type {
   StructureJsonValidationCancellation,
   StructureJsonWorkerRequest,

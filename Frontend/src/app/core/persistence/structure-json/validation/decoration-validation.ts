@@ -28,7 +28,7 @@ import type {
   StructureJsonDecorationIssue,
   StructureJsonValidationOptions,
 } from './structure-json-validation.types';
-import type { StructureJson, StructureJsonDecoration } from '../structure-json';
+import type { StructureJson, StructureJsonDecoration } from '../structure-json-contracts';
 import { normalizeValidationContentLimits } from './structure-json-content-limits';
 import { CooperativeWorkBudget } from '../../../assets/cooperative-yield';
 import { cooperativeValidationCheckpoint } from './structure-json-validation-scheduling';

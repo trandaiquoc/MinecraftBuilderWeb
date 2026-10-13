@@ -1,4 +1,5 @@
-import { parseStructureJson, ParsedStructureJsonResult } from '../structure-json';
+import { parseStructureJson } from '../import/structure-json-parser';
+import type { ParsedStructureJsonResult } from '../structure-json-contracts';
 
 interface StructureJsonWorkerRequest {
   readonly text: string;
