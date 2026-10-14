@@ -215,6 +215,7 @@
 .sky-preview {
   position: relative;
   isolation: isolate;
+  background-color: var(--reality-sky-background);
 }
 .sky-preview::before,
 .sky-preview::after,
@@ -223,22 +224,14 @@
   z-index: -1;
   content: '';
 }
-.sky-preview-day {
-  background: #84c7e9;
-}
 .sky-preview-night {
-  background-color: #101a35;
   background-image:
     radial-gradient(2px 2px at 15% 24%, #f7f0c7 50%, transparent 55%),
     radial-gradient(2px 2px at 38% 18%, #f7f0c7 50%, transparent 55%),
     radial-gradient(2px 2px at 78% 30%, #f7f0c7 50%, transparent 55%),
     radial-gradient(2px 2px at 58% 58%, #f7f0c7 50%, transparent 55%);
 }
-.sky-preview-nether {
-  background: #501629;
-}
 .sky-preview-end {
-  background-color: #21152f;
   background-image:
     radial-gradient(2px 2px at 21% 28%, #d7b6f5 50%, transparent 55%),
     radial-gradient(2px 2px at 67% 20%, #d7b6f5 50%, transparent 55%),
@@ -264,7 +257,7 @@
 }
 .sky-moon {
   background: #eef0d2;
-  box-shadow: -0.22rem 0.08rem 0 #101a35;
+  box-shadow: -0.22rem 0.08rem 0 var(--reality-sky-background);
 }
 .sky-cloud {
   width: 1.7rem;

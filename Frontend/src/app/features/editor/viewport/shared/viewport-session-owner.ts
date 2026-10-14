@@ -28,6 +28,7 @@ export function synchronizeRealityPreferenceFallback(
   fallback: RealityEnvironmentFallback,
 ): void {
   const appearance = preferences.preferences().appearance;
+  if (appearance.editorBackground !== 'reality') return;
   if (fallback.kind === 'ground' && appearance.reality.groundPreset === fallback.requested) {
     preferences.setAppearance({
       reality: { ...appearance.reality, groundPreset: fallback.fallback },

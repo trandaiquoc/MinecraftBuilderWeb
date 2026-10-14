@@ -15,6 +15,7 @@ import {
   REALITY_SKY_PRESETS,
   RealityGroundPreset,
   RealitySkyPreset,
+  realitySkyBackgroundColor,
 } from '../../../../core/editor/appearance/editor-background-contract';
 import { TranslationKey } from '../../../../core/ui/localization/translation-catalogs';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
@@ -111,12 +112,16 @@ export class SettingsDialogComponent implements OnDestroy {
         id: preset.id,
         label: this.i18n.t(groundLabels[preset.id]),
         previewUrl: previewFailed ? undefined : textureUrl,
-        availability: previewFailed && preset.id !== 'plains-grass' ? 'unavailable' : availability,
+        availability: previewFailed ? 'unavailable' : availability,
       };
     });
   });
   protected readonly skyOptions = computed(() =>
-    REALITY_SKY_PRESETS.map((id) => ({ id, label: this.i18n.t(skyLabels[id]) })),
+    REALITY_SKY_PRESETS.map((id) => ({
+      id,
+      label: this.i18n.t(skyLabels[id]),
+      backgroundColor: realitySkyBackgroundColor(id),
+    })),
   );
   protected readonly controlFields = [
     { key: 'orbitSensitivity', min: 0.1, max: 3, step: 0.1, label: 'orbitSensitivity' },

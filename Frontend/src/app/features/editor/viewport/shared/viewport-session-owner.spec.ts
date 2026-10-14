@@ -71,4 +71,23 @@ describe('viewport Reality preference fallback', () => {
       skyPreset: 'overworld-day',
     });
   });
+
+  it('ignores a stale fallback after the workspace leaves Reality', () => {
+    const preferences = new UiPreferencesService();
+    preferences.setAppearance({
+      editorBackground: 'dark',
+      reality: { groundPreset: 'sand', skyPreset: 'nether' },
+    });
+
+    synchronizeRealityPreferenceFallback(preferences, {
+      kind: 'ground',
+      requested: 'sand',
+      fallback: 'plains-grass',
+    });
+
+    expect(preferences.preferences().appearance.reality).toEqual({
+      groundPreset: 'sand',
+      skyPreset: 'nether',
+    });
+  });
 });

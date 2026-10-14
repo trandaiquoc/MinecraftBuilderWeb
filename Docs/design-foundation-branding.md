@@ -49,7 +49,9 @@ Workspace application colors follow the canonical four-theme [Workspace Color
 Palette V1](design/workspace-color-palette.md). That palette is scoped to the
 editor workspace and its overlays; the Project Screen keeps its existing color
 tokens. The renderer's Dark/Light/Reality environment remains independent of
-both; Reality atmosphere colors and preset assets are owned by the renderer.
+both. Reality sky preset colors are shared through the editor background
+contract so the renderer and Settings previews agree; ground and sky artwork
+remain renderer-owned.
 
 ## Homepage Concept
 

@@ -81,6 +81,23 @@ describe('RealityEnvironmentOwner', () => {
     expect(scene.getObjectByName('realityGround')).toBeUndefined();
   });
 
+  it('uses the shared sky colors for every renderer preset', () => {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera();
+    const owner = new RealityEnvironmentOwner(scene, camera, {
+      loadTexture: vi.fn(async () => texture()),
+      scheduleRender: vi.fn(),
+      onFallback: vi.fn(),
+    });
+
+    for (const preset of ['overworld-day', 'overworld-night', 'nether', 'end'] as const) {
+      owner.apply(realityConfig({ skyPreset: preset }));
+      expect((scene.background as THREE.Color).getHex()).toBe(realitySkyBackground(preset));
+    }
+
+    owner.dispose();
+  });
+
   it('immediately reports a missing selected ground and installs bundled grass as fallback', async () => {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera();
@@ -233,7 +250,139 @@ describe('RealityEnvironmentOwner', () => {
     expect(currentTextureDispose).toHaveBeenCalledTimes(1);
   });
 
-  it('hides only the environment layer for Dark/Light and safely falls back for an unknown sky', () => {
+  it('does not load or report Reality resources while Dark/Light is selected', () => {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera();
+    const loadTexture = vi.fn(async () => texture());
+    const onFallback = vi.fn();
+    const owner = new RealityEnvironmentOwner(scene, camera, {
+      loadTexture,
+      scheduleRender: vi.fn(),
+      onFallback,
+    });
+
+    owner.apply(
+      realityConfig({
+        mode: 'light',
+        groundPreset: 'sand',
+        groundTextureUrl: undefined,
+        resourcesReady: true,
+        skyPreset: 'invalid' as 'overworld-day',
+      }),
+    );
+
+    expect(loadTexture).not.toHaveBeenCalled();
+    expect(onFallback).not.toHaveBeenCalled();
+    expect(scene.getObjectByName('realityGround')?.visible).toBe(false);
+    expect(camera.getObjectByName('realitySky')?.visible).toBe(false);
+    owner.dispose();
+  });
+
+  it('invalidates a pending texture on exit and rejects its result after re-entering the same preset', async () => {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera();
+    const grass = texture();
+    const staleTexture = texture();
+    const selectedTexture = texture();
+    const staleDispose = vi.spyOn(staleTexture, 'dispose');
+    let resolveStale!: (value: THREE.Texture) => void;
+    let resolveSelected!: (value: THREE.Texture) => void;
+    const staleLoad = new Promise<THREE.Texture>((resolve) => (resolveStale = resolve));
+    const selectedLoad = new Promise<THREE.Texture>((resolve) => (resolveSelected = resolve));
+    let selectedLoads = 0;
+    const onFallback = vi.fn();
+    const owner = new RealityEnvironmentOwner(scene, camera, {
+      loadTexture: vi.fn((url: string) => {
+        if (url === BUNDLED_PLAINS_GRASS_TEXTURE) return Promise.resolve(grass);
+        selectedLoads += 1;
+        return selectedLoads === 1 ? staleLoad : selectedLoad;
+      }),
+      scheduleRender: vi.fn(),
+      onFallback,
+    });
+    const selected = realityConfig({ groundPreset: 'sand', groundTextureUrl: 'blob:sand' });
+
+    owner.apply(selected);
+    await flushTextureTasks();
+    owner.apply(realityConfig({ ...selected, mode: 'dark' }));
+    owner.apply(selected);
+    resolveSelected(selectedTexture);
+    await flushTextureTasks();
+    resolveStale(staleTexture);
+    await flushTextureTasks();
+
+    const ground = scene.getObjectByName('realityGround') as THREE.Mesh<
+      THREE.PlaneGeometry,
+      THREE.MeshBasicMaterial
+    >;
+    expect(selectedLoads).toBe(2);
+    expect(ground.visible).toBe(true);
+    expect(ground.material.map).toBe(selectedTexture);
+    expect(staleDispose).toHaveBeenCalledTimes(1);
+    expect(onFallback).not.toHaveBeenCalled();
+    owner.dispose();
+  });
+
+  it('reuses an already-loaded selected ground texture after returning from Light', async () => {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera();
+    const grass = texture();
+    const sand = texture();
+    const sandDispose = vi.spyOn(sand, 'dispose');
+    const loadTexture = vi.fn(async (url: string) =>
+      url === BUNDLED_PLAINS_GRASS_TEXTURE ? grass : sand,
+    );
+    const owner = new RealityEnvironmentOwner(scene, camera, {
+      loadTexture,
+      scheduleRender: vi.fn(),
+      onFallback: vi.fn(),
+    });
+    const selected = realityConfig({ groundPreset: 'sand', groundTextureUrl: 'blob:sand' });
+
+    owner.apply(selected);
+    await flushTextureTasks();
+    owner.apply(realityConfig({ ...selected, mode: 'light' }));
+    owner.apply(selected);
+
+    expect(loadTexture.mock.calls.filter(([url]) => url === 'blob:sand')).toHaveLength(1);
+    expect(
+      (
+        scene.getObjectByName('realityGround') as THREE.Mesh<
+          THREE.PlaneGeometry,
+          THREE.MeshBasicMaterial
+        >
+      ).material.map,
+    ).toBe(sand);
+    owner.dispose();
+    expect(sandDispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('disposes texture results that resolve after terminal owner disposal', async () => {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera();
+    const lateTexture = texture();
+    const lateDispose = vi.spyOn(lateTexture, 'dispose');
+    let resolveLate!: (value: THREE.Texture) => void;
+    const lateLoad = new Promise<THREE.Texture>((resolve) => (resolveLate = resolve));
+    const owner = new RealityEnvironmentOwner(scene, camera, {
+      loadTexture: vi.fn((url: string) =>
+        url === BUNDLED_PLAINS_GRASS_TEXTURE ? Promise.resolve(texture()) : lateLoad,
+      ),
+      scheduleRender: vi.fn(),
+      onFallback: vi.fn(),
+    });
+
+    owner.apply(realityConfig({ groundPreset: 'sand', groundTextureUrl: 'blob:sand' }));
+    await flushTextureTasks();
+    owner.dispose();
+    resolveLate(lateTexture);
+    await flushTextureTasks();
+
+    expect(lateDispose).toHaveBeenCalledTimes(1);
+    expect(scene.getObjectByName('realityGround')).toBeUndefined();
+  });
+
+  it('hides the environment and restores the themed base color outside Reality', () => {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera();
     const onFallback = vi.fn();
@@ -242,16 +391,33 @@ describe('RealityEnvironmentOwner', () => {
       scheduleRender: vi.fn(),
       onFallback,
     });
-    owner.apply(realityConfig({ skyPreset: 'bad-sky' as 'overworld-day' }));
-    expect(onFallback).toHaveBeenCalledWith({
-      kind: 'sky',
-      requested: 'bad-sky',
-      fallback: 'overworld-day',
-    });
+    owner.apply(realityConfig());
     owner.apply(realityConfig({ mode: 'light' }));
     expect(scene.getObjectByName('realityGround')?.visible).toBe(false);
     expect(camera.getObjectByName('realitySky')?.visible).toBe(false);
     expect((scene.background as THREE.Color).getHex()).toBe(0x0c1015);
+    expect(onFallback).not.toHaveBeenCalled();
+    owner.dispose();
+  });
+
+  it('reports an invalid sky only while Reality is active', () => {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera();
+    const onFallback = vi.fn();
+    const owner = new RealityEnvironmentOwner(scene, camera, {
+      loadTexture: vi.fn(async () => texture()),
+      scheduleRender: vi.fn(),
+      onFallback,
+    });
+
+    owner.apply(realityConfig({ mode: 'dark', skyPreset: 'invalid' as 'overworld-day' }));
+    expect(onFallback).not.toHaveBeenCalled();
+    owner.apply(realityConfig({ skyPreset: 'invalid' as 'overworld-day' }));
+    expect(onFallback).toHaveBeenCalledWith({
+      kind: 'sky',
+      requested: 'invalid',
+      fallback: 'overworld-day',
+    });
     owner.dispose();
   });
 });

@@ -16,6 +16,17 @@ export const REALITY_SKY_PRESETS = ['overworld-day', 'overworld-night', 'nether'
 
 export type RealitySkyPreset = (typeof REALITY_SKY_PRESETS)[number];
 
+export const REALITY_SKY_BACKGROUND_COLORS: Readonly<Record<RealitySkyPreset, string>> = {
+  'overworld-day': '#8bc8e7',
+  'overworld-night': '#101a35',
+  nether: '#501629',
+  end: '#21152f',
+};
+
+export function realitySkyBackgroundColor(preset: RealitySkyPreset): string {
+  return REALITY_SKY_BACKGROUND_COLORS[preset];
+}
+
 export interface RealityBackgroundPreferences {
   readonly groundPreset: RealityGroundPreset;
   readonly skyPreset: RealitySkyPreset;

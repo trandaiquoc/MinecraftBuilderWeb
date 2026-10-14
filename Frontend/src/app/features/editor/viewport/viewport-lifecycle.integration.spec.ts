@@ -8,6 +8,7 @@ import { ContentSourceRegistry } from '../../../core/assets/content-source/conte
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
+import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
 import { rendererBenchmarkProject } from '../../../core/renderer/benchmark/renderer-benchmark-fixtures';
 import { ViewportPreparationScheduler } from './shared/viewport-preparation-scheduler';
 import type { YLayerPrewarmTerminalNotification } from '../../../core/renderer/engine/viewport-engine-contracts';
@@ -33,6 +34,7 @@ function createAssetRuntimeStub() {
 describe('editor viewport engine teardown', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    localStorage.removeItem('the-block-laundromat.ui-preferences');
   });
 
   it('disposes the 3D engine once when the real viewport component is destroyed', async () => {
@@ -167,6 +169,62 @@ describe('editor viewport engine teardown', () => {
       fixture.componentRef.setInput('viewportActive', true);
       fixture.detectChanges();
       expect(mount).toHaveBeenCalledTimes(1);
+      fixture.destroy();
+    },
+  );
+
+  it.each([
+    ['3D', ViewportComponent],
+    ['Y-Layer', YLayerComponent],
+  ] as const)(
+    'restores the persisted Reality presets after Dark for the independent %s session',
+    async (_label, component) => {
+      const componentType = component as unknown as Type<unknown>;
+      const assets = createAssetRuntimeStub();
+      await TestBed.configureTestingModule({
+        imports: [componentType],
+        providers: [{ provide: ContentAssetRuntimeService, useValue: assets }],
+      })
+        .overrideComponent(componentType, { set: { template: '<div #host></div>' } })
+        .compileComponents();
+      vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => undefined);
+      vi.spyOn(ThreeViewportEngine.prototype, 'update').mockImplementation(() => undefined);
+      vi.spyOn(ThreeViewportEngine.prototype, 'dispose').mockImplementation(() => undefined);
+      const applyReality = vi
+        .spyOn(ThreeViewportEngine.prototype, 'setRealityEnvironment')
+        .mockImplementation(() => undefined);
+      const preferences = TestBed.inject(UiPreferencesService);
+      preferences.setAppearance({
+        editorBackground: 'reality',
+        reality: { groundPreset: 'sand', skyPreset: 'nether' },
+      });
+
+      const fixture = TestBed.createComponent(componentType);
+      fixture.detectChanges();
+      expect(applyReality.mock.calls.at(-1)?.[0]).toMatchObject({
+        mode: 'reality',
+        groundPreset: 'sand',
+        skyPreset: 'nether',
+      });
+      const staleFallback = applyReality.mock.calls.at(-1)?.[1];
+
+      preferences.setAppearance({ editorBackground: 'dark' });
+      fixture.detectChanges();
+      expect(preferences.preferences().appearance.reality).toEqual({
+        groundPreset: 'sand',
+        skyPreset: 'nether',
+      });
+      expect(applyReality.mock.calls.at(-1)?.[0]).toMatchObject({ mode: 'dark' });
+      staleFallback?.({ kind: 'ground', requested: 'sand', fallback: 'plains-grass' });
+      expect(preferences.preferences().appearance.reality.groundPreset).toBe('sand');
+
+      preferences.setAppearance({ editorBackground: 'reality' });
+      fixture.detectChanges();
+      expect(applyReality.mock.calls.at(-1)?.[0]).toMatchObject({
+        mode: 'reality',
+        groundPreset: 'sand',
+        skyPreset: 'nether',
+      });
       fixture.destroy();
     },
   );

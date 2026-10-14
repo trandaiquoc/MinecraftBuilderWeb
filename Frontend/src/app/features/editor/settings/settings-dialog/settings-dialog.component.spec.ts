@@ -1,0 +1,92 @@
+import { signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { afterEach, describe, expect, it } from 'vitest';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
+import {
+  REALITY_SKY_BACKGROUND_COLORS,
+  REALITY_SKY_PRESETS,
+} from '../../../../core/editor/appearance/editor-background-contract';
+import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
+import { SettingsDialogComponent } from './settings-dialog.component';
+
+interface SettingsAppearanceView {
+  setSection(section: 'appearance'): void;
+  groundOptions(): readonly {
+    id: string;
+    availability: string;
+    previewUrl: string | undefined;
+  }[];
+}
+
+describe('SettingsDialogComponent Reality previews', () => {
+  afterEach(() => localStorage.removeItem('the-block-laundromat.ui-preferences'));
+
+  it('uses actual ground resources, availability state, and the renderer sky palette', async () => {
+    localStorage.removeItem('the-block-laundromat.ui-preferences');
+    const generation = signal(0);
+    const resourceAvailabilitySettled = signal(false);
+    let sandTextureUrl: string | undefined;
+    const assetRuntime = {
+      generation,
+      resourceAvailabilitySettled,
+      sources: {
+        resources: {
+          textureUrl: (resource: string) =>
+            resource === 'minecraft:block/sand' ? sandTextureUrl : undefined,
+        },
+      },
+    };
+    await TestBed.configureTestingModule({
+      imports: [SettingsDialogComponent],
+      providers: [{ provide: ContentAssetRuntimeService, useValue: assetRuntime }],
+    }).compileComponents();
+
+    const preferences = TestBed.inject(UiPreferencesService);
+    preferences.setAppearance({
+      editorBackground: 'reality',
+      reality: { groundPreset: 'sand', skyPreset: 'nether' },
+    });
+    const fixture = TestBed.createComponent(SettingsDialogComponent);
+    const component = fixture.componentInstance as unknown as SettingsAppearanceView;
+    component.setSection('appearance');
+    fixture.detectChanges();
+
+    expect(component.groundOptions().find(({ id }) => id === 'sand')).toMatchObject({
+      availability: 'loading',
+      previewUrl: undefined,
+    });
+    const skyPreviews = Array.from(
+      fixture.nativeElement.querySelectorAll('.sky-preview') as NodeListOf<HTMLElement>,
+    );
+    expect(skyPreviews).toHaveLength(REALITY_SKY_PRESETS.length);
+    expect(
+      skyPreviews.map((preview) => preview.style.getPropertyValue('--reality-sky-background')),
+    ).toEqual(REALITY_SKY_PRESETS.map((preset) => REALITY_SKY_BACKGROUND_COLORS[preset]));
+    expect(
+      fixture.nativeElement
+        .querySelector('.reality-sky-grid .selected')
+        ?.getAttribute('aria-pressed'),
+    ).toBe('true');
+
+    sandTextureUrl = 'blob:sand-texture';
+    resourceAvailabilitySettled.set(true);
+    generation.set(1);
+    fixture.detectChanges();
+    const sandOption = fixture.nativeElement.querySelector(
+      '.reality-ground-grid .selected',
+    ) as HTMLButtonElement;
+    expect(sandOption.disabled).toBe(false);
+    expect(sandOption.querySelector('img')?.getAttribute('src')).toBe('blob:sand-texture');
+
+    sandOption.querySelector('img')?.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    const unavailableSand = fixture.nativeElement.querySelector(
+      '.reality-ground-grid .selected',
+    ) as HTMLButtonElement;
+    expect(unavailableSand.disabled).toBe(true);
+    expect(unavailableSand.classList.contains('unavailable')).toBe(true);
+    expect(unavailableSand.querySelector('small')).toBeTruthy();
+
+    fixture.destroy();
+  });
+});

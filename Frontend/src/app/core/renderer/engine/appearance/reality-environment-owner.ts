@@ -7,17 +7,11 @@ import {
   RealitySkyPreset,
   isRealityGroundPreset,
   isRealitySkyPreset,
+  realitySkyBackgroundColor,
 } from '../../../editor/appearance/editor-background-contract';
 
 const SKY_DISTANCE = 900;
 const GROUND_TILE_SIZE = 4;
-
-const skyColors: Record<RealitySkyPreset, number> = {
-  'overworld-day': 0x8bc8e7,
-  'overworld-night': 0x101a35,
-  nether: 0x501629,
-  end: 0x21152f,
-};
 
 export interface RealityEnvironmentConfiguration {
   readonly mode: EditorBackgroundMode;
@@ -49,7 +43,7 @@ export interface RealityEnvironmentOwnerPorts {
 }
 
 export function realitySkyBackground(preset: RealitySkyPreset): number {
-  return skyColors[preset];
+  return new THREE.Color(realitySkyBackgroundColor(preset)).getHex();
 }
 
 export class RealityEnvironmentOwner {
@@ -69,6 +63,7 @@ export class RealityEnvironmentOwner {
   private currentTexture?: THREE.Texture;
   private currentGroundRequestKey?: string;
   private appliedGroundRequestKey?: string;
+  private groundRequestGeneration = 0;
   private baseBackground = 0x0c1015;
   private groundWidth = 0;
   private groundDepth = 0;
@@ -114,16 +109,23 @@ export class RealityEnvironmentOwner {
 
   apply(configuration: RealityEnvironmentConfiguration): void {
     if (this.disposed) return;
+    const wasEnabled = this.enabled;
     this.enabled = configuration.mode === 'reality';
+    if (!this.enabled && wasEnabled) this.invalidateGroundRequest();
     this.ground.visible = this.enabled;
     this.skyRoot.visible = this.enabled;
+
+    if (!this.enabled) {
+      this.scene.background = new THREE.Color(this.baseBackground);
+      for (const group of Object.values(this.skyGroups)) group.visible = false;
+      this.ports.scheduleRender();
+      return;
+    }
 
     const skyPreset = isRealitySkyPreset(configuration.skyPreset)
       ? configuration.skyPreset
       : DEFAULT_REALITY_BACKGROUND.skyPreset;
-    this.scene.background = new THREE.Color(
-      this.enabled ? realitySkyBackground(skyPreset) : this.baseBackground,
-    );
+    this.scene.background = new THREE.Color(realitySkyBackground(skyPreset));
     for (const preset of Object.keys(this.skyGroups) as RealitySkyPreset[])
       this.skyGroups[preset].visible = this.enabled && preset === skyPreset;
     if (skyPreset !== configuration.skyPreset) {
@@ -141,6 +143,7 @@ export class RealityEnvironmentOwner {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.invalidateGroundRequest();
     this.scene.remove(this.ground);
     this.camera.remove(this.skyRoot);
     this.ground.geometry.dispose();
@@ -163,79 +166,100 @@ export class RealityEnvironmentOwner {
     const groundPreset = groundIsValid
       ? configuration.groundPreset
       : DEFAULT_REALITY_BACKGROUND.groundPreset;
-    if (!groundIsValid) {
-      this.notifyFallback(`ground:${configuration.groundPreset}:invalid`, {
-        kind: 'ground',
-        requested: String(configuration.groundPreset),
-        fallback: DEFAULT_REALITY_BACKGROUND.groundPreset,
-      });
+    const invalidGroundFallback = !groundIsValid
+      ? {
+          kind: 'ground' as const,
+          requested: String(configuration.groundPreset),
+          fallback: DEFAULT_REALITY_BACKGROUND.groundPreset,
+        }
+      : undefined;
+    if (invalidGroundFallback) {
+      this.notifyFallback(`ground:${configuration.groundPreset}:invalid`, invalidGroundFallback);
     }
     const requestedUrl =
       groundPreset === DEFAULT_REALITY_BACKGROUND.groundPreset
         ? BUNDLED_PLAINS_GRASS_TEXTURE
         : configuration.groundTextureUrl;
-    if (!requestedUrl) {
-      if (
-        groundPreset !== DEFAULT_REALITY_BACKGROUND.groundPreset &&
-        !configuration.resourcesReady
-      ) {
-        const pendingKey = `pending:${groundPreset}:${configuration.assetRevision}`;
-        if (this.currentGroundRequestKey === pendingKey) return;
-        this.currentGroundRequestKey = pendingKey;
-        this.showFallbackWhileLoading(pendingKey);
-        return;
+    const assetRevision =
+      groundPreset === DEFAULT_REALITY_BACKGROUND.groundPreset ? 0 : configuration.assetRevision;
+
+    if (!requestedUrl && groundPreset !== DEFAULT_REALITY_BACKGROUND.groundPreset) {
+      const requestKey = configuration.resourcesReady
+        ? `missing:${groundPreset}:${assetRevision}`
+        : `pending:${groundPreset}:${assetRevision}`;
+      if (this.currentGroundRequestKey === requestKey) return;
+      const requestGeneration = this.beginGroundRequest(requestKey);
+      this.showFallbackWhileLoading(requestKey, requestGeneration);
+      if (configuration.resourcesReady) {
+        this.notifyFallback(`ground:${groundPreset}:${assetRevision}:missing`, {
+          kind: 'ground',
+          requested: groundPreset,
+          fallback: DEFAULT_REALITY_BACKGROUND.groundPreset,
+        });
       }
-      this.useFallbackGround(`ground:${groundPreset}:missing`, groundPreset);
       return;
     }
 
-    const assetRevision =
-      groundPreset === DEFAULT_REALITY_BACKGROUND.groundPreset ? 0 : configuration.assetRevision;
     const requestKey = `${groundPreset}:${requestedUrl}:${assetRevision}`;
     if (this.currentGroundRequestKey === requestKey) return;
-    this.currentGroundRequestKey = requestKey;
-    this.showFallbackWhileLoading(requestKey);
+    const requestGeneration = this.beginGroundRequest(requestKey);
+    if (this.appliedGroundRequestKey === requestKey && this.currentTexture) return;
+    this.showFallbackWhileLoading(requestKey, requestGeneration);
     if (groundPreset === DEFAULT_REALITY_BACKGROUND.groundPreset) return;
-    void this.loadTexture(requestedUrl).then((texture) => {
-      if (this.disposed || this.currentGroundRequestKey !== requestKey) {
+
+    void this.loadTexture(requestedUrl!).then((texture) => {
+      if (!this.isCurrentGroundRequest(requestKey, requestGeneration)) {
         if (texture && texture !== this.fallbackTexture) texture.dispose();
         return;
       }
       if (!texture) {
-        this.useFallbackGround(`ground:${groundPreset}:${assetRevision}:invalid`, groundPreset);
+        this.showFallbackWhileLoading(requestKey, requestGeneration);
+        this.notifyFallback(`ground:${groundPreset}:${assetRevision}:invalid`, {
+          kind: 'ground',
+          requested: groundPreset,
+          fallback: DEFAULT_REALITY_BACKGROUND.groundPreset,
+        });
         return;
       }
       this.installGroundTexture(texture, requestKey);
     });
   }
 
-  private showFallbackWhileLoading(requestKey: string): void {
+  private beginGroundRequest(requestKey: string): number {
+    this.currentGroundRequestKey = requestKey;
+    this.groundRequestGeneration += 1;
+    return this.groundRequestGeneration;
+  }
+
+  private invalidateGroundRequest(): void {
+    this.currentGroundRequestKey = undefined;
+    this.groundRequestGeneration += 1;
+  }
+
+  private isCurrentGroundRequest(requestKey: string, generation: number): boolean {
+    return (
+      this.enabled &&
+      !this.disposed &&
+      this.currentGroundRequestKey === requestKey &&
+      this.groundRequestGeneration === generation
+    );
+  }
+
+  private showFallbackWhileLoading(requestKey: string, generation: number): void {
+    const fallbackTextureKey = `plains-grass:${BUNDLED_PLAINS_GRASS_TEXTURE}:0`;
     if (this.fallbackTexture) {
-      this.installGroundTexture(this.fallbackTexture, requestKey);
+      if (this.isCurrentGroundRequest(requestKey, generation))
+        this.installGroundTexture(this.fallbackTexture, fallbackTextureKey);
       return;
     }
     void this.loadFallbackTexture().then((texture) => {
       if (
         texture &&
-        !this.disposed &&
-        this.currentGroundRequestKey === requestKey &&
+        this.isCurrentGroundRequest(requestKey, generation) &&
         this.appliedGroundRequestKey !== requestKey
       )
-        this.installGroundTexture(texture, requestKey);
+        this.installGroundTexture(texture, fallbackTextureKey);
     });
-  }
-
-  private useFallbackGround(noticeKey: string, requested: string): void {
-    const requestKey = `plains-grass:${BUNDLED_PLAINS_GRASS_TEXTURE}:0`;
-    this.currentGroundRequestKey = requestKey;
-    this.showFallbackWhileLoading(requestKey);
-    if (requested !== DEFAULT_REALITY_BACKGROUND.groundPreset)
-      this.notifyFallback(noticeKey, {
-        kind: 'ground',
-        requested,
-        fallback: DEFAULT_REALITY_BACKGROUND.groundPreset,
-      });
-    this.ports.scheduleRender();
   }
 
   private installGroundTexture(texture: THREE.Texture, requestKey: string): void {
@@ -307,7 +331,7 @@ export class RealityEnvironmentOwner {
   }
 
   private notifyFallback(key: string, fallback: RealityEnvironmentFallback): void {
-    if (this.fallbackNotices.has(key) || this.disposed) return;
+    if (this.fallbackNotices.has(key) || this.disposed || !this.enabled) return;
     this.fallbackNotices.add(key);
     this.ports.onFallback(fallback);
   }
@@ -326,7 +350,7 @@ export class RealityEnvironmentOwner {
 
     const night = this.skyGroups['overworld-night'];
     this.addRect(night, 250, 160, 54, 54, 0xe8ebd2);
-    this.addRect(night, 270, 177, 46, 46, skyColors['overworld-night']);
+    this.addRect(night, 270, 177, 46, 46, realitySkyBackground('overworld-night'));
     for (const [x, y, size] of [
       [-320, 150, 3],
       [-210, 10, 2],
