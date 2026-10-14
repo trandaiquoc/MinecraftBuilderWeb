@@ -18,6 +18,9 @@ describe('viewport render signatures', () => {
     };
     expect(blockRenderSignature(block)).toContain('axis=x');
     expect(blockRenderSignature(block)).toContain('{"a":2,"z":1}');
+    expect(blockRenderSignature({ ...block, blockEntityData: { a: null, z: 1 } })).not.toBe(
+      blockRenderSignature({ ...block, blockEntityData: { z: 1 } }),
+    );
   });
 
   it('canonicalizes the render filter and separates isolate-only state', () => {

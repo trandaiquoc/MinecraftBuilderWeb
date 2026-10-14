@@ -14,6 +14,12 @@ describe('ItemVisualService', () => {
     };
 
     expect(stableVisualComponents(components)).toBe(stableValueKey(components));
+    expect(stableVisualComponents({ value: Infinity })).not.toBe(
+      stableVisualComponents({ value: null }),
+    );
+    expect(stableVisualComponents({ value: { a: 1, b: 2 } })).toBe(
+      stableVisualComponents({ value: { b: 2, a: 1 } }),
+    );
   });
 
   function setup() {

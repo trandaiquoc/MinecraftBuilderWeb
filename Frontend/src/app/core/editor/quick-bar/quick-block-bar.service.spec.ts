@@ -91,6 +91,7 @@ describe('quick block active state contract', () => {
       quickStateKey({ half: 'top', facing: 'north' }),
     );
     expect(quickStateKey({ a: 'x,b=y' })).not.toBe(quickStateKey({ a: 'x', b: 'y' }));
+    expect(quickStateKey({ axis: 'x' })).not.toBe(quickStateKey({ axis: 'y' }));
   });
 
   it('ignores malformed persisted entries without dropping valid neighboring slots', async () => {

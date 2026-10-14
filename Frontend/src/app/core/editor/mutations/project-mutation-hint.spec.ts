@@ -93,6 +93,12 @@ describe('project mutation hints', () => {
 
     expect(placedBlockValueEqual(left, right)).toBe(true);
     expect(placedBlockValueEqual(left, { ...right, blockEntityData: undefined })).toBe(false);
+    expect(
+      placedBlockValueEqual(
+        { ...left, blockEntityData: { custom: null } },
+        { ...left, blockEntityData: {} },
+      ),
+    ).toBe(false);
   });
 
   it('keeps a surviving neighbor out of delete inversion when its value is unchanged', () => {

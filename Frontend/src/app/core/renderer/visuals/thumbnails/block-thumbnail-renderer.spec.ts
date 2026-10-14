@@ -7,6 +7,41 @@ import { SpecialBlockVisualRegistry } from '../special-blocks/special-block-visu
 import { BlockThumbnailRenderer, thumbnailPreviewRotationY } from './block-thumbnail-renderer';
 
 describe('block thumbnail renderer', () => {
+  it('reuses cache entries for equivalent states and separates distinct states', async () => {
+    const renderer = new BlockThumbnailRenderer(
+      { readJson: () => undefined, readBinary: () => undefined } as any,
+      new SpecialBlockVisualRegistry(),
+      {
+        createBlockVisual: vi.fn(),
+        resolveBlockModel: vi.fn(),
+        resolveItemModel: vi.fn(),
+        createModelPart: vi.fn(),
+        loadTexture: vi.fn(),
+      },
+    );
+    const renderThumbnail = vi.fn(async () => 'blob:thumbnail');
+    (renderer as any).renderThumbnail = renderThumbnail;
+
+    const first = renderer.perspectiveThumbnail('minecraft:oak_stairs', {
+      facing: 'north',
+      half: 'top',
+    });
+    const equivalent = renderer.perspectiveThumbnail('minecraft:oak_stairs', {
+      half: 'top',
+      facing: 'north',
+    });
+    const distinct = renderer.perspectiveThumbnail('minecraft:oak_stairs', {
+      half: 'top',
+      facing: 'south',
+    });
+
+    expect(equivalent).toBe(first);
+    expect(distinct).not.toBe(first);
+    expect(renderThumbnail).toHaveBeenCalledTimes(2);
+    await Promise.all([first, distinct]);
+    renderer.dispose();
+  });
+
   it('does not render after disposal while waiting for block visuals', async () => {
     let resolveVisual!: (visual: any) => void;
     const createBlockVisual = vi.fn(() => new Promise<any>((resolve) => (resolveVisual = resolve)));
