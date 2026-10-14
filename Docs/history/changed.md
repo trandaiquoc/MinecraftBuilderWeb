@@ -5,10 +5,10 @@
 Frontend Angular runtime, CDK, CLI, build, and compiler packages were aligned
 to the stable 22.2.2 release line. This resolves the reported Angular Router,
 Angular CLI/MCP SDK, and Angular build/Piscina advisories; the lockfile also
-resolves `source-map-js` to a patched release. The frontend toolchain requires
-Node.js 22.22.3 or newer, or Node.js 24.15.0 or newer. Angular CLI's MCP server
-dependency is development-only; the application does not enable SSR or use an
-MCP OAuth client.
+resolves `source-map-js` to a patched release. The supported Node.js ranges are
+`^22.22.3 || ^24.15.0 || >=26.0.0`, matching Angular 22.2.2. Angular CLI's MCP
+server dependency is development-only; the application does not enable SSR or
+use an MCP OAuth client.
 
 > Historical decision log. This file is retained for project history only and
 > is not a current implementation source of truth. Use the canonical documents
