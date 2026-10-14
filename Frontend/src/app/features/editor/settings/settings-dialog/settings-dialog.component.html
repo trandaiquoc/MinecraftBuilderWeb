@@ -142,6 +142,93 @@
                 (selectionChange)="setEditorBackground($any($event))"
               />
             </label>
+            @if (draft().appearance.editorBackground === 'reality') {
+              <div class="reality-settings">
+                <div class="reality-heading">
+                  <h4>{{ i18n.t('realityEnvironment') }}</h4>
+                  <p>{{ i18n.t('realityEnvironmentDescription') }}</p>
+                </div>
+                <section class="reality-preset-section" aria-labelledby="reality-ground-title">
+                  <div class="reality-heading">
+                    <h5 id="reality-ground-title">{{ i18n.t('realityGround') }}</h5>
+                    <p>{{ i18n.t('realityGroundDescription') }}</p>
+                  </div>
+                  <div class="reality-option-grid reality-ground-grid">
+                    @for (option of groundOptions(); track option.id) {
+                      <button
+                        type="button"
+                        class="reality-option"
+                        [class.selected]="draft().appearance.reality.groundPreset === option.id"
+                        [class.unavailable]="option.availability === 'unavailable'"
+                        [class.loading]="option.availability === 'loading'"
+                        [disabled]="option.availability !== 'available'"
+                        [attr.aria-pressed]="draft().appearance.reality.groundPreset === option.id"
+                        (click)="setRealityGroundPreset(option.id)"
+                      >
+                        @if (option.previewUrl) {
+                          <img
+                            class="ground-preview"
+                            [src]="option.previewUrl"
+                            alt=""
+                            loading="lazy"
+                            (error)="markGroundPreviewUnavailable(option.id)"
+                          />
+                        } @else {
+                          <span
+                            class="ground-preview ground-preview-empty"
+                            aria-hidden="true"
+                          ></span>
+                        }
+                        <span class="reality-option-label">{{ option.label }}</span>
+                        @if (option.availability !== 'available') {
+                          <small>{{
+                            i18n.t(
+                              option.availability === 'loading'
+                                ? 'realityLoading'
+                                : 'realityUnavailable'
+                            )
+                          }}</small>
+                        }
+                      </button>
+                    }
+                  </div>
+                </section>
+                <section class="reality-preset-section" aria-labelledby="reality-sky-title">
+                  <div class="reality-heading">
+                    <h5 id="reality-sky-title">{{ i18n.t('realitySky') }}</h5>
+                    <p>{{ i18n.t('realitySkyDescription') }}</p>
+                  </div>
+                  <div class="reality-option-grid reality-sky-grid">
+                    @for (option of skyOptions(); track option.id) {
+                      <button
+                        type="button"
+                        class="reality-option"
+                        [class.selected]="draft().appearance.reality.skyPreset === option.id"
+                        [attr.aria-pressed]="draft().appearance.reality.skyPreset === option.id"
+                        [attr.aria-label]="option.label"
+                        (click)="setRealitySkyPreset(option.id)"
+                      >
+                        <span
+                          class="sky-preview"
+                          [class.sky-preview-day]="option.id === 'overworld-day'"
+                          [class.sky-preview-night]="option.id === 'overworld-night'"
+                          [class.sky-preview-nether]="option.id === 'nether'"
+                          [class.sky-preview-end]="option.id === 'end'"
+                          aria-hidden="true"
+                        >
+                          <span class="sky-sun"></span>
+                          <span class="sky-moon"></span>
+                          <span class="sky-cloud sky-cloud-one"></span>
+                          <span class="sky-cloud sky-cloud-two"></span>
+                          <span class="sky-horizon"></span>
+                        </span>
+                        <span class="reality-option-label">{{ option.label }}</span>
+                      </button>
+                    }
+                  </div>
+                </section>
+              </div>
+            }
             <button
               type="button"
               class="section-reset ui-button ui-button--ghost ui-button--sm"

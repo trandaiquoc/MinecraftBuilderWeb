@@ -32,6 +32,10 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().showStructureBlockGuide).toBe(true);
     expect(preferences.preferences().accessibility.blockBrightness).toBe(3);
     expect(preferences.preferences().appearance.font).toBe('comfortaa');
+    expect(preferences.preferences().appearance.reality).toEqual({
+      groundPreset: 'plains-grass',
+      skyPreset: 'overworld-day',
+    });
     expect(preferences.preferences().controls.zoomSensitivity).toBe(2);
     expect(preferences.preferences().controls.cameraMoveSpeed).toBe(15);
     expect(preferences.preferences().controls.verticalMoveSpeed).toBe(9);
@@ -43,6 +47,43 @@ describe('UiPreferencesService', () => {
     expect(JSON.parse(localStorage.getItem(key) ?? '{}')).toMatchObject({
       locale: 'vi',
       appearance: { preset: 'craft', editorBackground: 'light' },
+    });
+  });
+
+  it('preserves legacy editor backgrounds and normalizes Reality presets independently', () => {
+    localStorage.setItem(key, JSON.stringify({ appearance: { editorBackground: 'dark' } }));
+    expect(new UiPreferencesService().preferences().appearance.editorBackground).toBe('dark');
+
+    localStorage.setItem(key, JSON.stringify({ appearance: { editorBackground: 'light' } }));
+    const legacy = new UiPreferencesService();
+    expect(legacy.preferences().appearance.editorBackground).toBe('light');
+    expect(legacy.preferences().appearance.reality).toEqual({
+      groundPreset: 'plains-grass',
+      skyPreset: 'overworld-day',
+    });
+
+    legacy.setAppearance({
+      editorBackground: 'reality',
+      reality: { groundPreset: 'warped-nylium', skyPreset: 'nether' },
+    });
+    const restored = new UiPreferencesService();
+    expect(restored.preferences().appearance).toMatchObject({
+      editorBackground: 'reality',
+      reality: { groundPreset: 'warped-nylium', skyPreset: 'nether' },
+    });
+
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        appearance: {
+          editorBackground: 'reality',
+          reality: { groundPreset: 'missing', skyPreset: 'void' },
+        },
+      }),
+    );
+    expect(new UiPreferencesService().preferences().appearance).toMatchObject({
+      editorBackground: 'reality',
+      reality: { groundPreset: 'plains-grass', skyPreset: 'overworld-day' },
     });
   });
 
@@ -298,6 +339,7 @@ describe('UiPreferencesService', () => {
       font: 'chakra-petch',
       fontSize: 'large',
       editorBackground: 'light',
+      reality: { groundPreset: 'plains-grass', skyPreset: 'overworld-day' },
     });
     expect(JSON.parse(localStorage.getItem(key) ?? '{}').appearance.font).toBe('chakra-petch');
     expect(new UiPreferencesService().preferences().appearance.font).toBe('chakra-petch');

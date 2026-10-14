@@ -28,6 +28,11 @@ import { groupIdsOf, isBlockVisible } from '../../editor/groups/group-membership
 import { isDecorationVisible, decorationHasGroup } from '../../editor/groups/decoration-membership';
 import type { GroupMovePreview } from '../../editor/groups/group-move-planner';
 import { ViewportThemePalette, viewportThemePalette } from './appearance/viewport-theme';
+import {
+  RealityEnvironmentConfiguration,
+  RealityEnvironmentFallback,
+  RealityEnvironmentOwner,
+} from './appearance/reality-environment-owner';
 import type {
   BlockVisualProvider,
   BlockVisualResult,
@@ -339,6 +344,8 @@ export function viewportRenderSize(
 
 export class ThreeViewportEngine {
   private readonly scene = new THREE.Scene();
+  private readonly realityEnvironment: RealityEnvironmentOwner;
+  private realityFallbackHandler?: (fallback: RealityEnvironmentFallback) => void;
   private readonly blockIndexOwner: ViewportBlockIndexOwner;
   private readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
   private readonly raycaster = new THREE.Raycaster();
@@ -946,6 +953,11 @@ export class ThreeViewportEngine {
     readonly instrumentation = new RendererDiagnostics(),
     options: ViewportEngineOptions = {},
   ) {
+    this.realityEnvironment = new RealityEnvironmentOwner(this.scene, this.camera, {
+      loadTexture: (url) => new THREE.TextureLoader().loadAsync(url),
+      scheduleRender: () => this.scheduleRender(),
+      onFallback: (fallback) => this.realityFallbackHandler?.(fallback),
+    });
     this.blockIndexOwner = new ViewportBlockIndexOwner(
       (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
       options.blockLookup,
@@ -1552,6 +1564,7 @@ export class ThreeViewportEngine {
     this.scene.add(this.decorationGhostGroup);
     this.scene.add(this.decorationSelectionGroup);
     this.camera.position.set(12, 10, 12);
+    this.scene.add(this.camera);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
     this.controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
@@ -1757,7 +1770,7 @@ export class ThreeViewportEngine {
   applyTheme(palette: ViewportThemePalette): void {
     this.palette = palette;
     this.themeApplied = true;
-    this.scene.background = new THREE.Color(palette.background);
+    this.realityEnvironment.setBaseBackground(palette.background);
     this.blockGhostPresenter.applyTheme(palette);
     this.decorationGhostPresenter.applyTheme(palette);
     this.movePreviewPresenter.applyTheme(palette);
@@ -1785,6 +1798,14 @@ export class ThreeViewportEngine {
         );
     });
     this.scheduleRender();
+  }
+
+  setRealityEnvironment(
+    configuration: RealityEnvironmentConfiguration,
+    onFallback: (fallback: RealityEnvironmentFallback) => void,
+  ): void {
+    this.realityFallbackHandler = onFallback;
+    this.realityEnvironment.apply(configuration);
   }
 
   setBlockBrightness(value: number): void {
@@ -3620,6 +3641,9 @@ export class ThreeViewportEngine {
     const provider = this.visualProvider;
     this.cameraRenderPending = false;
     this.renderScheduler.dispose();
+    this.realityEnvironment.dispose();
+    this.realityFallbackHandler = undefined;
+    this.scene.remove(this.camera);
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
     this.terrainPipeline.dispose();
@@ -4206,6 +4230,7 @@ export class ThreeViewportEngine {
     if (boundsKey === this.cachedBoundsKey) return;
     this.cachedBoundsKey = boundsKey;
     this.instrumentation.record('projectBoundsRebuilds');
+    this.realityEnvironment.setGroundSize(size.x, size.z);
     const bounds = projectGridBounds(size);
     this.projectGrid?.geometry.dispose();
     (this.projectGrid?.material as THREE.Material | undefined)?.dispose();

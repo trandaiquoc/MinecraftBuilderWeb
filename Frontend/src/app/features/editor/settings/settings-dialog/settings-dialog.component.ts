@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnDestroy, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnDestroy, output, signal } from '@angular/core';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import {
   UiPreferences,
@@ -6,8 +6,18 @@ import {
   ThemePreset,
   UiFont,
   UiFontSize,
-  BaseTheme,
 } from '../../../../core/ui/preferences/ui-preferences.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
+import {
+  BUNDLED_PLAINS_GRASS_TEXTURE,
+  EditorBackgroundMode,
+  REALITY_GROUND_PRESETS,
+  REALITY_SKY_PRESETS,
+  RealityGroundPreset,
+  RealitySkyPreset,
+} from '../../../../core/editor/appearance/editor-background-contract';
+import { TranslationKey } from '../../../../core/ui/localization/translation-catalogs';
+import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import {
@@ -36,13 +46,18 @@ type SettingsSection = 'general' | 'appearance' | 'controls' | 'shortcuts' | 'ac
 })
 export class SettingsDialogComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
+  private readonly assets = inject(ContentAssetRuntimeService);
   protected readonly session = inject(SettingsDialogSession);
+  private readonly preferences = inject(UiPreferencesService);
   readonly closed = output<void>();
   protected readonly section = signal<SettingsSection>('general');
   protected readonly shortcutSearch = signal('');
   protected readonly mouseSearch = signal('');
   protected readonly shortcutTab = signal<'keyboard' | 'mouse'>('keyboard');
   protected readonly draft = this.session.draft;
+  private readonly syncRealityFallback = effect(() =>
+    this.session.syncPersistedReality(this.preferences.preferences().appearance.reality),
+  );
   protected readonly dirty = this.session.dirty;
   protected readonly capturingAction = this.session.capturingAction;
   protected readonly capturingMouseAction = this.session.capturingMouseAction;
@@ -73,7 +88,36 @@ export class SettingsDialogComponent implements OnDestroy {
   protected readonly editorBackgroundOptions = computed<readonly ThemedSelectOption[]>(() => [
     { id: 'dark', label: this.i18n.t('editorBackgroundDark') },
     { id: 'light', label: this.i18n.t('editorBackgroundLight') },
+    { id: 'reality', label: this.i18n.t('editorBackgroundReality') },
   ]);
+  protected readonly groundPreviewFailures = signal<ReadonlySet<RealityGroundPreset>>(new Set());
+  protected readonly groundOptions = computed(() => {
+    this.assets.generation();
+    return REALITY_GROUND_PRESETS.map((preset) => {
+      const textureUrl =
+        preset.id === 'plains-grass'
+          ? BUNDLED_PLAINS_GRASS_TEXTURE
+          : 'resource' in preset
+            ? this.assets.sources.resources.textureUrl(preset.resource)
+            : undefined;
+      const availability =
+        preset.id === 'plains-grass' || textureUrl
+          ? 'available'
+          : this.assets.resourceAvailabilitySettled()
+            ? 'unavailable'
+            : 'loading';
+      const previewFailed = this.groundPreviewFailures().has(preset.id);
+      return {
+        id: preset.id,
+        label: this.i18n.t(groundLabels[preset.id]),
+        previewUrl: previewFailed ? undefined : textureUrl,
+        availability: previewFailed && preset.id !== 'plains-grass' ? 'unavailable' : availability,
+      };
+    });
+  });
+  protected readonly skyOptions = computed(() =>
+    REALITY_SKY_PRESETS.map((id) => ({ id, label: this.i18n.t(skyLabels[id]) })),
+  );
   protected readonly controlFields = [
     { key: 'orbitSensitivity', min: 0.1, max: 3, step: 0.1, label: 'orbitSensitivity' },
     { key: 'panSensitivity', min: 0.1, max: 3, step: 0.1, label: 'panSensitivity' },
@@ -135,8 +179,22 @@ export class SettingsDialogComponent implements OnDestroy {
       ],
     );
   }
-  protected setEditorBackground(editorBackground: BaseTheme): void {
+  protected setEditorBackground(editorBackground: EditorBackgroundMode): void {
     this.session.setEditorBackground(editorBackground);
+  }
+  protected setRealityGroundPreset(preset: RealityGroundPreset): void {
+    if (
+      this.groundOptions().some(
+        (option) => option.id === preset && option.availability === 'available',
+      )
+    )
+      this.session.setRealityGroundPreset(preset);
+  }
+  protected setRealitySkyPreset(preset: RealitySkyPreset): void {
+    this.session.setRealitySkyPreset(preset);
+  }
+  protected markGroundPreviewUnavailable(preset: RealityGroundPreset): void {
+    this.groundPreviewFailures.update((current) => new Set(current).add(preset));
   }
   protected setBlockBrightness(value: string): void {
     this.session.setBlockBrightness(value);
@@ -328,3 +386,20 @@ export class SettingsDialogComponent implements OnDestroy {
     );
   }
 }
+
+const groundLabels: Record<RealityGroundPreset, TranslationKey> = {
+  'plains-grass': 'realityGroundPlainsGrass',
+  sand: 'realityGroundSand',
+  snow: 'realityGroundSnow',
+  netherrack: 'realityGroundNetherrack',
+  'warped-nylium': 'realityGroundWarpedNylium',
+  'crimson-nylium': 'realityGroundCrimsonNylium',
+  'end-stone': 'realityGroundEndStone',
+};
+
+const skyLabels: Record<RealitySkyPreset, TranslationKey> = {
+  'overworld-day': 'realitySkyOverworldDay',
+  'overworld-night': 'realitySkyOverworldNight',
+  nether: 'realitySkyNether',
+  end: 'realitySkyEnd',
+};

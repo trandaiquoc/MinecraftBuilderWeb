@@ -48,6 +48,35 @@ describe('ContentAssetRuntimeService content generation', () => {
     }
   });
 
+  it('waits for content restoration before treating JAR resources as unavailable', () => {
+    const service = TestBed.inject(ContentAssetRuntimeService);
+    const internal = service as unknown as {
+      statusState: { set(value: string): void };
+      contentRestoreState: {
+        set(value: { phase: string; current: number; total: number; failed: number }): void;
+      };
+    };
+
+    internal.statusState.set('ready');
+    internal.contentRestoreState.set({ phase: 'vanilla', current: 0, total: 0, failed: 0 });
+    expect(service.resourceAvailabilitySettled()).toBe(false);
+
+    internal.contentRestoreState.set({
+      phase: 'restoring-mods',
+      current: 0,
+      total: 1,
+      failed: 0,
+    });
+    expect(service.resourceAvailabilitySettled()).toBe(false);
+
+    internal.contentRestoreState.set({ phase: 'ready', current: 1, total: 1, failed: 0 });
+    expect(service.resourceAvailabilitySettled()).toBe(true);
+
+    internal.statusState.set('no-assets');
+    internal.contentRestoreState.set({ phase: 'vanilla', current: 0, total: 0, failed: 0 });
+    expect(service.resourceAvailabilitySettled()).toBe(true);
+  });
+
   it('advances generation before replacing provider state and invalidates thumbnail epoch', () => {
     const service = TestBed.inject(ContentAssetRuntimeService);
     const beforeEpoch = service.thumbnailEpoch();

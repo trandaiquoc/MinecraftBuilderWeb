@@ -15,6 +15,14 @@ import {
   normalizeExternalAiContentLimits,
 } from '../../persistence/structure-json/external-ai/external-ai-content-limits';
 import { DEFAULT_STRUCTURE_EXPORT_NAMESPACE } from '../../persistence/minecraft-structure/export/structure-export-contracts';
+import {
+  DEFAULT_REALITY_BACKGROUND,
+  EditorBackgroundMode,
+  RealityBackgroundPreferences,
+  isEditorBackgroundMode,
+  isRealityGroundPreset,
+  isRealitySkyPreset,
+} from '../../editor/appearance/editor-background-contract';
 
 export type UiLocale = 'en' | 'vi';
 export type ThemePreset = 'dark' | 'light' | 'craft' | 'raccoon' | 'custom';
@@ -41,7 +49,8 @@ export interface UiPreferences {
     readonly base: BaseTheme;
     readonly font: UiFont;
     readonly fontSize: UiFontSize;
-    readonly editorBackground: BaseTheme;
+    readonly editorBackground: EditorBackgroundMode;
+    readonly reality: RealityBackgroundPreferences;
   };
   readonly accessibility: {
     readonly blockBrightness: number;
@@ -91,6 +100,7 @@ const defaults: UiPreferences = {
     font: 'comfortaa',
     fontSize: 'normal',
     editorBackground: 'dark',
+    reality: DEFAULT_REALITY_BACKGROUND,
   },
   accessibility: { blockBrightness: 3 },
   controls: {
@@ -347,11 +357,14 @@ function normalize(value: unknown): UiPreferences {
       fontSize: isFontSize((appearance as Partial<UiPreferences['appearance']>).fontSize)
         ? (appearance as Partial<UiPreferences['appearance']>).fontSize!
         : defaults.appearance.fontSize,
-      editorBackground: isBase(
+      editorBackground: isEditorBackgroundMode(
         (appearance as Partial<UiPreferences['appearance']>).editorBackground,
       )
         ? (appearance as Partial<UiPreferences['appearance']>).editorBackground!
         : defaults.appearance.editorBackground,
+      reality: normalizeRealityBackground(
+        (appearance as Partial<UiPreferences['appearance']>).reality,
+      ),
     },
     accessibility: {
       blockBrightness: normalizeBlockBrightness(
@@ -463,6 +476,19 @@ function isPreset(value: unknown): value is ThemePreset {
 function isBase(value: unknown): value is BaseTheme {
   return value === 'dark' || value === 'light';
 }
+
+function normalizeRealityBackground(value: unknown): RealityBackgroundPreferences {
+  if (!value || typeof value !== 'object') return { ...DEFAULT_REALITY_BACKGROUND };
+  const candidate = value as Partial<RealityBackgroundPreferences>;
+  return {
+    groundPreset: isRealityGroundPreset(candidate.groundPreset)
+      ? candidate.groundPreset
+      : DEFAULT_REALITY_BACKGROUND.groundPreset,
+    skyPreset: isRealitySkyPreset(candidate.skyPreset)
+      ? candidate.skyPreset
+      : DEFAULT_REALITY_BACKGROUND.skyPreset,
+  };
+}
 function normalizeFont(value: unknown): UiFont {
   if (value === 'geist') return 'comfortaa';
   if (value === 'minecraft-style') return 'chakra-petch';
@@ -544,7 +570,7 @@ function normalizeStructureExport(value: unknown): StructureExportPreferences {
 function clonePreferences(value: UiPreferences): UiPreferences {
   return {
     ...value,
-    appearance: { ...value.appearance },
+    appearance: { ...value.appearance, reality: { ...value.appearance.reality } },
     structureExport: { ...value.structureExport },
     accessibility: { ...value.accessibility },
     controls: { ...value.controls },

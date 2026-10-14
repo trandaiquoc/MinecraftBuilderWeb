@@ -12,6 +12,12 @@ import {
   blockBrightnessStopPercent,
 } from '../../../../core/ui/preferences/ui-preferences.service';
 import {
+  EditorBackgroundMode,
+  RealityBackgroundPreferences,
+  RealityGroundPreset,
+  RealitySkyPreset,
+} from '../../../../core/editor/appearance/editor-background-contract';
+import {
   KEYBOARD_ACTIONS,
   KeyboardAction,
   bindingFromKeyboardEvent,
@@ -44,6 +50,7 @@ export class SettingsDialogSession {
     private readonly i18n: I18nService,
   ) {
     const initial = this.readDraft();
+    this.persistedReality = { ...initial.appearance.reality };
     this.baseline = signal(initial);
     this.draft = signal(initial);
     this.dirty = computed(() => JSON.stringify(this.draft()) !== JSON.stringify(this.baseline()));
@@ -54,6 +61,7 @@ export class SettingsDialogSession {
   }
 
   private readonly baseline: WritableSignal<SettingsDraft>;
+  private persistedReality: RealityBackgroundPreferences;
   readonly draft: WritableSignal<SettingsDraft>;
   readonly dirty: Signal<boolean>;
   readonly shortcutConflicts: Signal<ReturnType<typeof findBindingConflicts>>;
@@ -82,8 +90,53 @@ export class SettingsDialogSession {
   setFontSize(fontSize: UiFontSize): void {
     this.updateDraft({ appearance: { ...this.draft().appearance, fontSize } });
   }
-  setEditorBackground(editorBackground: BaseTheme): void {
+  setEditorBackground(editorBackground: EditorBackgroundMode): void {
     this.updateDraft({ appearance: { ...this.draft().appearance, editorBackground } });
+  }
+
+  setRealityGroundPreset(groundPreset: RealityGroundPreset): void {
+    this.updateDraft({
+      appearance: {
+        ...this.draft().appearance,
+        reality: { ...this.draft().appearance.reality, groundPreset },
+      },
+    });
+  }
+
+  setRealitySkyPreset(skyPreset: RealitySkyPreset): void {
+    this.updateDraft({
+      appearance: {
+        ...this.draft().appearance,
+        reality: { ...this.draft().appearance.reality, skyPreset },
+      },
+    });
+  }
+
+  syncPersistedReality(reality: RealityBackgroundPreferences): void {
+    const previous = this.persistedReality;
+    if (reality.groundPreset === previous.groundPreset && reality.skyPreset === previous.skyPreset)
+      return;
+    this.persistedReality = { ...reality };
+    this.baseline.update((current) => ({
+      ...current,
+      appearance: { ...current.appearance, reality: { ...reality } },
+    }));
+    this.draft.update((current) => ({
+      ...current,
+      appearance: {
+        ...current.appearance,
+        reality: {
+          groundPreset:
+            current.appearance.reality.groundPreset === previous.groundPreset
+              ? reality.groundPreset
+              : current.appearance.reality.groundPreset,
+          skyPreset:
+            current.appearance.reality.skyPreset === previous.skyPreset
+              ? reality.skyPreset
+              : current.appearance.reality.skyPreset,
+        },
+      },
+    }));
   }
 
   setBlockBrightness(value: string): void {
@@ -228,7 +281,11 @@ export class SettingsDialogSession {
       locale: draft.locale,
       autoUseHugeStructureBlocks: draft.autoUseHugeStructureBlocks,
       showStructureBlockGuide: draft.showStructureBlockGuide,
-      appearance: { ...this.preferences.preferences().appearance, ...draft.appearance },
+      appearance: {
+        ...this.preferences.preferences().appearance,
+        ...draft.appearance,
+        reality: { ...draft.appearance.reality },
+      },
       accessibility: { ...draft.accessibility },
       controls: { ...draft.controls },
       shortcuts: { ...draft.shortcuts },
@@ -273,7 +330,14 @@ export class SettingsDialogSession {
     this.draft.update((current) => ({
       ...current,
       ...patch,
-      appearance: { ...current.appearance, ...(patch.appearance ?? {}) },
+      appearance: {
+        ...current.appearance,
+        ...(patch.appearance ?? {}),
+        reality: {
+          ...current.appearance.reality,
+          ...(patch.appearance?.reality ?? {}),
+        },
+      },
       accessibility: { ...current.accessibility, ...(patch.accessibility ?? {}) },
       controls: { ...current.controls, ...(patch.controls ?? {}) },
       shortcuts: { ...current.shortcuts, ...(patch.shortcuts ?? {}) },
@@ -283,6 +347,7 @@ export class SettingsDialogSession {
 
   private resetDraftFromPreferences(): void {
     const current = this.readDraft();
+    this.persistedReality = { ...current.appearance.reality };
     this.baseline.set(current);
     this.draft.set(current);
   }
@@ -293,7 +358,7 @@ export class SettingsDialogSession {
       locale: current.locale,
       autoUseHugeStructureBlocks: current.autoUseHugeStructureBlocks,
       showStructureBlockGuide: current.showStructureBlockGuide,
-      appearance: { ...current.appearance },
+      appearance: { ...current.appearance, reality: { ...current.appearance.reality } },
       accessibility: { ...current.accessibility },
       controls: { ...current.controls },
       shortcuts: { ...current.shortcuts },

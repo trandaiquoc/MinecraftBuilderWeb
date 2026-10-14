@@ -111,6 +111,239 @@
   margin: 0;
   font: 1rem/1.2 var(--font-ui);
 }
+.reality-settings {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+.settings-content .reality-preset-section {
+  display: grid;
+  gap: 0.45rem;
+}
+.reality-heading {
+  display: grid;
+  gap: 0.2rem;
+}
+.reality-heading h4,
+.reality-heading h5,
+.reality-heading p {
+  margin: 0;
+}
+.reality-heading h4 {
+  color: var(--text);
+  font: 0.88rem/1.25 var(--font-ui);
+}
+.reality-heading h5 {
+  color: var(--text);
+  font: 0.78rem/1.25 var(--font-ui);
+}
+.reality-heading p {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+.reality-option-grid {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.reality-sky-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.reality-option {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--control-normal);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.12);
+}
+.reality-option:hover:not(:disabled) {
+  background: var(--control-hover);
+}
+.reality-option.selected {
+  border-color: var(--focus-color);
+  background: var(--surface-selected);
+  box-shadow:
+    inset 0 0 0 1px var(--focus-color),
+    0 2px 0 rgb(0 0 0 / 0.12);
+}
+.reality-option:focus-visible {
+  outline: 2px solid var(--focus-color);
+  outline-offset: 2px;
+}
+.reality-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.ground-preview,
+.sky-preview {
+  display: block;
+  width: 100%;
+  height: 2.8rem;
+  overflow: hidden;
+  border-radius: calc(var(--radius-sm) - 1px);
+}
+.ground-preview {
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+.ground-preview-empty {
+  background-color: var(--surface-hover);
+}
+.reality-option-label {
+  overflow: hidden;
+  padding: 0 0.15rem;
+  color: var(--text);
+  font-size: 0.68rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reality-option small {
+  padding: 0 0.15rem 0.1rem;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+.sky-preview {
+  position: relative;
+  isolation: isolate;
+}
+.sky-preview::before,
+.sky-preview::after,
+.sky-horizon {
+  position: absolute;
+  z-index: -1;
+  content: '';
+}
+.sky-preview-day {
+  background: #84c7e9;
+}
+.sky-preview-night {
+  background-color: #101a35;
+  background-image:
+    radial-gradient(2px 2px at 15% 24%, #f7f0c7 50%, transparent 55%),
+    radial-gradient(2px 2px at 38% 18%, #f7f0c7 50%, transparent 55%),
+    radial-gradient(2px 2px at 78% 30%, #f7f0c7 50%, transparent 55%),
+    radial-gradient(2px 2px at 58% 58%, #f7f0c7 50%, transparent 55%);
+}
+.sky-preview-nether {
+  background: #501629;
+}
+.sky-preview-end {
+  background-color: #21152f;
+  background-image:
+    radial-gradient(2px 2px at 21% 28%, #d7b6f5 50%, transparent 55%),
+    radial-gradient(2px 2px at 67% 20%, #d7b6f5 50%, transparent 55%),
+    radial-gradient(2px 2px at 84% 48%, #d7b6f5 50%, transparent 55%);
+}
+.sky-sun,
+.sky-moon,
+.sky-cloud,
+.sky-horizon {
+  position: absolute;
+  display: block;
+}
+.sky-sun,
+.sky-moon {
+  top: 0.45rem;
+  right: 0.6rem;
+  width: 0.85rem;
+  height: 0.85rem;
+}
+.sky-sun {
+  background: #ffe28a;
+  box-shadow: 0 0 0 0.18rem rgb(255 226 138 / 0.2);
+}
+.sky-moon {
+  background: #eef0d2;
+  box-shadow: -0.22rem 0.08rem 0 #101a35;
+}
+.sky-cloud {
+  width: 1.7rem;
+  height: 0.4rem;
+  background: #f0f5ec;
+  box-shadow:
+    0.4rem -0.25rem 0 -0.05rem #f0f5ec,
+    0.8rem 0 0 -0.04rem #f0f5ec;
+}
+.sky-cloud-one {
+  top: 1rem;
+  left: 0.65rem;
+}
+.sky-cloud-two {
+  top: 1.75rem;
+  left: 2.6rem;
+  transform: scale(0.72);
+}
+.sky-preview-night .sky-sun,
+.sky-preview-night .sky-cloud,
+.sky-preview-nether .sky-sun,
+.sky-preview-nether .sky-moon,
+.sky-preview-nether .sky-cloud,
+.sky-preview-end .sky-sun,
+.sky-preview-end .sky-moon,
+.sky-preview-end .sky-cloud {
+  display: none;
+}
+.sky-preview-night .sky-moon {
+  display: block;
+}
+.sky-preview-nether::before {
+  top: 1.1rem;
+  left: 0.7rem;
+  width: 2rem;
+  height: 0.65rem;
+  background: #b5312e;
+  box-shadow:
+    2.15rem 0.65rem 0 #d54c29,
+    4.6rem 0.05rem 0 #9c2d35;
+}
+.sky-preview-nether .sky-horizon {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0.38rem;
+  background: #d6572f;
+}
+.sky-preview-end::before {
+  top: 1.1rem;
+  left: 1.2rem;
+  width: 2rem;
+  height: 0.3rem;
+  background: #41324a;
+  box-shadow:
+    1.3rem 0.55rem 0 #41324a,
+    -0.7rem 1rem 0 #41324a;
+}
+.sky-preview-end .sky-horizon {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0.3rem;
+  background: #403044;
+}
+.sky-preview-day .sky-horizon {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0.35rem;
+  background: #75a955;
+}
+.sky-preview-night .sky-horizon {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0.32rem;
+  background: #26364b;
+}
 .settings-content label {
   display: grid;
   gap: 0.35rem;

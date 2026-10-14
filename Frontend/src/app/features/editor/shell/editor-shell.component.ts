@@ -12,6 +12,7 @@ import { NgOptimizedImage } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
+import { EditorBackgroundMode } from '../../../core/editor/appearance/editor-background-contract';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { BlockBrowserComponent } from '../blocks/block-browser.component';
 import { DecorationBrowserComponent } from '../decorations/decoration-browser.component';
@@ -374,7 +375,7 @@ export class EditorShellComponent implements OnDestroy {
     this.theme.setPreset(theme);
     this.closeMenus();
   }
-  protected chooseEditorBackground(background: 'dark' | 'light'): void {
+  protected chooseEditorBackground(background: EditorBackgroundMode): void {
     this.theme.setEditorBackground(background);
     this.closeMenus();
   }

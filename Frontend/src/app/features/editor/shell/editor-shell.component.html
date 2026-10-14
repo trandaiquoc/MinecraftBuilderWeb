@@ -315,7 +315,14 @@
                   (click)="chooseEditorBackground('light')"
                 >
                   {{ theme.editorBackground() === 'light' ? '✓ ' : ''
-                  }}{{ i18n.t('editorBackgroundLight') }}
+                  }}{{ i18n.t('editorBackgroundLight') }}</button
+                ><button
+                  type="button"
+                  [class.active]="theme.editorBackground() === 'reality'"
+                  (click)="chooseEditorBackground('reality')"
+                >
+                  {{ theme.editorBackground() === 'reality' ? '✓ ' : ''
+                  }}{{ i18n.t('editorBackgroundReality') }}
                 </button>
               </div>
             }

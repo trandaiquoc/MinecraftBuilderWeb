@@ -35,17 +35,21 @@ can each be selected independently of all four themes. Small, Normal, and Large
 font sizes scale the shared UI typography. New preferences and Appearance reset
 to Minecraft (`craft`), Comfortaa, and a Dark workspace background. Existing
 saved preferences are retained; legacy Geist and Minecraft-style font values
-migrate to Comfortaa and Chakra Petch when preferences are normalized.
+migrate to Comfortaa and Chakra Petch when preferences are normalized. Reality's
+separate preset defaults are plains grass and Overworld day.
 
-The editor workspace background remains an independent Dark/Light preference;
-it controls the 3D and Y-Layer renderer palette without changing application
-chrome. Colorful is a later phase. Workspace background changes apply directly,
+The editor workspace background remains independent of application chrome and
+supports Dark, Light, and Reality. Reality combines a separately selected ground
+texture with an Overworld day/night, Nether, or End sky; its ground is
+presentation-only and never enters project data. Dark/Light continue to use
+their existing renderer palettes. Workspace background changes apply directly,
 without a scene-transition animation.
 
 Workspace application colors follow the canonical four-theme [Workspace Color
 Palette V1](design/workspace-color-palette.md). That palette is scoped to the
 editor workspace and its overlays; the Project Screen keeps its existing color
-tokens. The renderer's Dark/Light background remains independent of both.
+tokens. The renderer's Dark/Light/Reality environment remains independent of
+both; Reality atmosphere colors and preset assets are owned by the renderer.
 
 ## Homepage Concept
 
@@ -96,5 +100,4 @@ second database while retaining the originals. The checked-in public schema
 keeps its established `$id`; no new public domain has been assigned.
 
 This foundation documents the current branding and compatibility boundaries. It
-does not add the Colorful workspace, redesign the homepage, or add
-account/backend behavior.
+does not redesign the homepage or add account/backend behavior.

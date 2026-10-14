@@ -218,8 +218,11 @@ Keep technical identifiers such as Minecraft registry IDs untranslated.
 The application supports four independent application themes: Minecraft, Light,
 Raccoon, and Dark. The persisted internal key for Minecraft remains `craft`.
 It also supports Comfortaa, Chakra Petch, and Pangolin independently of theme.
-Workspace background is a separate Dark/Light preference and owns the 3D and
-Y-Layer renderer palette.
+Workspace background is a separate Dark/Light/Reality preference and owns the
+3D and Y-Layer renderer environment. Reality persists independent ground and
+sky presets; its tiled ground is presentation-only and never enters project
+data. Appearance reset continues to select the Dark workspace background.
+The default Reality presets are plains grass and Overworld day.
 
 New/reset appearance defaults are Minecraft (`craft`), Comfortaa, Normal font
 size, and Dark workspace background. Legacy `geist` and `minecraft-style`

@@ -8,9 +8,9 @@
 - Four homepage / outside-theme concepts and their artwork remain unchanged. The palette below applies to the editor Workspace chrome (header, sidebar, toolbars, panels, dialogs, menus, forms, status bar and overlays opened from Workspace). Do not recolor the Project Screen / homepage merely because global tokens happen to be shared.
 - Keep all four existing theme identities and persistence keys, including internal `craft` for Minecraft and `raccoon` for Raccoon. Preserve Settings behavior and EN/VI labels.
 - Preserve the accepted font system (Comfortaa, Chakra Petch, Pangolin), font sizes and font/theme independence. No new fonts or typography redesign.
-- The 3D and Y-Layer **renderer background** is a separate Dark / Light user preference. Never infer or reset it from application theme; do not recolor blocks, grid, selection, scene background, or add Colorful here.
+- The 3D and Y-Layer **renderer background** is a separate Dark / Light / Reality user preference. Never infer or reset it from application theme. Reality owns its sky and presentation-only tiled ground and may tune grid readability; it never recolors placed blocks or enters project data. This UI palette document does not own renderer environment colors.
 - These UI colors should feel connected to the corresponding outside concept: Minecraft = stone/grass/oak; Light = paper/slate; Raccoon = warm ash/dusk lamps; Dark = moonlit navy.
-- Flat, restrained visual design; keep layout, component behavior and responsive behavior unchanged. Gradients, textures, shadows and decoration are not part of this color approval.
+- Flat, restrained visual design; keep layout, component behavior and responsive behavior unchanged. Gradients, textures, shadows and decoration are not part of this UI color approval. The renderer-owned Reality environment is a separate feature and is not governed by this palette.
 
 ## Canonical palette values
 

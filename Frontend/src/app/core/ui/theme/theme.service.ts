@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { Injectable, computed, effect, inject } from '@angular/core';
 import { ThemePreset, UiFont, UiPreferencesService } from '../preferences/ui-preferences.service';
+import { EditorBackgroundMode } from '../../editor/appearance/editor-background-contract';
 
 export type Theme = 'light' | 'dark' | 'craft' | 'raccoon';
 
@@ -69,7 +70,7 @@ export class ThemeService {
     this.preferences.setAppearance({ font });
   }
 
-  setEditorBackground(background: 'dark' | 'light'): void {
+  setEditorBackground(background: EditorBackgroundMode): void {
     this.preferences.setAppearance({ editorBackground: background });
   }
 
@@ -78,11 +79,12 @@ export class ThemeService {
     base: 'dark' | 'light',
     font: UiFont,
     fontSize: 'small' | 'normal' | 'large',
-    editorBackground: 'dark' | 'light',
+    editorBackground: EditorBackgroundMode,
   ): void {
     this.document.documentElement.dataset['theme'] = preset === 'custom' ? base : preset;
     this.document.documentElement.dataset['font'] = font;
     this.document.documentElement.dataset['fontSize'] = fontSize;
+    this.document.documentElement.dataset['editorBackground'] = editorBackground;
     const rootSizes = { small: '14px', normal: '16px', large: '18px' } as const;
     const metrics = fontMetrics[font];
     this.document.documentElement.style.setProperty('--font-root-size', rootSizes[fontSize]);
@@ -93,7 +95,11 @@ export class ThemeService {
     this.document.documentElement.style.setProperty('--line-height-control', metrics.control);
     this.document.documentElement.style.setProperty(
       '--editor-viewport-bg',
-      editorBackground === 'light' ? '#e3e8ee' : '#0c1015',
+      editorBackground === 'light'
+        ? '#e3e8ee'
+        : editorBackground === 'reality'
+          ? '#8bc8e7'
+          : '#0c1015',
     );
   }
 }

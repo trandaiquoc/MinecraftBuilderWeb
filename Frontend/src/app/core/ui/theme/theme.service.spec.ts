@@ -410,6 +410,23 @@ describe('ThemeService font state', () => {
     expect(document.documentElement.style.getPropertyValue('--editor-viewport-bg')).toBe('#e3e8ee');
   });
 
+  it('persists Reality as an editor background independently of the application theme', () => {
+    const theme = TestBed.inject(ThemeService);
+    const preferences = TestBed.inject(UiPreferencesService);
+    const document = TestBed.inject(DOCUMENT);
+    theme.setPreset('raccoon');
+    theme.setEditorBackground('reality');
+    TestBed.flushEffects();
+    expect(theme.theme()).toBe('raccoon');
+    expect(theme.editorBackground()).toBe('reality');
+    expect(preferences.preferences().appearance.reality).toEqual({
+      groundPreset: 'plains-grass',
+      skyPreset: 'overworld-day',
+    });
+    expect(document.documentElement.dataset['editorBackground']).toBe('reality');
+    expect(document.documentElement.style.getPropertyValue('--editor-viewport-bg')).toBe('#8bc8e7');
+  });
+
   it('applies custom legacy theme appearance through its selected base', () => {
     const theme = TestBed.inject(ThemeService);
     const preferences = TestBed.inject(UiPreferencesService);

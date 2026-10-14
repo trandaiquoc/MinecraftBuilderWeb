@@ -17,6 +17,27 @@ import { ViewportStatusService } from '../../../../core/editor/viewport/viewport
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
+import {
+  BUNDLED_PLAINS_GRASS_TEXTURE,
+  REALITY_GROUND_PRESETS,
+} from '../../../../core/editor/appearance/editor-background-contract';
+import { RealityEnvironmentFallback } from '../../../../core/renderer/engine/appearance/reality-environment-owner';
+
+export function synchronizeRealityPreferenceFallback(
+  preferences: UiPreferencesService,
+  fallback: RealityEnvironmentFallback,
+): void {
+  const appearance = preferences.preferences().appearance;
+  if (fallback.kind === 'ground' && appearance.reality.groundPreset === fallback.requested) {
+    preferences.setAppearance({
+      reality: { ...appearance.reality, groundPreset: fallback.fallback },
+    });
+  } else if (fallback.kind === 'sky' && appearance.reality.skyPreset === fallback.requested) {
+    preferences.setAppearance({
+      reality: { ...appearance.reality, skyPreset: fallback.fallback },
+    });
+  }
+}
 
 /** Owns the lifecycle/effect composition shared by retained 3D and Y-layer viewports. */
 export class ViewportSessionOwner {
@@ -44,6 +65,8 @@ export class ViewportSessionOwner {
     this.itemVisuals.request(item, 'high').then((info) => info.previewUrls[0]);
   private readonly paintingTextureResolver = (id: string) =>
     this.paintingCatalog.get(id)?.assetPath;
+  private readonly realityFallbackHandler = (fallback: RealityEnvironmentFallback) =>
+    synchronizeRealityPreferenceFallback(this.preferences, fallback);
   readonly hydrationOwner;
   readonly viewportStatusOwner;
   private readonly progressUnsubscribe: () => void;
@@ -77,6 +100,31 @@ export class ViewportSessionOwner {
       }),
       effect(() => {
         this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground()));
+      }),
+      effect(() => {
+        const appearance = this.preferences.preferences().appearance;
+        const assetRevision = this.assets.generation();
+        const resourcesReady = this.assets.resourceAvailabilitySettled();
+        const ground = REALITY_GROUND_PRESETS.find(
+          (preset) => preset.id === appearance.reality.groundPreset,
+        );
+        const groundTextureUrl =
+          ground?.id === 'plains-grass'
+            ? BUNDLED_PLAINS_GRASS_TEXTURE
+            : ground && 'resource' in ground
+              ? this.assets.sources.resources.textureUrl(ground.resource)
+              : undefined;
+        this.engine.setRealityEnvironment(
+          {
+            mode: appearance.editorBackground,
+            groundPreset: appearance.reality.groundPreset,
+            groundTextureUrl,
+            assetRevision,
+            resourcesReady,
+            skyPreset: appearance.reality.skyPreset,
+          },
+          this.realityFallbackHandler,
+        );
       }),
       effect(() => {
         const preferences = this.preferences.effectivePreferences();

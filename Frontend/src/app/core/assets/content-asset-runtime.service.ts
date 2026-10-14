@@ -148,6 +148,20 @@ export class ContentAssetRuntimeService {
   readonly contentReady = computed(
     () => this.contentRestore().phase === 'ready' || this.contentRestore().phase === 'partial',
   );
+  readonly resourceAvailabilitySettled = computed(() => {
+    const status = this.status();
+    const restorePhase = this.contentRestore().phase;
+    if (status === 'loading-cache' || status === 'downloading' || status === 'importing')
+      return false;
+    if (restorePhase === 'restoring-mods' || (status === 'ready' && restorePhase === 'vanilla'))
+      return false;
+    return (
+      restorePhase === 'ready' ||
+      restorePhase === 'partial' ||
+      restorePhase === 'error' ||
+      status !== 'ready'
+    );
+  });
   readonly activeVersion = this.activeVersionState.asReadonly();
   readonly downloadProgress = this.downloadProgressState.asReadonly();
   readonly message = this.messageState.asReadonly();

@@ -11,6 +11,7 @@ describe('SettingsDialogSession', () => {
 
   beforeEach(() => {
     dialogs.confirm.mockReset().mockResolvedValue(false);
+    localStorage.removeItem('the-block-laundromat.ui-preferences');
     preferences = new UiPreferencesService();
     session = new SettingsDialogSession(
       preferences,
@@ -55,6 +56,54 @@ describe('SettingsDialogSession', () => {
       fontSize: 'large',
       editorBackground: 'light',
     });
+  });
+
+  it('applies independent Reality presets and keeps the latest Apply as the cancel baseline', async () => {
+    session.setEditorBackground('reality');
+    session.setRealityGroundPreset('sand');
+    session.setRealitySkyPreset('overworld-night');
+    expect(session.apply()).toBe(true);
+    expect(preferences.preferences().appearance).toMatchObject({
+      editorBackground: 'reality',
+      reality: { groundPreset: 'sand', skyPreset: 'overworld-night' },
+    });
+
+    session.setRealityGroundPreset('snow');
+    session.setRealitySkyPreset('nether');
+    dialogs.confirm.mockResolvedValueOnce(true);
+    expect(await session.requestClose()).toBe(true);
+    expect(preferences.preferences().appearance.reality).toEqual({
+      groundPreset: 'sand',
+      skyPreset: 'overworld-night',
+    });
+  });
+
+  it('restores Appearance defaults to Dark while preserving the Reality default pair', () => {
+    session.setEditorBackground('reality');
+    session.setRealityGroundPreset('end-stone');
+    session.setRealitySkyPreset('end');
+    session.restoreAppearanceDefaults();
+    expect(session.draft().appearance.editorBackground).toBe('dark');
+    expect(session.draft().appearance.reality).toEqual({
+      groundPreset: 'plains-grass',
+      skyPreset: 'overworld-day',
+    });
+  });
+
+  it('syncs persisted Reality fallbacks without overwriting an in-progress preset edit', () => {
+    session.setRealityGroundPreset('sand');
+    expect(session.draft().appearance.reality.groundPreset).toBe('sand');
+    preferences.setAppearance({
+      reality: { groundPreset: 'snow', skyPreset: 'nether' },
+    });
+    expect(session.draft().appearance.reality.groundPreset).toBe('sand');
+    session.syncPersistedReality(preferences.preferences().appearance.reality);
+
+    expect(session.draft().appearance.reality).toEqual({
+      groundPreset: 'sand',
+      skyPreset: 'nether',
+    });
+    expect(session.dirty()).toBe(true);
   });
 
   it('rejects Apply while keyboard or mouse bindings conflict', () => {

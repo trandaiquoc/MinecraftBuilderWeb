@@ -1,4 +1,4 @@
-export type ViewportThemeMode = 'light' | 'dark';
+export type ViewportThemeMode = 'light' | 'dark' | 'reality';
 
 export interface ViewportThemePalette {
   background: number;
@@ -51,6 +51,24 @@ const lightPalette: ViewportThemePalette = {
   unknown: 0x6546a3,
 };
 
+const realityPalette: ViewportThemePalette = {
+  background: 0x8bc8e7,
+  grid: 0x536b3a,
+  editingGrid: 0x263d31,
+  bounds: 0xf5e9a8,
+  block: 0x395d46,
+  missingBlock: 0x9a4a59,
+  referenceBlock: 0x657f87,
+  selection: 0xf47b20,
+  group: 0x2578ac,
+  lockedGroup: 0x914414,
+  valid: 0x176a3d,
+  invalid: 0xb52032,
+  warning: 0x7e4c07,
+  unknown: 0x64459d,
+};
+
 export function viewportThemePalette(mode: ViewportThemeMode): ViewportThemePalette {
+  if (mode === 'reality') return realityPalette;
   return mode === 'light' ? lightPalette : darkPalette;
 }
