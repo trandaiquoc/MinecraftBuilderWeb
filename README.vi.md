@@ -96,7 +96,7 @@ nhưng sẽ không xuất hiện trong clone mới.
 
 Cần cài:
 
-- **Node.js 24**
+- **Node.js 22.22.3 trở lên hoặc Node.js 24.15.0 trở lên** (yêu cầu của Angular 22.2)
 - **npm**
 - **Git**
 

@@ -98,7 +98,7 @@ machines and will not appear in a clean clone.
 
 Install:
 
-- **Node.js 24**
+- **Node.js 22.22.3 or newer, or Node.js 24.15.0 or newer** (Angular 22.2 requirement)
 - **npm**
 - **Git**
 
