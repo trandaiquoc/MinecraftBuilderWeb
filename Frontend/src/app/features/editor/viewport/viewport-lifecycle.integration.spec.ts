@@ -20,6 +20,7 @@ function createAssetRuntimeStub() {
     provider: signal<unknown>(undefined),
     generation: signal(0),
     contentReady: signal(true),
+    resourceAvailabilitySettled: signal(true),
     status: signal('ready'),
     contentRestore: signal({ phase: 'ready', current: 0, total: 0, failed: 0 }),
     diagnostics: signal({}),
