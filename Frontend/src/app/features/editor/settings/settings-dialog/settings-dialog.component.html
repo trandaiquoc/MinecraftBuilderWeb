@@ -80,154 +80,201 @@
             </button>
           </section>
         } @else if (section() === 'appearance') {
-          <section>
+          <section class="appearance-settings">
             <h3>{{ i18n.t('appearanceSettings') }}</h3>
-            <label
-              >{{ i18n.t('theme') }}
-              <app-themed-select
-                [options]="themeOptions()"
-                [selectedId]="
-                  draft().appearance.preset === 'custom'
-                    ? draft().appearance.base
-                    : draft().appearance.preset
-                "
-                [ariaLabel]="i18n.t('theme')"
-                (selectionChange)="setPreset($any($event))"
-              />
-            </label>
-            <label
-              >{{ i18n.t('font') }}
-              <app-themed-select
-                [options]="fontOptions()"
-                [selectedId]="draft().appearance.font"
-                [ariaLabel]="i18n.t('font')"
-                (selectionChange)="setFont($any($event))"
-              />
-            </label>
-            <label class="font-size-setting">
-              <span
-                >{{ i18n.t('fontSize') }}
-                <output>{{
-                  [i18n.t('fontSizeSmall'), i18n.t('fontSizeNormal'), i18n.t('fontSizeLarge')][
-                    fontSizeIndex()
-                  ]
-                }}</output></span
+            <nav
+              class="appearance-tabs"
+              role="tablist"
+              [attr.aria-label]="i18n.t('appearanceSettings')"
+            >
+              <button
+                type="button"
+                role="tab"
+                id="appearance-interface-tab"
+                aria-controls="appearance-interface-panel"
+                [attr.aria-selected]="appearanceTab() === 'interface'"
+                [class.active]="appearanceTab() === 'interface'"
+                (click)="appearanceTab.set('interface')"
               >
-              <input
-                type="range"
-                min="0"
-                max="2"
-                step="1"
-                [value]="fontSizeIndex()"
-                (input)="setFontSizeIndex($event)"
-                [attr.aria-label]="i18n.t('fontSize')"
-                [attr.aria-valuetext]="
-                  [i18n.t('fontSizeSmall'), i18n.t('fontSizeNormal'), i18n.t('fontSizeLarge')][
-                    fontSizeIndex()
-                  ]
-                "
-              />
-              <span class="font-size-stops" aria-hidden="true"
-                ><span>{{ i18n.t('fontSizeSmall') }}</span
-                ><span>{{ i18n.t('fontSizeNormal') }}</span
-                ><span>{{ i18n.t('fontSizeLarge') }}</span></span
+                {{ i18n.t('appearanceInterface') }}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="appearance-workspace-background-tab"
+                aria-controls="appearance-workspace-background-panel"
+                [attr.aria-selected]="appearanceTab() === 'workspace-background'"
+                [class.active]="appearanceTab() === 'workspace-background'"
+                (click)="appearanceTab.set('workspace-background')"
               >
-            </label>
-            <label
-              >{{ i18n.t('editorBackground') }}
-              <app-themed-select
-                [options]="editorBackgroundOptions()"
-                [selectedId]="draft().appearance.editorBackground"
-                [ariaLabel]="i18n.t('editorBackground')"
-                (selectionChange)="setEditorBackground($any($event))"
-              />
-            </label>
-            @if (draft().appearance.editorBackground === 'reality') {
-              <div class="reality-settings">
-                <div class="reality-heading">
-                  <h4>{{ i18n.t('realityEnvironment') }}</h4>
-                  <p>{{ i18n.t('realityEnvironmentDescription') }}</p>
-                </div>
-                <section class="reality-preset-section" aria-labelledby="reality-ground-title">
-                  <div class="reality-heading">
-                    <h5 id="reality-ground-title">{{ i18n.t('realityGround') }}</h5>
-                    <p>{{ i18n.t('realityGroundDescription') }}</p>
-                  </div>
-                  <div class="reality-option-grid reality-ground-grid">
-                    @for (option of groundOptions(); track option.id) {
-                      <button
-                        type="button"
-                        class="reality-option"
-                        [class.selected]="draft().appearance.reality.groundPreset === option.id"
-                        [class.unavailable]="option.availability === 'unavailable'"
-                        [class.loading]="option.availability === 'loading'"
-                        [disabled]="option.availability !== 'available'"
-                        [attr.aria-pressed]="draft().appearance.reality.groundPreset === option.id"
-                        (click)="setRealityGroundPreset(option.id)"
-                      >
-                        @if (option.previewUrl) {
-                          <img
-                            class="ground-preview"
-                            [src]="option.previewUrl"
-                            alt=""
-                            loading="lazy"
-                            (error)="markGroundPreviewUnavailable(option.id)"
-                          />
-                        } @else {
-                          <span
-                            class="ground-preview ground-preview-empty"
-                            aria-hidden="true"
-                          ></span>
+                {{ i18n.t('workspaceBackgroundTab') }}
+              </button>
+            </nav>
+            @if (appearanceTab() === 'interface') {
+              <div
+                class="appearance-settings-pane"
+                id="appearance-interface-panel"
+                role="tabpanel"
+                aria-labelledby="appearance-interface-tab"
+              >
+                <label
+                  >{{ i18n.t('theme') }}
+                  <app-themed-select
+                    [options]="themeOptions()"
+                    [selectedId]="
+                      draft().appearance.preset === 'custom'
+                        ? draft().appearance.base
+                        : draft().appearance.preset
+                    "
+                    [ariaLabel]="i18n.t('theme')"
+                    (selectionChange)="setPreset($any($event))"
+                  />
+                </label>
+                <label
+                  >{{ i18n.t('font') }}
+                  <app-themed-select
+                    [options]="fontOptions()"
+                    [selectedId]="draft().appearance.font"
+                    [ariaLabel]="i18n.t('font')"
+                    (selectionChange)="setFont($any($event))"
+                  />
+                </label>
+                <label class="font-size-setting">
+                  <span
+                    >{{ i18n.t('fontSize') }}
+                    <output>{{
+                      [i18n.t('fontSizeSmall'), i18n.t('fontSizeNormal'), i18n.t('fontSizeLarge')][
+                        fontSizeIndex()
+                      ]
+                    }}</output></span
+                  >
+                  <input
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="1"
+                    [value]="fontSizeIndex()"
+                    (input)="setFontSizeIndex($event)"
+                    [attr.aria-label]="i18n.t('fontSize')"
+                    [attr.aria-valuetext]="
+                      [i18n.t('fontSizeSmall'), i18n.t('fontSizeNormal'), i18n.t('fontSizeLarge')][
+                        fontSizeIndex()
+                      ]
+                    "
+                  />
+                  <span class="font-size-stops" aria-hidden="true"
+                    ><span>{{ i18n.t('fontSizeSmall') }}</span
+                    ><span>{{ i18n.t('fontSizeNormal') }}</span
+                    ><span>{{ i18n.t('fontSizeLarge') }}</span></span
+                  >
+                </label>
+              </div>
+            } @else {
+              <div
+                class="appearance-settings-pane"
+                id="appearance-workspace-background-panel"
+                role="tabpanel"
+                aria-labelledby="appearance-workspace-background-tab"
+              >
+                <label
+                  >{{ i18n.t('editorBackground') }}
+                  <app-themed-select
+                    [options]="editorBackgroundOptions()"
+                    [selectedId]="draft().appearance.editorBackground"
+                    [ariaLabel]="i18n.t('editorBackground')"
+                    (selectionChange)="setEditorBackground($any($event))"
+                  />
+                </label>
+                @if (draft().appearance.editorBackground === 'reality') {
+                  <div class="reality-settings">
+                    <div class="reality-heading">
+                      <h4>{{ i18n.t('realityEnvironment') }}</h4>
+                      <p>{{ i18n.t('realityEnvironmentDescription') }}</p>
+                    </div>
+                    <section class="reality-preset-section" aria-labelledby="reality-ground-title">
+                      <div class="reality-heading">
+                        <h5 id="reality-ground-title">{{ i18n.t('realityGround') }}</h5>
+                        <p>{{ i18n.t('realityGroundDescription') }}</p>
+                      </div>
+                      <div class="reality-option-grid reality-ground-grid">
+                        @for (option of groundOptions(); track option.id) {
+                          <button
+                            type="button"
+                            class="reality-option"
+                            [class.selected]="draft().appearance.reality.groundPreset === option.id"
+                            [class.unavailable]="option.availability === 'unavailable'"
+                            [class.loading]="option.availability === 'loading'"
+                            [disabled]="option.availability !== 'available'"
+                            [attr.aria-pressed]="
+                              draft().appearance.reality.groundPreset === option.id
+                            "
+                            (click)="setRealityGroundPreset(option.id)"
+                          >
+                            @if (option.previewUrl) {
+                              <img
+                                class="ground-preview"
+                                [src]="option.previewUrl"
+                                alt=""
+                                loading="lazy"
+                                (error)="markGroundPreviewUnavailable(option.id)"
+                              />
+                            } @else {
+                              <span
+                                class="ground-preview ground-preview-empty"
+                                aria-hidden="true"
+                              ></span>
+                            }
+                            <span class="reality-option-label">{{ option.label }}</span>
+                            @if (option.availability !== 'available') {
+                              <small>{{
+                                i18n.t(
+                                  option.availability === 'loading'
+                                    ? 'realityLoading'
+                                    : 'realityUnavailable'
+                                )
+                              }}</small>
+                            }
+                          </button>
                         }
-                        <span class="reality-option-label">{{ option.label }}</span>
-                        @if (option.availability !== 'available') {
-                          <small>{{
-                            i18n.t(
-                              option.availability === 'loading'
-                                ? 'realityLoading'
-                                : 'realityUnavailable'
-                            )
-                          }}</small>
+                      </div>
+                    </section>
+                    <section class="reality-preset-section" aria-labelledby="reality-sky-title">
+                      <div class="reality-heading">
+                        <h5 id="reality-sky-title">{{ i18n.t('realitySky') }}</h5>
+                        <p>{{ i18n.t('realitySkyDescription') }}</p>
+                      </div>
+                      <div class="reality-option-grid reality-sky-grid">
+                        @for (option of skyOptions(); track option.id) {
+                          <button
+                            type="button"
+                            class="reality-option"
+                            [class.selected]="draft().appearance.reality.skyPreset === option.id"
+                            [attr.aria-pressed]="draft().appearance.reality.skyPreset === option.id"
+                            [attr.aria-label]="option.label"
+                            (click)="setRealitySkyPreset(option.id)"
+                          >
+                            <span
+                              class="sky-preview"
+                              [style.--reality-sky-background]="option.backgroundColor"
+                              [class.sky-preview-day]="option.id === 'overworld-day'"
+                              [class.sky-preview-night]="option.id === 'overworld-night'"
+                              [class.sky-preview-nether]="option.id === 'nether'"
+                              [class.sky-preview-end]="option.id === 'end'"
+                              aria-hidden="true"
+                            >
+                              <span class="sky-sun"></span>
+                              <span class="sky-moon"></span>
+                              <span class="sky-cloud sky-cloud-one"></span>
+                              <span class="sky-cloud sky-cloud-two"></span>
+                              <span class="sky-horizon"></span>
+                            </span>
+                            <span class="reality-option-label">{{ option.label }}</span>
+                          </button>
                         }
-                      </button>
-                    }
+                      </div>
+                    </section>
                   </div>
-                </section>
-                <section class="reality-preset-section" aria-labelledby="reality-sky-title">
-                  <div class="reality-heading">
-                    <h5 id="reality-sky-title">{{ i18n.t('realitySky') }}</h5>
-                    <p>{{ i18n.t('realitySkyDescription') }}</p>
-                  </div>
-                  <div class="reality-option-grid reality-sky-grid">
-                    @for (option of skyOptions(); track option.id) {
-                      <button
-                        type="button"
-                        class="reality-option"
-                        [class.selected]="draft().appearance.reality.skyPreset === option.id"
-                        [attr.aria-pressed]="draft().appearance.reality.skyPreset === option.id"
-                        [attr.aria-label]="option.label"
-                        (click)="setRealitySkyPreset(option.id)"
-                      >
-                        <span
-                          class="sky-preview"
-                          [style.--reality-sky-background]="option.backgroundColor"
-                          [class.sky-preview-day]="option.id === 'overworld-day'"
-                          [class.sky-preview-night]="option.id === 'overworld-night'"
-                          [class.sky-preview-nether]="option.id === 'nether'"
-                          [class.sky-preview-end]="option.id === 'end'"
-                          aria-hidden="true"
-                        >
-                          <span class="sky-sun"></span>
-                          <span class="sky-moon"></span>
-                          <span class="sky-cloud sky-cloud-one"></span>
-                          <span class="sky-cloud sky-cloud-two"></span>
-                          <span class="sky-horizon"></span>
-                        </span>
-                        <span class="reality-option-label">{{ option.label }}</span>
-                      </button>
-                    }
-                  </div>
-                </section>
+                }
               </div>
             }
             <button

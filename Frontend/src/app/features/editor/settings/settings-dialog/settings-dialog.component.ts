@@ -52,6 +52,7 @@ export class SettingsDialogComponent implements OnDestroy {
   private readonly preferences = inject(UiPreferencesService);
   readonly closed = output<void>();
   protected readonly section = signal<SettingsSection>('general');
+  protected readonly appearanceTab = signal<'interface' | 'workspace-background'>('interface');
   protected readonly shortcutSearch = signal('');
   protected readonly mouseSearch = signal('');
   protected readonly shortcutTab = signal<'keyboard' | 'mouse'>('keyboard');

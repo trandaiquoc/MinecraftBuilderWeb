@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+// @ts-expect-error Vitest executes the stylesheet contract test in Node.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockDefinition } from '../../../../core/blocks/catalog/block-definition.types';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
@@ -70,6 +72,55 @@ function importWorkspace(
 }
 
 describe('StructureJsonImportDialogComponent', () => {
+  it('keeps narrow import content and the JSON editor independently scrollable', () => {
+    const workspaceStyles = String(
+      readFileSync(
+        'src/app/features/editor/structure-json/import/structure-json-import-workspace.component.scss',
+        'utf8',
+      ),
+    );
+    const dialogStyles = String(
+      readFileSync(
+        'src/app/features/editor/structure-json/import/structure-json-import-dialog.component.scss',
+        'utf8',
+      ),
+    );
+    const dialogTemplate = String(
+      readFileSync(
+        'src/app/features/editor/structure-json/import/structure-json-import-dialog.component.html',
+        'utf8',
+      ),
+    );
+    const mobileStart = workspaceStyles.indexOf('@media (max-width: 680px)');
+    const mobileEnd = workspaceStyles.indexOf('@media (max-width: 480px)', mobileStart);
+    const mobileStyles = workspaceStyles.slice(mobileStart, mobileEnd);
+    const textareaStart = workspaceStyles.indexOf('.structure-json-code-editor {');
+    const textareaEnd = workspaceStyles.indexOf('}', textareaStart);
+    const textareaStyles = workspaceStyles.slice(textareaStart, textareaEnd);
+
+    expect(mobileStyles).toContain('.structure-json-import-layout');
+    expect(mobileStyles).toContain('display: block;');
+    expect(mobileStyles).toContain('overflow-y: auto;');
+    expect(mobileStyles).toContain('.structure-json-info');
+    expect(mobileStyles).toContain('overflow: visible;');
+    expect(mobileStyles).not.toContain('max-height: 220px;');
+    expect(mobileStyles).not.toContain('min-height: 420px;');
+    expect(textareaStyles).toContain('overflow: auto;');
+    expect(textareaStyles).toContain('overscroll-behavior: contain;');
+    expect(dialogStyles).toContain('grid-template-rows: auto auto minmax(0, 1fr) auto;');
+    expect(dialogStyles).toContain('.structure-json-body {');
+    expect(dialogStyles).toContain('overflow: hidden;');
+    const fixedRegions = [
+      '<header class="structure-json-header">',
+      'class="structure-json-tabs"',
+      'class="structure-json-body"',
+      '<footer class="structure-json-footer">',
+      'structureJsonApplyImport',
+    ].map((marker) => dialogTemplate.indexOf(marker));
+    expect(fixedRegions.every((index) => index >= 0)).toBe(true);
+    expect(fixedRegions).toEqual([...fixedRegions].sort((left, right) => left - right));
+  });
+
   it('supports editing, explicit validation, and stale preview clearing', async () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],

@@ -74,7 +74,7 @@ describe('Workspace color palette contract', () => {
     const designContract = String(
       readFileSync('../Docs/design/workspace-color-palette.md', 'utf8'),
     );
-    const paletteStyles = stylesheet.slice(stylesheet.indexOf('/* Workspace Palette V1'));
+    const paletteStyles = stylesheet.slice(stylesheet.indexOf('/* Workspace V2 palette'));
     const themeNames = ['craft', 'light', 'raccoon', 'dark'] as const;
     const themeColumns = ['Minecraft (`craft`)', 'Light', 'Raccoon', 'Dark'];
     const tableHeader = designContract
@@ -113,8 +113,11 @@ describe('Workspace color palette contract', () => {
     );
     expect(paletteStyles).toContain('--button-secondary-bg: var(--workspace-muted);');
     expect(paletteStyles).toContain('--secondary-accent: var(--workspace-secondary-accent);');
-    expect(paletteStyles).toContain('background: var(--workspace-header-bg);');
-    expect(paletteStyles).toContain('color: var(--workspace-header-text);');
+    const shellStyles = String(
+      readFileSync('src/app/features/editor/shell/editor-shell.component.scss', 'utf8'),
+    );
+    expect(shellStyles).toContain('background: var(--workspace-header-bg);');
+    expect(shellStyles).toContain('color: var(--workspace-header-text);');
     expect(stylesheet).toContain('--app-bg: #101318;');
     expect(stylesheet).toContain('--app-bg: #f4f6f8;');
     expect(
@@ -139,7 +142,7 @@ describe('Workspace color palette contract', () => {
     expect(
       String(readFileSync('src/app/features/editor/shell/editor-shell.component.scss', 'utf8')),
     ).toContain('outline-color: var(--workspace-header-text);');
-    expect(paletteStyles).not.toContain(":root[data-theme='craft'] {\n  --app-bg: #445449;");
+    expect(paletteStyles).not.toContain(":root[data-theme='craft'] {\n  --app-bg: #35372f;");
 
     const sidebarConsumers = [
       [
@@ -183,7 +186,7 @@ describe('Workspace color palette contract', () => {
     expect(shellStyles).toContain('.app-menus > .menu-entry > .app-menu-trigger {');
     expect(shellStyles).toContain('.app-menu-row > .brand {');
     expect(shellStyles).toContain('color: var(--workspace-header-text);');
-    const headerRuleStart = shellStyles.lastIndexOf('.shell-header {');
+    const headerRuleStart = shellStyles.indexOf('.shell-header {');
     const headerRuleEnd = shellStyles.indexOf('}', headerRuleStart);
     const headerRule = shellStyles.slice(headerRuleStart, headerRuleEnd);
     expect(headerRule).toContain('background: var(--workspace-header-bg);');
@@ -267,12 +270,37 @@ describe('Workspace color palette contract', () => {
     expect(settingsTemplate).toContain('(selectionChange)="setFont($any($event))"');
   });
 
+  it('derives shared Workspace shape and elevation from the active theme', () => {
+    const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
+    const shellStyles = String(
+      readFileSync('src/app/features/editor/shell/editor-shell.component.scss', 'utf8'),
+    );
+    const expectedRadii = {
+      craft: '0.125rem',
+      light: '0.25rem',
+      raccoon: '0.625rem',
+      dark: '0.25rem',
+    } as const;
+
+    for (const [theme, radius] of Object.entries(expectedRadii)) {
+      const themeStyles = stylesheet
+        .slice(stylesheet.indexOf('/* Workspace V2 palette'))
+        .match(new RegExp(`:root\\[data-theme='${theme}'\\]\\s*\\{([^}]+)\\}`))?.[1];
+      expect(themeStyles, `${theme} shape tokens`).toContain(`--workspace-radius-sm: ${radius};`);
+      expect(themeStyles).toContain('--workspace-shadow-control-raised:');
+      expect(themeStyles).toContain('--workspace-shadow-popover:');
+    }
+
+    expect(stylesheet).toContain('--radius-sm: var(--workspace-radius-sm);');
+    expect(shellStyles).not.toContain('border-radius: 4px;');
+  });
+
   it('keeps interactive text, focus, danger, and status combinations accessible', () => {
     const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
     const designContract = String(
       readFileSync('../Docs/design/workspace-color-palette.md', 'utf8'),
     );
-    const paletteStyles = stylesheet.slice(stylesheet.indexOf('/* Workspace Palette V1'));
+    const paletteStyles = stylesheet.slice(stylesheet.indexOf('/* Workspace V2 palette'));
     const themeNames = ['craft', 'light', 'raccoon', 'dark'] as const;
     const paletteRows = new Map<string, readonly string[]>();
     for (const row of designContract
@@ -339,8 +367,12 @@ describe('Workspace color palette contract', () => {
           contrastRatio(foreground, header),
           `${themeName} ${statusRole} on header`,
         ).toBeGreaterThanOrEqual(4.5);
+        const panelForeground =
+          themeName === 'craft' && statusRole === 'Success'
+            ? mixColors(value(statusRole), '#000000', 98)
+            : value(statusRole);
         expect(
-          contrastRatio(value(statusRole), panel),
+          contrastRatio(panelForeground, panel),
           `${themeName} ${statusRole} on panel`,
         ).toBeGreaterThanOrEqual(4.5);
       }

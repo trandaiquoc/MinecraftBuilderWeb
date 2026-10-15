@@ -31,7 +31,7 @@
 .layer-controls select,
 .layer-controls input {
   border: 1px solid var(--border-strong);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: var(--text);
   padding: 0.35rem 0.5rem;
@@ -79,7 +79,7 @@
   z-index: 1;
   padding: 0.35rem 0.55rem;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   color: var(--text-muted);
   font: 0.72rem/1.25 var(--font-ui);
@@ -117,7 +117,7 @@
 .layer-controls input[type='number'] {
   border: 0;
   background: var(--surface-raised);
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.14);
+  box-shadow: var(--shadow-control);
 }
 .layer-controls button:hover,
 .layer-controls select:hover,

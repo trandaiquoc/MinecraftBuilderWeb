@@ -1,9 +1,9 @@
 # The Block Laundromat Design Foundation
 
 This is the current product-facing brand and visual-direction reference. The
-four supplied concept images are inspiration, not finished UI or runtime
-artwork; the existing editor layout and behavior remain authoritative until a
-later, explicitly scoped design phase.
+four approved Workspace designs establish visual treatment only; Angular
+components and current application behavior remain authoritative. The
+Project Screen/Homepage is outside the Workspace redesign scope.
 
 ## Brand
 
@@ -18,15 +18,16 @@ vector artwork and has not been redrawn or optimized.
 The references share one composition and differ by palette, lighting, and
 scene:
 
-| Direction | Palette and atmosphere                             | Status                                    |
-| --------- | -------------------------------------------------- | ----------------------------------------- |
-| Minecraft | Minecraft grass green with warm afternoon sunlight | Runtime theme (`craft` compatibility key) |
-| Light     | Predominantly white, bright morning light          | Runtime theme                             |
-| Raccoon   | Warm neutral gray surfaces                         | Independent runtime theme                 |
-| Dark      | Navy and charcoal surfaces                         | Runtime theme                             |
+| Direction | Palette and atmosphere                                            | Status                                    |
+| --------- | ----------------------------------------------------------------- | ----------------------------------------- |
+| Minecraft | Grass-green chrome with dirt/stone surfaces and pale-stone panels | Runtime theme (`craft` compatibility key) |
+| Light     | Neutral white, black, and gray without a blue cast                | Runtime theme                             |
+| Raccoon   | Charcoal/gray contrast with soft, rounded surfaces                | Independent runtime theme                 |
+| Dark      | Near-black background with restrained charcoal elevation          | Runtime theme                             |
 
-The same layout should serve all four directions. Time-of-day language is
-descriptive art direction, not a separate feature or setting.
+The same layout, Angular components, spacing, content, and behavior serve all
+four directions. Theme tokens change visual treatment, not feature behavior.
+The Reality renderer background remains an independent user preference.
 
 ## Typography and Workspace
 
@@ -49,12 +50,12 @@ their existing renderer palettes. Workspace background changes apply directly,
 without a scene-transition animation.
 
 Workspace application colors follow the canonical four-theme [Workspace Color
-Palette V1](design/workspace-color-palette.md). That palette is scoped to the
+Palette V2](design/workspace-color-palette.md). That palette is scoped to the
 editor workspace and its overlays; the Project Screen keeps its existing color
 tokens. The renderer's Dark/Light/Reality environment remains independent of
 both. Reality sky preset colors are shared through the editor background
-contract so the renderer and Settings previews agree; ground and sky artwork
-remain renderer-owned.
+contract so the renderer and Settings previews agree; ground previews use the
+corresponding texture resource.
 
 ## Homepage Concept
 

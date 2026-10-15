@@ -50,6 +50,18 @@ describe('SettingsDialogComponent Reality previews', () => {
     const component = fixture.componentInstance as unknown as SettingsAppearanceView;
     component.setSection('appearance');
     fixture.detectChanges();
+    const appearanceTabs = fixture.nativeElement.querySelectorAll(
+      '.appearance-tabs [role="tab"]',
+    ) as NodeListOf<HTMLButtonElement>;
+    expect(appearanceTabs).toHaveLength(2);
+    expect(appearanceTabs[0].getAttribute('aria-selected')).toBe('true');
+    expect(fixture.nativeElement.querySelector('#appearance-interface-panel')).toBeTruthy();
+    appearanceTabs[1].click();
+    fixture.detectChanges();
+    expect(appearanceTabs[1].getAttribute('aria-selected')).toBe('true');
+    expect(
+      fixture.nativeElement.querySelector('#appearance-workspace-background-panel'),
+    ).toBeTruthy();
 
     expect(component.groundOptions().find(({ id }) => id === 'sand')).toMatchObject({
       availability: 'loading',

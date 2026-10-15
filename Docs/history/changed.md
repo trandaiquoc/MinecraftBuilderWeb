@@ -10,6 +10,16 @@ resolves `source-map-js` to a patched release. The supported Node.js ranges are
 server dependency is development-only; the application does not enable SSR or
 use an MCP OAuth client.
 
+## Workspace V2 visual system and Structure JSON import scrolling — 2026-10-15
+
+The Workspace now follows the approved Minecraft, Raccoon, Light, and Dark
+visual treatments through the canonical V2 semantic palette. Components share
+the existing layout and behavior; the Project Screen and renderer are not
+rethemed. Settings Appearance separates Interface preferences from Workspace
+Background. On narrow screens, Structure JSON Import uses one outer content
+scroll region while its JSON textarea remains independently scrollable, keeping
+the dialog header, tabs, and import footer accessible.
+
 > Historical decision log. This file is retained for project history only and
 > is not a current implementation source of truth. Use the canonical documents
 > listed in `Docs/README.md` for current contracts, policies, and verification

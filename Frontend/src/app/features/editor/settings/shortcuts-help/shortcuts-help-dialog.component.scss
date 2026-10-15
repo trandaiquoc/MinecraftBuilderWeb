@@ -108,10 +108,10 @@ kbd {
   min-width: 1.4rem;
   padding: 0.16rem 0.3rem;
   border: 1px solid var(--border-strong);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--control-normal);
   color: var(--text);
-  box-shadow: 0 1px 0 rgb(0 0 0 / 0.18);
+  box-shadow: var(--shadow-control);
   font-family: var(--font-ui);
   font-size: 0.72rem;
   line-height: 1;

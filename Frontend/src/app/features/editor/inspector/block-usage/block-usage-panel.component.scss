@@ -33,7 +33,7 @@ h2 {
 .usage-metrics div {
   padding: 0.45rem;
   background: var(--surface-raised);
-  border-radius: 0.35rem;
+  border-radius: var(--radius-sm);
 }
 .usage-metrics span,
 .usage-metrics strong {
@@ -89,7 +89,7 @@ h2 {
   height: 42px;
   flex: 0 0 42px;
   background: var(--surface-raised);
-  border-radius: 0.3rem;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 .usage-thumbnail img {

@@ -57,7 +57,7 @@
   padding: 0.7rem;
   border-radius: var(--radius-md);
   background: var(--surface-raised);
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.12);
+  box-shadow: var(--shadow-control);
 }
 .missing-assets-group-heading {
   display: flex;

@@ -28,7 +28,7 @@
 .sign-lines input,
 .state-fields button {
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--border);
@@ -40,7 +40,7 @@
 .sign-tabs button.active {
   background: var(--control-selected);
   color: var(--control-selected-text);
-  box-shadow: 0 3px 8px rgb(0 0 0 / 0.2);
+  box-shadow: var(--shadow-control-raised);
 }
 .helper-text {
   margin: 0;

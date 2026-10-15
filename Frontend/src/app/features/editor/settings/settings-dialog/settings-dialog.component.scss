@@ -17,7 +17,7 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(680px, 100%);
-  max-height: min(620px, 100%);
+  max-height: min(620px, calc(100dvh - 2rem));
   overflow: hidden;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -85,7 +85,7 @@
 .settings-nav button.active {
   background: var(--control-selected);
   color: var(--control-selected-text);
-  box-shadow: 0 3px 8px rgb(0 0 0 / 0.2);
+  box-shadow: var(--shadow-control-raised);
 }
 .settings-nav button:disabled {
   cursor: not-allowed;
@@ -106,6 +106,41 @@
   align-content: start;
   gap: 0.85rem;
   max-width: 420px;
+}
+.settings-content .appearance-settings {
+  max-width: 520px;
+}
+.appearance-tabs {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 0.35rem;
+  padding: 0.25rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+.appearance-tabs button {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: 0.76rem/1.2 var(--font-ui);
+  cursor: pointer;
+}
+.appearance-tabs button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.appearance-tabs button.active {
+  background: var(--control-selected);
+  color: var(--control-selected-text);
+  box-shadow: var(--shadow-control-raised);
+}
+.appearance-settings-pane {
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
 }
 .settings-content h3 {
   margin: 0;
@@ -163,7 +198,7 @@
   color: var(--text);
   text-align: left;
   cursor: pointer;
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.12);
+  box-shadow: var(--shadow-control);
 }
 .reality-option:hover:not(:disabled) {
   background: var(--control-hover);
@@ -173,7 +208,7 @@
   background: var(--surface-selected);
   box-shadow:
     inset 0 0 0 1px var(--focus-color),
-    0 2px 0 rgb(0 0 0 / 0.12);
+    var(--shadow-control);
 }
 .reality-option:focus-visible {
   outline: 2px solid var(--focus-color);
@@ -400,7 +435,7 @@
   background: var(--control-normal);
   color: var(--text);
   cursor: pointer;
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.16);
+  box-shadow: var(--shadow-control);
 }
 .settings-dialog-footer button:hover {
   background: var(--control-hover);
@@ -421,7 +456,7 @@
   background: var(--control-normal);
   color: var(--text);
   cursor: pointer;
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.14);
+  box-shadow: var(--shadow-control);
 }
 .section-reset:hover {
   background: var(--control-hover);
@@ -555,7 +590,7 @@
 .shortcut-tabs button.active {
   background: var(--control-selected);
   color: var(--control-selected-text);
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.18);
+  box-shadow: var(--shadow-control-raised);
 }
 .shortcut-group-title {
   margin: 0.35rem 0 -0.2rem;
@@ -588,7 +623,7 @@
   background: var(--control-normal);
   color: var(--text);
   cursor: pointer;
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.14);
+  box-shadow: var(--shadow-control);
   font-family: var(--font-ui);
   text-align: center;
 }

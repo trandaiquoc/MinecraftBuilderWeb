@@ -15,7 +15,7 @@
   min-width: 0;
   padding: 0.35rem 0.4rem;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: inherit;
 }
@@ -33,12 +33,12 @@
   min-width: 0;
   padding: 0.25rem;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--surface-muted);
   color: inherit;
   text-align: left;
   cursor: pointer;
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.14);
+  box-shadow: var(--shadow-control);
 }
 .painting-card:hover {
   background: var(--surface-hover);
@@ -46,7 +46,7 @@
 .painting-card.selected {
   background: var(--control-selected);
   color: var(--control-selected-text);
-  box-shadow: 0 4px 10px rgb(0 0 0 / 0.24);
+  box-shadow: var(--shadow-control-raised);
 }
 .painting-image {
   display: grid;
@@ -88,7 +88,7 @@
   width: 100%;
   min-height: 1.9rem;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: inherit;
   cursor: pointer;
@@ -101,7 +101,7 @@
 .change-painting {
   border: 0;
   background: var(--surface-raised);
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.14);
+  box-shadow: var(--shadow-control);
 }
 .change-painting:hover {
   background: var(--surface-hover);
@@ -119,9 +119,9 @@
   min-height: 9rem;
   box-sizing: border-box;
   padding: 0.5rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--surface-muted);
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.14);
+  box-shadow: var(--shadow-control);
   font-family: var(--font-ui);
 }
 .selected-painting-stage {

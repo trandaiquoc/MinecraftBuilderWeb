@@ -96,7 +96,7 @@
   padding: 0.6rem 0.7rem;
   border-radius: var(--radius-sm);
   background: var(--surface-muted);
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.12);
+  box-shadow: var(--shadow-control);
 }
 .issue > div {
   display: flex;

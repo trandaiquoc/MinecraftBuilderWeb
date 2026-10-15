@@ -10,9 +10,9 @@
   max-width: calc(100% - 1.6rem);
   padding: 0.45rem;
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: 0 5px 16px rgb(0 0 0 / 0.25);
+  box-shadow: var(--shadow-popover);
 }
 .slots {
   display: flex;
@@ -29,11 +29,11 @@
   flex: 0 0 50px;
   box-sizing: border-box;
   border: 2px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: var(--text);
   cursor: pointer;
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.16);
+  box-shadow: var(--shadow-control);
 }
 .slot.active {
   border-color: var(--control-selected);
@@ -61,7 +61,7 @@
   left: 4px;
   min-width: 1rem;
   padding: 1px 3px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface) 80%, transparent);
   color: var(--text-muted);
   font-size: 0.58rem;
@@ -99,11 +99,11 @@
   min-width: 30px;
   min-height: 30px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: var(--text);
   cursor: pointer;
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.16);
+  box-shadow: var(--shadow-control);
 }
 .empty {
   padding: 0 0.4rem;
