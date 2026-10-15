@@ -134,6 +134,8 @@
         <button
           type="button"
           role="tab"
+          [id]="'structure-json-ai-tab-' + tab"
+          [attr.aria-controls]="'structure-json-ai-panel-' + tab"
           [attr.aria-selected]="activeAiTab() === tab"
           [class.active]="activeAiTab() === tab"
           (click)="setAiTab(tab)"
@@ -143,8 +145,14 @@
       }
     </div>
     @if (activeAiTab() === 'description') {
-      <section class="ai-panel" role="tabpanel">
-        <label for="structure-json-ai-description">{{
+      <section
+        class="ai-panel"
+        id="structure-json-ai-panel-description"
+        role="tabpanel"
+        tabindex="0"
+        aria-labelledby="structure-json-ai-description-title"
+      >
+        <label id="structure-json-ai-description-title" for="structure-json-ai-description">{{
           i18n.t('structureJsonAiDescriptionLabel')
         }}</label>
         <p class="ai-helper">{{ i18n.t('structureJsonAiDescriptionHelperConfig') }}</p>
@@ -182,8 +190,16 @@
         </details>
       </section>
     } @else if (activeAiTab() === 'content') {
-      <section class="ai-panel" role="tabpanel">
-        <h4>{{ i18n.t('structureJsonAiAvailableTitle') }}</h4>
+      <section
+        class="ai-panel"
+        id="structure-json-ai-panel-content"
+        role="tabpanel"
+        tabindex="0"
+        aria-labelledby="structure-json-ai-available-title"
+      >
+        <h4 id="structure-json-ai-available-title">
+          {{ i18n.t('structureJsonAiAvailableTitle') }}
+        </h4>
         <p class="ai-helper">{{ i18n.t('structureJsonAiAvailableSummary') }}</p>
         <dl class="ai-content-summary">
           <div>
@@ -230,7 +246,9 @@
     } @else if (activeAiTab() === 'limits') {
       <section
         class="ai-content-limits-workspace"
+        id="structure-json-ai-panel-limits"
         role="tabpanel"
+        tabindex="0"
         aria-labelledby="structure-json-ai-content-limits-title"
       >
         <div class="ai-content-limits-controls">
@@ -313,8 +331,16 @@
         </div>
       </section>
     } @else if (activeAiTab() === 'guidance') {
-      <section class="ai-panel" role="tabpanel">
-        <h4>{{ i18n.t('structureJsonAiGuidanceTitle') }}</h4>
+      <section
+        class="ai-panel"
+        id="structure-json-ai-panel-guidance"
+        role="tabpanel"
+        tabindex="0"
+        aria-labelledby="structure-json-ai-guidance-title"
+      >
+        <h4 id="structure-json-ai-guidance-title">
+          {{ i18n.t('structureJsonAiGuidanceTitle') }}
+        </h4>
         <div class="ai-guidance-list">
           @for (section of aiGuidance(); track section.id) {
             <article>
@@ -329,10 +355,18 @@
         </div>
       </section>
     } @else {
-      <section class="ai-panel" role="tabpanel">
+      <section
+        class="ai-panel"
+        id="structure-json-ai-panel-example"
+        role="tabpanel"
+        tabindex="0"
+        aria-labelledby="structure-json-ai-example-title"
+      >
         <div class="ai-panel-heading">
           <div>
-            <h4>{{ i18n.t('structureJsonAiExampleTitle') }}</h4>
+            <h4 id="structure-json-ai-example-title">
+              {{ i18n.t('structureJsonAiExampleTitle') }}
+            </h4>
             <p class="ai-helper">{{ i18n.t('structureJsonAiExampleHelper') }}</p>
           </div>
           <button

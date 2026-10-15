@@ -49,6 +49,21 @@ presentation-only and never enters project data. Dark/Light continue to use
 their existing renderer palettes. Workspace background changes apply directly,
 without a scene-transition animation.
 
+Settings Appearance has two independent sections: Interface and Workspace
+Background. Each section's Restore defaults action changes only its own draft
+fields. Interface defaults are Minecraft (`craft`), Comfortaa, and Normal font
+size. Workspace Background defaults are Dark, Plains grass, and Overworld day.
+These resets follow the Settings draft lifecycle; they are persisted only by
+Apply or Save & Close.
+
+Structure JSON Import keeps its dialog header, main tabs, and action footer
+outside the content scroll region. The JSON source editor scrolls independently.
+On wide layouts, the active import panel owns validation-preview scrolling; on
+narrow layouts, the import content becomes the single outer scroll region. In
+Create with AI, the active content tab owns scrolling on regular viewports, while
+short or narrow viewports scroll the workspace host so all five tabs remain
+reachable without nested clipped panels.
+
 Workspace application colors follow the canonical four-theme [Workspace Color
 Palette V2](design/workspace-color-palette.md). That palette is scoped to the
 editor workspace and its overlays; the Project Screen keeps its existing color

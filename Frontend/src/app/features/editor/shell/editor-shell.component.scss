@@ -340,7 +340,15 @@
   margin: 0 -0.25rem 0.65rem;
   border-bottom: 0;
 }
+.left-panel > .sidebar-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.2rem;
+  margin-right: 0;
+  margin-left: 0;
+}
 .sidebar-tabs button {
+  min-width: 0;
   border: 0;
   border-radius: var(--radius-sm);
   padding: 0.45rem 0.65rem;
@@ -348,6 +356,14 @@
   color: var(--text-muted);
   cursor: pointer;
   font-size: 0.78rem;
+}
+.left-panel > .sidebar-tabs button {
+  padding: 0.42rem 0.12rem;
+  font-size: 0.7rem;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sidebar-tabs button:hover:not(:disabled) {
   background: var(--control-hover);
@@ -738,9 +754,8 @@
 @media (max-width: 850px) {
   .app-menu-row {
     min-width: 0;
-    overflow-x: auto;
-    overflow-y: visible;
-    scrollbar-width: thin;
+    flex-wrap: wrap;
+    overflow: visible;
   }
   .app-menu-row.menu-open,
   .editor-toolbar-row.menu-open {
@@ -748,16 +763,20 @@
   }
   .app-menu-row .app-menus {
     flex: 0 0 auto;
+    flex-wrap: wrap;
   }
   .editor-toolbar-row {
     min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    flex-wrap: nowrap;
-    scrollbar-width: thin;
+    flex-wrap: wrap;
+    overflow: visible;
+    row-gap: 0.35rem;
   }
   .editor-toolbar-row > * {
     flex: 0 0 auto;
+  }
+  .toolbar-group,
+  .tool-switch {
+    padding-right: 0.45rem;
   }
   .editor-body {
     grid-template-columns: minmax(0, 1fr) !important;

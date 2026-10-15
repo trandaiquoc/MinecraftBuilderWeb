@@ -1,17 +1,28 @@
 :host {
   display: block;
+  height: 100%;
+  min-width: 0;
   min-height: 0;
+  overflow: hidden;
   font-family: var(--font-ui);
 }
 :host([hidden]) {
   display: none;
 }
+:host(:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .structure-json-ai-workspace {
   display: grid;
-  align-content: start;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 0.85rem;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding-right: 0.2rem;
 }
 .ai-heading,
@@ -135,7 +146,12 @@
   display: grid;
   align-content: start;
   gap: 0.55rem;
+  min-width: 0;
   min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0.1rem 0.25rem 0.5rem 0.1rem;
+  scrollbar-gutter: stable;
 }
 .ai-panel > label {
   font-weight: 650;
@@ -387,6 +403,7 @@
   display: grid;
   grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
   gap: 0.75rem;
+  min-width: 0;
   min-height: 0;
 }
 .ai-content-limits-controls,
@@ -481,5 +498,42 @@
   .ai-content-summary,
   .ai-content-limits-workspace {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .ai-content-limits-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-height: 620px), (max-width: 680px) {
+  :host {
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .structure-json-ai-workspace {
+    height: auto;
+    min-height: 100%;
+    grid-template-rows: auto auto auto auto;
+    overflow: visible;
+  }
+
+  .ai-inner-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-top: 0.4rem;
+    background: var(--surface);
+  }
+
+  .ai-panel,
+  .ai-content-limits-workspace {
+    min-height: auto;
+    overflow: visible;
+    overscroll-behavior: auto;
+    scrollbar-gutter: auto;
   }
 }

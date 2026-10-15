@@ -78,15 +78,80 @@ describe('SettingsDialogSession', () => {
     });
   });
 
-  it('restores Appearance defaults to Dark while preserving the Reality default pair', () => {
+  it('restores Interface defaults without changing Workspace Background choices', () => {
     session.setEditorBackground('reality');
     session.setRealityGroundPreset('end-stone');
     session.setRealitySkyPreset('end');
-    session.restoreAppearanceDefaults();
-    expect(session.draft().appearance.editorBackground).toBe('dark');
+    session.setPreset('raccoon');
+    session.setFont('pangolin');
+    session.setFontSize('large');
+    session.restoreInterfaceDefaults();
+    expect(session.draft().appearance).toMatchObject({
+      preset: 'craft',
+      font: 'comfortaa',
+      fontSize: 'normal',
+      editorBackground: 'reality',
+    });
     expect(session.draft().appearance.reality).toEqual({
-      groundPreset: 'plains-grass',
-      skyPreset: 'overworld-day',
+      groundPreset: 'end-stone',
+      skyPreset: 'end',
+    });
+  });
+
+  it('restores Workspace Background defaults without changing Interface choices', () => {
+    session.setPreset('raccoon');
+    session.setFont('pangolin');
+    session.setFontSize('large');
+    session.setEditorBackground('reality');
+    session.setRealityGroundPreset('snow');
+    session.setRealitySkyPreset('nether');
+    session.restoreWorkspaceBackgroundDefaults();
+    expect(session.draft().appearance).toMatchObject({
+      preset: 'raccoon',
+      font: 'pangolin',
+      fontSize: 'large',
+      editorBackground: 'dark',
+      reality: { groundPreset: 'plains-grass', skyPreset: 'overworld-day' },
+    });
+  });
+
+  it('keeps scoped reset behavior after partial Apply and discards later edits on Cancel', async () => {
+    session.setPreset('light');
+    session.setFont('chakra-petch');
+    expect(session.apply()).toBe(true);
+    session.setPreset('dark');
+    session.setEditorBackground('reality');
+    session.setRealityGroundPreset('snow');
+    session.restoreWorkspaceBackgroundDefaults();
+    expect(session.draft().appearance).toMatchObject({
+      preset: 'dark',
+      font: 'chakra-petch',
+      editorBackground: 'dark',
+      reality: { groundPreset: 'plains-grass', skyPreset: 'overworld-day' },
+    });
+    expect(session.dirty()).toBe(true);
+    dialogs.confirm.mockResolvedValueOnce(true);
+    expect(await session.requestClose()).toBe(true);
+    expect(preferences.preferences().appearance).toMatchObject({
+      preset: 'light',
+      font: 'chakra-petch',
+      editorBackground: 'dark',
+    });
+  });
+
+  it('saves an independently reset Interface draft with Save & Close semantics', () => {
+    session.setPreset('dark');
+    session.setFont('pangolin');
+    expect(session.apply()).toBe(true);
+    session.setPreset('light');
+    session.restoreInterfaceDefaults();
+    expect(session.draft().appearance).toMatchObject({ preset: 'craft', font: 'comfortaa' });
+    expect(session.apply()).toBe(true);
+    expect(session.dirty()).toBe(false);
+    expect(preferences.preferences().appearance).toMatchObject({
+      preset: 'craft',
+      font: 'comfortaa',
+      fontSize: 'normal',
     });
   });
 

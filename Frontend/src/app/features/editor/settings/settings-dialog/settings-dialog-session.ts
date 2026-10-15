@@ -229,8 +229,27 @@ export class SettingsDialogSession {
       showStructureBlockGuide: defaults.showStructureBlockGuide,
     });
   }
-  restoreAppearanceDefaults(): void {
-    this.updateDraft({ appearance: { ...this.preferences.defaultPreferences().appearance } });
+  restoreInterfaceDefaults(): void {
+    const defaults = this.preferences.defaultPreferences().appearance;
+    this.updateDraft({
+      appearance: {
+        ...this.draft().appearance,
+        preset: defaults.preset,
+        base: defaults.base,
+        font: defaults.font,
+        fontSize: defaults.fontSize,
+      },
+    });
+  }
+  restoreWorkspaceBackgroundDefaults(): void {
+    const defaults = this.preferences.defaultPreferences().appearance;
+    this.updateDraft({
+      appearance: {
+        ...this.draft().appearance,
+        editorBackground: defaults.editorBackground,
+        reality: { ...defaults.reality },
+      },
+    });
   }
   restoreControlsDefaults(): void {
     this.updateDraft({ controls: { ...this.preferences.defaultPreferences().controls } });

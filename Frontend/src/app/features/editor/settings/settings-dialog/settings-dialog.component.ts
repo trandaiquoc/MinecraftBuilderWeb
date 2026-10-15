@@ -308,8 +308,11 @@ export class SettingsDialogComponent implements OnDestroy {
   protected restoreGeneralDefaults(): void {
     this.session.restoreGeneralDefaults();
   }
-  protected restoreAppearanceDefaults(): void {
-    this.session.restoreAppearanceDefaults();
+  protected restoreInterfaceDefaults(): void {
+    this.session.restoreInterfaceDefaults();
+  }
+  protected restoreWorkspaceBackgroundDefaults(): void {
+    this.session.restoreWorkspaceBackgroundDefaults();
   }
   protected restoreControlsDefaults(): void {
     this.session.restoreControlsDefaults();

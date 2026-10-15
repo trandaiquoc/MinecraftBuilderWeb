@@ -91,6 +91,12 @@ describe('StructureJsonImportDialogComponent', () => {
         'utf8',
       ),
     );
+    const aiStyles = String(
+      readFileSync(
+        'src/app/features/editor/structure-json/external-ai/external-ai-workspace.component.scss',
+        'utf8',
+      ),
+    );
     const mobileStart = workspaceStyles.indexOf('@media (max-width: 680px)');
     const mobileEnd = workspaceStyles.indexOf('@media (max-width: 480px)', mobileStart);
     const mobileStyles = workspaceStyles.slice(mobileStart, mobileEnd);
@@ -110,6 +116,15 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(dialogStyles).toContain('grid-template-rows: auto auto minmax(0, 1fr) auto;');
     expect(dialogStyles).toContain('.structure-json-body {');
     expect(dialogStyles).toContain('overflow: hidden;');
+    expect(dialogStyles).toContain('grid-template-rows: minmax(0, 1fr);');
+    expect(aiStyles).toContain('grid-template-rows: auto auto auto minmax(0, 1fr);');
+    expect(aiStyles).toContain('height: 100%;');
+    expect(aiStyles).toContain('@media (max-height: 620px), (max-width: 680px)');
+    expect(aiStyles).toContain('position: sticky;');
+    expect(aiStyles).toContain('.ai-panel {');
+    expect(aiStyles).toContain('overflow: auto;');
+    expect(aiStyles).toContain('overscroll-behavior: contain;');
+    expect(aiStyles).toContain('@media (max-width: 680px)');
     const fixedRegions = [
       '<header class="structure-json-header">',
       'class="structure-json-tabs"',
@@ -191,8 +206,17 @@ describe('StructureJsonImportDialogComponent', () => {
     fixture.detectChanges();
     const instance = activateAiWorkspace(fixture) as unknown as {
       setAiTab: (tab: 'description' | 'content' | 'limits' | 'guidance' | 'example') => void;
+      setAiDescription: (value: string) => void;
+      aiDescription: () => string;
     };
+    const workspaceHost = fixture.nativeElement.querySelector(
+      'app-external-ai-workspace',
+    ) as HTMLElement;
+    expect(workspaceHost.getAttribute('role')).toBe('region');
+    expect(workspaceHost.getAttribute('aria-label')).toBe('structureJsonAiWorkspaceTitle');
+    workspaceHost.scrollTop = 120;
     instance.setAiTab('example');
+    expect(workspaceHost.scrollTop).toBe(0);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.structure-json-body.ai-mode')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.structure-json-ai-workspace')).toBeTruthy();
@@ -218,6 +242,25 @@ describe('StructureJsonImportDialogComponent', () => {
       fixture.nativeElement.querySelectorAll('.ai-content-limits-controls .ai-toggle').length,
     ).toBe(0);
     expect(fixture.nativeElement.querySelectorAll('.ai-inner-tabs [role="tab"]').length).toBe(5);
+    const tabs = fixture.nativeElement.querySelectorAll(
+      '.ai-inner-tabs [role="tab"]',
+    ) as NodeListOf<HTMLButtonElement>;
+    for (const tab of Array.from(tabs)) {
+      expect(tab.getAttribute('aria-controls')).toBeTruthy();
+    }
+    expect(
+      fixture.nativeElement
+        .querySelector('#structure-json-ai-panel-limits')
+        ?.getAttribute('tabindex'),
+    ).toBe('0');
+    instance.setAiDescription('Keep this prompt text.');
+    instance.setAiTab('guidance');
+    fixture.detectChanges();
+    instance.setAiTab('description');
+    fixture.detectChanges();
+    expect(instance.aiDescription()).toBe('Keep this prompt text.');
+    instance.setAiTab('limits');
+    fixture.detectChanges();
     (fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void }).setTab(
       'import',
     );

@@ -1,5 +1,9 @@
 <div class="structure-json-import-layout">
-  <aside class="structure-json-info">
+  <aside
+    class="structure-json-info"
+    tabindex="0"
+    [attr.aria-label]="i18n.t('structureJsonValidationPreview')"
+  >
     <h3>{{ i18n.t('structureJsonValidationPreview') }}</h3>
     @if (preview(); as result) {
       @if (!result.structuralValid) {

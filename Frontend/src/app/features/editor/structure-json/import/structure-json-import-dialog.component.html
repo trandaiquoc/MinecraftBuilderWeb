@@ -40,6 +40,8 @@
         <button
           type="button"
           role="tab"
+          [id]="'structure-json-tab-' + item"
+          [attr.aria-controls]="'structure-json-panel-' + item"
           [attr.aria-selected]="activeTab() === item"
           [class.active]="activeTab() === item"
           (click)="setTab(item)"
@@ -52,7 +54,13 @@
         </button>
       }
     </div>
-    <div class="structure-json-body" [class.ai-mode]="activeTab() === 'ai'">
+    <div
+      class="structure-json-body"
+      role="tabpanel"
+      [id]="'structure-json-panel-' + activeTab()"
+      [attr.aria-labelledby]="'structure-json-tab-' + activeTab()"
+      [class.ai-mode]="activeTab() === 'ai'"
+    >
       <app-structure-json-import-workspace
         [hidden]="activeTab() !== 'import'"
         [project]="project()"

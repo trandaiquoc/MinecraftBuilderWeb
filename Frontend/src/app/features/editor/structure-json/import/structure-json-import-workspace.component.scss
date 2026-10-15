@@ -9,8 +9,10 @@
 .structure-json-info {
   min-width: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 1rem;
   background: var(--surface-muted);
+  scrollbar-gutter: stable;
 }
 .structure-json-info h3 {
   margin: 0 0 0.8rem;

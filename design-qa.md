@@ -1,0 +1,44 @@
+# Workspace UI Renovation QA
+
+**Final result: blocked**
+
+## Evidence
+
+- Approved visual sources: `/tmp/laundromat-stitch-approved/stitch_block_laundromat_workspace_design_system/workspace_{minecraft_theme,raccoon_theme,light_theme,dark_theme}/screen.png` (each 1600 x 1280 px).
+- Full-view comparison: `/tmp/workspace-theme-qa-same-viewport.png` (all four source/implementation pairs in one image).
+- Implementation captures: `/tmp/workspace-renovation-{craft,raccoon,light,dark}-1600x1280.png` (each 1600 x 1280 CSS px, device scale factor 1).
+- Focused responsive captures: `/tmp/workspace-sidebar-tabs-1440-final.png`, `/tmp/workspace-sidebar-tabs-640-open.png`, `/tmp/json-import-{1440x900,780x437,640x520}.png`, `/tmp/ai-tabs-640.png`, and `/tmp/settings-appearance-vi-780x437.png`.
+- The comparison sheet preserves aspect ratio and fits each 1600 x 1280 image into an 800 x 640 cell without cropping. Source and implementation therefore share viewport dimensions and scale before normalization.
+
+The four implementation captures use the same saved 16 x 16 x 16 project with zero placed blocks, camera, font (Chakra Petch, Normal), workspace background (Dark), locale (English), sidebar widths (180 px / 200 px), and viewport. Only the UI theme changes; the persisted theme was restored to `craft` after capture. The references show different sample content, including a simulated large structure and performance readouts. Those are not equivalent runtime states and were not copied; the editor screenshot shows the real canvas and current project.
+
+## Findings
+
+- **[P1] Full Workspace renovation remains incomplete.** The shell still differs materially in composition and control density from the approved screens, and most requested surfaces (Asset Manager, Mod Import, Diagnostics, Export, inspectors, Groups, Quick Bar, and other dialogs) were not redesigned in this implementation. The current work closes targeted reset, scrolling, and narrow-tab regressions; it does not satisfy the requested end-to-end visual renovation.
+- **[P2] Raccoon treatment needs further visual iteration.** The implementation uses the shared charcoal theme and rounded controls, but the side-by-side view does not yet communicate the softer, cushioned/fluffy character of the approved reference as clearly. No new decorative treatment was added in this scoped pass.
+- **Expected comparison difference:** the saved sidebar widths are narrower than the reference composition. They were preserved rather than overwritten; the comparison uses the user's actual persisted layout.
+
+## Verified fixes and iteration evidence
+
+- Appearance Interface reset now changes only theme, font, and font size; Workspace Background reset changes only background and Reality presets. Browser interaction verified Interface defaults (Minecraft, Comfortaa, Normal), Background defaults (Dark, Plains grass, Overworld day), and unchanged persisted preferences before Cancel/Discard. Settings session tests cover independent resets, Apply, Cancel, Save & Close, and draft behavior.
+- Import JSON was exercised in Chrome at 1440 x 900, 780 x 437, and 640 x 520. Header, main tabs, and footer stayed available; the source editor and validation content scrolled; long validation results and Import Mode remained reachable. The 640 px layout uses the outer import content as its scroll owner while preserving textarea scrolling.
+- Create with AI's five tabs were exercised with long content. At 640 x 520, active-panel scrollHeight/clientHeight were: Description 555/278, Available content 548/278, Content limits 1216/278, AI guidance 1917/278, JSON example 1679/278. Wheel/keyboard scrolling changed the active scroll position. At short/narrow viewports, the workspace host owns scrolling; ordinary viewports use the active panel. Prompt data was retained across tab changes.
+- A browser review found the Groups tab clipped at the persisted 180 px sidebar. The left tab row was changed to three equal columns with single-line truncation; Chrome verified all three tabs at 180 px and full labels in the 360 px responsive drawer. Post-fix captures are linked above.
+
+## Fidelity surfaces
+
+- **Typography:** four themes use the same selected Chakra Petch UI font and consistent hierarchy in the captures. Full font-size and font-choice visual comparison across every dialog is not complete.
+- **Spacing/layout:** shell proportions and overall density still diverge from the reference; the saved narrow sidebars are an intentional runtime state, while many other requested surfaces remain untouched.
+- **Colors/tokens:** Minecraft keeps the grass/dirt transition, Light remains neutral, Dark near-black, and Raccoon charcoal. This pass did not audit every control's contrast against WCAG AA.
+- **Images/assets:** the official logo and real viewport canvas are used. No fake structure, metrics, or generated UI imagery was introduced.
+- **Copy/content:** English and Vietnamese Settings were checked at 780 x 437; long AI and validation content was checked in English. A complete EN/VI review across all dialogs is outstanding.
+
+## Runtime and test notes
+
+- Chrome CDP interaction produced no JavaScript exceptions, application console errors, or failed network requests during the checked Settings path.
+- Browser warnings: Angular `NG02960` reports that the unchanged official SVG logo's 1774 x 887 intrinsic raster is larger than its rendered size; Chromium also reports automatic software-WebGL fallback deprecation. The latter is a headless/browser diagnostic. Neither was changed in this UI pass.
+- Automated verification passed: full frontend tests (305 files, 1,890 passed, 7 files / 11 tests skipped), app/spec/worker TypeScript checks, production build, tool tests, encoding check, and Prettier for changed source files. Renderer benchmarks were not rerun because renderer, data, and rendering paths were unchanged.
+
+## Remaining work
+
+Complete the missing Workspace surfaces, iterate the Raccoon treatment against the approved reference, and run a full four-theme / EN-VI / accessibility visual pass before design acceptance.

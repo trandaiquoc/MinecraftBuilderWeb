@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, signal } from '@angular/core';
 import { LucideCopy } from '@lucide/angular';
 import { canonicalPlaceableItemId } from '../../../../core/blocks/placement-palette/placeable-item-resolution';
 import type { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item.types';
@@ -37,10 +37,16 @@ type AiWorkspaceTab = 'description' | 'content' | 'limits' | 'guidance' | 'examp
 @Component({
   selector: 'app-external-ai-workspace',
   imports: [LucideCopy, ReadonlyCodeViewerComponent],
+  host: {
+    role: 'region',
+    tabindex: '0',
+    '[attr.aria-label]': 'i18n.t("structureJsonAiWorkspaceTitle")',
+  },
   templateUrl: './external-ai-workspace.component.html',
   styleUrl: './external-ai-workspace.component.scss',
 })
 export class ExternalAiWorkspaceComponent {
+  private readonly host = inject(ElementRef<HTMLElement>);
   protected readonly i18n = inject(I18nService);
   private readonly itemCatalog = inject(ItemCatalogService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
@@ -178,7 +184,13 @@ export class ExternalAiWorkspaceComponent {
   }
 
   protected setAiTab(tab: AiWorkspaceTab): void {
+    if (this.activeAiTab() === tab) return;
     this.activeAiTab.set(tab);
+    this.host.nativeElement.scrollTop = 0;
+    const panel = (this.host.nativeElement as HTMLElement).querySelector(
+      '.ai-panel, .ai-content-limits-workspace',
+    ) as HTMLElement | null;
+    if (panel) panel.scrollTop = 0;
   }
   protected aiTabLabel(tab: AiWorkspaceTab): string {
     return this.i18n.t(

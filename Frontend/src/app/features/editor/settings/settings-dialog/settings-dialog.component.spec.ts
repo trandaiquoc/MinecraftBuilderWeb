@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import {
   REALITY_SKY_BACKGROUND_COLORS,
@@ -8,6 +8,7 @@ import {
 } from '../../../../core/editor/appearance/editor-background-contract';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { SettingsDialogComponent } from './settings-dialog.component';
+import { SettingsDialogSession } from './settings-dialog-session';
 
 interface SettingsAppearanceView {
   setSection(section: 'appearance'): void;
@@ -99,6 +100,88 @@ describe('SettingsDialogComponent Reality previews', () => {
     expect(unavailableSand.classList.contains('unavailable')).toBe(true);
     expect(unavailableSand.querySelector('small')).toBeTruthy();
 
+    fixture.destroy();
+  });
+
+  it('renders independent Appearance resets and keeps each operation in the draft', async () => {
+    localStorage.removeItem('the-block-laundromat.ui-preferences');
+    await TestBed.configureTestingModule({
+      imports: [SettingsDialogComponent],
+      providers: [
+        {
+          provide: ContentAssetRuntimeService,
+          useValue: {
+            generation: signal(0),
+            resourceAvailabilitySettled: signal(true),
+            sources: { resources: { textureUrl: () => undefined } },
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const preferences = TestBed.inject(UiPreferencesService);
+    preferences.setAppearance({
+      preset: 'raccoon',
+      font: 'pangolin',
+      fontSize: 'large',
+      editorBackground: 'reality',
+      reality: { groundPreset: 'snow', skyPreset: 'nether' },
+    });
+    const fixture = TestBed.createComponent(SettingsDialogComponent);
+    const closed = vi.fn();
+    fixture.componentInstance.closed.subscribe(closed);
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      setSection(section: 'appearance'): void;
+      appearanceTab: { set(value: 'interface' | 'workspace-background'): void };
+    };
+    const session = fixture.debugElement.injector.get(SettingsDialogSession);
+    component.setSection('appearance');
+    fixture.detectChanges();
+
+    const reset = (index: number) => {
+      const buttons = fixture.nativeElement.querySelectorAll(
+        '.appearance-settings-pane .section-reset',
+      ) as NodeListOf<HTMLButtonElement>;
+      expect(buttons).toHaveLength(1);
+      buttons[index]?.click();
+      fixture.detectChanges();
+    };
+
+    reset(0);
+    expect(session.draft().appearance).toMatchObject({
+      preset: 'craft',
+      font: 'comfortaa',
+      fontSize: 'normal',
+      editorBackground: 'reality',
+      reality: { groundPreset: 'snow', skyPreset: 'nether' },
+    });
+    expect(preferences.preferences().appearance.preset).toBe('raccoon');
+
+    component.appearanceTab.set('workspace-background');
+    fixture.detectChanges();
+    reset(0);
+    expect(session.draft().appearance).toMatchObject({
+      preset: 'craft',
+      font: 'comfortaa',
+      fontSize: 'normal',
+      editorBackground: 'dark',
+      reality: { groundPreset: 'plains-grass', skyPreset: 'overworld-day' },
+    });
+    expect(preferences.preferences().appearance.editorBackground).toBe('reality');
+    const saveAndClose = fixture.nativeElement.querySelector(
+      '.settings-dialog-footer .primary',
+    ) as HTMLButtonElement;
+    saveAndClose.click();
+    fixture.detectChanges();
+    expect(closed).toHaveBeenCalledOnce();
+    expect(preferences.preferences().appearance).toMatchObject({
+      preset: 'craft',
+      font: 'comfortaa',
+      fontSize: 'normal',
+      editorBackground: 'dark',
+      reality: { groundPreset: 'plains-grass', skyPreset: 'overworld-day' },
+    });
     fixture.destroy();
   });
 });
