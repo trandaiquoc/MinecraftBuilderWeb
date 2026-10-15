@@ -362,7 +362,53 @@ describe('ThemeService font state', () => {
     TestBed.flushEffects();
     expect(theme.font()).toBe('comfortaa');
     expect(document.documentElement.dataset['font']).toBe('comfortaa');
-    expect(document.documentElement.style.getPropertyValue('--font-ui')).toContain('Comfortaa');
+    expect(document.documentElement.style.getPropertyValue('--font-ui')).toBe(
+      "'Comfortaa Variable'",
+    );
+  });
+
+  it('bundles each approved face and applies its exact family without platform fallbacks', () => {
+    const buildConfig = String(readFileSync('angular.json', 'utf8'));
+    const fontFaces = [
+      {
+        font: 'comfortaa',
+        package: '@fontsource-variable/comfortaa',
+        css: 'node_modules/@fontsource-variable/comfortaa/index.css',
+        family: "'Comfortaa Variable'",
+        face: "font-family: 'Comfortaa Variable';",
+      },
+      {
+        font: 'chakra-petch',
+        package: '@fontsource/chakra-petch',
+        css: 'node_modules/@fontsource/chakra-petch/index.css',
+        family: "'Chakra Petch'",
+        face: "font-family: 'Chakra Petch';",
+      },
+      {
+        font: 'pangolin',
+        package: '@fontsource/pangolin',
+        css: 'node_modules/@fontsource/pangolin/index.css',
+        family: "'Pangolin'",
+        face: "font-family: 'Pangolin';",
+      },
+    ] as const;
+    const theme = TestBed.inject(ThemeService);
+    const document = TestBed.inject(DOCUMENT);
+
+    for (const fontFace of fontFaces) {
+      expect(buildConfig).toContain(fontFace.css);
+      expect(String(readFileSync(fontFace.css, 'utf8'))).toContain(fontFace.face);
+      theme.setFont(fontFace.font);
+      TestBed.flushEffects();
+      expect(document.documentElement.style.getPropertyValue('--font-ui')).toBe(fontFace.family);
+      expect(document.documentElement.style.getPropertyValue('--font-readable')).toBe(
+        fontFace.family,
+      );
+    }
+
+    expect(String(readFileSync(fontFaces[1].css, 'utf8'))).toContain(
+      'chakra-petch-vietnamese-400-normal',
+    );
   });
 
   it('keeps Craft and base theme changes from changing the font choice', () => {
@@ -389,7 +435,7 @@ describe('ThemeService font state', () => {
     const document = TestBed.inject(DOCUMENT);
     const themes = ['craft', 'light', 'raccoon', 'dark'] as const;
     const fonts = ['comfortaa', 'chakra-petch', 'pangolin'] as const;
-    const familyNames = ['Comfortaa', 'Chakra Petch', 'Pangolin'] as const;
+    const familyNames = ["'Comfortaa Variable'", "'Chakra Petch'", "'Pangolin'"] as const;
 
     theme.setEditorBackground('light');
     for (const preset of themes) {
@@ -402,7 +448,7 @@ describe('ThemeService font state', () => {
         TestBed.flushEffects();
         expect(theme.font()).toBe(font);
         expect(document.documentElement.dataset['font']).toBe(font);
-        expect(document.documentElement.style.getPropertyValue('--font-ui')).toContain(
+        expect(document.documentElement.style.getPropertyValue('--font-ui')).toBe(
           familyNames[index],
         );
       }

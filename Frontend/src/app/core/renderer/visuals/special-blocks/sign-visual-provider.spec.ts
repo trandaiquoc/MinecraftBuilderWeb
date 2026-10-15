@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import type { PlacedBlock } from '../../../domain/project.types';
 import { SignVisualProvider, signTextLayout } from './sign-visual-provider';
@@ -101,6 +101,25 @@ describe('SignVisualProvider', () => {
     const visual = provider.create(block('minecraft:oak_sign'));
     expect(visual.children[0]?.children[0]?.scale.toArray()).toEqual([2 / 3, -2 / 3, -2 / 3]);
     expect(visual.children[0]?.children[1]?.scale.toArray()).toEqual([1, 1, 1]);
+  });
+
+  it('uses a bundled approved font for canvas-rendered sign text', () => {
+    const assignedFonts: string[] = [];
+    const context = {
+      clearRect: vi.fn(),
+      fillText: vi.fn(),
+      set font(value: string) {
+        assignedFonts.push(value);
+      },
+    } as unknown as CanvasRenderingContext2D;
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockImplementation(() => context);
+
+    provider.create({ ...block('minecraft:oak_sign'), blockEntityData: signData });
+
+    expect(assignedFonts).toEqual(["60px 'Comfortaa Variable'", "60px 'Comfortaa Variable'"]);
+    getContext.mockRestore();
   });
 
   it('places text offsets in world space before text scale for all sign variants', () => {

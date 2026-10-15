@@ -32,7 +32,10 @@ descriptive art direction, not a separate feature or setting.
 
 Comfortaa, Chakra Petch, and Pangolin are self-hosted through Fontsource and
 can each be selected independently of all four themes. Small, Normal, and Large
-font sizes scale the shared UI typography. New preferences and Appearance reset
+font sizes scale the shared UI typography. UI code, registry IDs, and coordinate
+readouts use the selected family too; operating-system font stacks are not part
+of the selectable UI font contract. Canvas-rendered Minecraft sign text uses
+the bundled Comfortaa face independently of the UI preference. New preferences and Appearance reset
 to Minecraft (`craft`), Comfortaa, and a Dark workspace background. Existing
 saved preferences are retained; legacy Geist and Minecraft-style font values
 migrate to Comfortaa and Chakra Petch when preferences are normalized. Reality's

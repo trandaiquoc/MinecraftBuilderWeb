@@ -299,7 +299,7 @@ function addSignTextSide(
   if (!context) return;
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = signTextColor(side.color, side.glowing === true);
-  context.font = `${Math.max(12, offset.lineHeight * pixelsPerUnit * 0.75)}px sans-serif`;
+  context.font = `${Math.max(12, offset.lineHeight * pixelsPerUnit * 0.75)}px 'Comfortaa Variable'`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   for (let index = 0; index < 4; index++)

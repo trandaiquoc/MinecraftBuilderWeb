@@ -2,8 +2,8 @@
   font-family: var(--font-ui);
   line-height: var(--line-height-body);
   color-scheme: dark;
-  --font-ui: 'Comfortaa Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-readable: 'Comfortaa Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-ui: 'Comfortaa Variable';
+  --font-readable: 'Comfortaa Variable';
   --line-height-body: 1.4;
   --line-height-heading: 1.15;
   --line-height-control: 1.2;
@@ -490,6 +490,12 @@ body {
 }
 body {
   color: var(--text);
+  font-family: var(--font-readable);
+}
+code,
+kbd,
+pre,
+samp {
   font-family: var(--font-readable);
 }
 button,

@@ -6,9 +6,9 @@ import { EditorBackgroundMode } from '../../editor/appearance/editor-background-
 export type Theme = 'light' | 'dark' | 'craft' | 'raccoon';
 
 const fontFamilies: Record<UiFont, string> = {
-  comfortaa: "'Comfortaa Variable', ui-sans-serif, system-ui, sans-serif",
-  'chakra-petch': "'Chakra Petch', ui-sans-serif, system-ui, sans-serif",
-  pangolin: "'Pangolin', ui-sans-serif, system-ui, sans-serif",
+  comfortaa: "'Comfortaa Variable'",
+  'chakra-petch': "'Chakra Petch'",
+  pangolin: "'Pangolin'",
 };
 
 const fontMetrics: Record<UiFont, { body: string; heading: string; control: string }> = {

@@ -40,12 +40,7 @@
   border-right: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-raised) 72%, var(--surface-muted));
   color: var(--text-muted);
-  font:
-    0.76rem/1.5 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Consolas,
-    monospace;
+  font: 0.76rem/1.5 var(--font-readable);
   text-align: right;
   user-select: none;
 }
@@ -58,12 +53,7 @@
   margin: 0;
   padding: 0.8rem;
   color: var(--text);
-  font:
-    0.76rem/1.5 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Consolas,
-    monospace;
+  font: 0.76rem/1.5 var(--font-readable);
   tab-size: 2;
   white-space: pre;
   user-select: text;
