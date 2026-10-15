@@ -7,6 +7,8 @@
 <div class="tool-dialog-backdrop" role="presentation">
   <section
     class="tool-dialog"
+    animate.enter="workspace-dialog-enter"
+    animate.leave="workspace-dialog-exit"
     [cdkTrapFocus]="!selectedDetails() && !confirming() && !diagnosticDialog()"
     [cdkTrapFocusAutoCapture]="true"
     role="dialog"
@@ -26,7 +28,11 @@
         <svg lucideX aria-hidden="true"></svg>
       </button>
     </header>
-    <nav class="manager-tabs" role="tablist" [attr.aria-label]="i18n.t('assetManagerTitle')">
+    <nav
+      class="manager-tabs ui-tab-strip"
+      role="tablist"
+      [attr.aria-label]="i18n.t('assetManagerTitle')"
+    >
       <button
         type="button"
         role="tab"

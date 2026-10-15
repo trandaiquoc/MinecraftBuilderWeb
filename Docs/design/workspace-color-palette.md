@@ -59,6 +59,14 @@ All 23 roles in the table are exact palette values. Additional aliases for toolb
 - `ThemeService` continues to set `--editor-viewport-bg` from the independent Dark/Light/Reality preference. Reality sky colors are shared by `editor-background-contract.ts`; Reality ground previews use the corresponding bundled or loaded texture. Neither is coupled to the UI theme.
 - Minecraft block/item/decoration previews and the retained 3D renderer are content visuals, not theme artwork. Do not replace them with Stitch screenshots or recolor them with Workspace tokens.
 
+## Interaction and motion contract
+
+- `Frontend/src/styles.scss` owns the shared motion tokens: fast control feedback (120 ms), standard UI transitions (180 ms), and short enter/exit transitions (150 ms or less), with standard and emphasized easing curves.
+- The same controls keep distinct state channels: hover lifts an unselected surface, keyboard focus uses the focus token, and active/selected controls use the selected token plus a persistent indicator or weight change. Do not communicate selection through color alone.
+- `.ui-tab-strip` is the shared sliding indicator for multi-tab groups whose direct tab buttons expose `aria-selected`. Keep auxiliary actions outside the tablist so they do not change indicator geometry.
+- Popovers and dialogs use short opacity/transform transitions. Progress and copy feedback remain driven by operation/clipboard results; animation must not invent progress or success.
+- `prefers-reduced-motion` reduces Workspace and overlay transitions to effectively immediate changes. Motion is not used in renderer, camera, pointer, or virtual-list hot paths.
+
 ## References and verification
 
 The four approved Workspace compositions are preserved under `design/references/`. The supplied archive also contains 45 original feature-reference screenshots used to check controls, states, and feature inventory; those reference images remain in the supplied archive rather than application source. Their HTML/Tailwind exports are design artifacts, not application source.

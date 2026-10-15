@@ -4,12 +4,23 @@ import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
 import type { EditorChromeAction, EditorChromeState } from './editor-chrome.contracts';
 import {
+  LucideCamera,
+  LucideCheck,
   LucideChevronDown,
   LucideCuboid,
+  LucideDownload,
+  LucideFileInput,
+  LucideFileOutput,
+  LucideFocus,
+  LucideFolderOpen,
+  LucideFolderPlus,
   LucideLayers,
+  LucideMaximize2,
   LucideMousePointer2,
   LucideMousePointerClick,
   LucideRedo2,
+  LucideSave,
+  LucideTrash,
   LucideUndo2,
 } from '@lucide/angular';
 
@@ -18,13 +29,24 @@ type EditorMenu = 'file' | 'edit' | 'view' | 'tools' | 'settings' | 'help' | 'ca
 @Component({
   selector: 'app-editor-chrome',
   imports: [
+    LucideCamera,
+    LucideCheck,
     RouterLink,
     LucideChevronDown,
     LucideCuboid,
+    LucideDownload,
+    LucideFileInput,
+    LucideFileOutput,
+    LucideFocus,
+    LucideFolderOpen,
+    LucideFolderPlus,
     LucideLayers,
+    LucideMaximize2,
     LucideMousePointer2,
     LucideMousePointerClick,
     LucideRedo2,
+    LucideSave,
+    LucideTrash,
     LucideUndo2,
   ],
   templateUrl: './editor-chrome.component.html',

@@ -40,7 +40,7 @@
         #catalogViewport
         class="results"
         [itemSize]="rowHeight()"
-        role="listbox"
+        role="group"
         [style.--block-columns]="columnCount()"
         [style.--block-row-height.px]="rowHeight()"
         [attr.aria-label]="i18n.t('blocksPanel')"
@@ -51,16 +51,14 @@
               class="block-item"
               thumbnailVisibility
               [thumbnailVisibilityEpoch]="assets.thumbnailEpoch()"
-              role="option"
               [class.active]="isActive(block)"
-              [attr.aria-selected]="isActive(block)"
-              [attr.aria-label]="block.displayName"
               (thumbnailVisible)="requestThumbnail(block, $event)"
             >
               <button
                 type="button"
                 class="block-select-action"
                 (click)="select(block)"
+                [attr.aria-pressed]="isActive(block)"
                 [attr.aria-label]="block.displayName"
               >
                 <span
@@ -80,11 +78,17 @@
                       (block.namespace === 'minecraft' ? 'Minecraft' : block.namespace)
                   }}</small></span
                 >
+                @if (isActive(block)) {
+                  <span class="block-selected-indicator" aria-hidden="true"
+                    ><svg lucideCheck></svg
+                  ></span>
+                }
               </button>
-              <span class="quick-add-wrapper" tabindex="0" uiTooltip="{{ quickAddLabel(block) }}"
+              <span class="quick-add-wrapper"
                 ><button
                   type="button"
                   class="quick-add-action"
+                  uiTooltip="{{ quickAddLabel(block) }}"
                   (click)="addToQuickBar($event, block)"
                   [disabled]="!canAddToQuickBar(block)"
                   [attr.aria-label]="quickAddLabel(block)"

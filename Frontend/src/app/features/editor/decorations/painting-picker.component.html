@@ -31,12 +31,13 @@
           >
         </div>
       }
-      <div class="painting-grid" role="listbox">
+      <div class="painting-grid" role="group" [attr.aria-label]="i18n.t('paintingVariants')">
         @for (variant of filteredVariants(); track variant.id) {
           <button
             type="button"
             class="painting-card"
             [class.selected]="variant.id === selectedId()"
+            [attr.aria-pressed]="variant.id === selectedId()"
             (click)="choose(variant.id)"
           >
             <span class="painting-image"
@@ -47,6 +48,11 @@
                 [style.height.px]="imageSize(variant, 'card').height"
                 loading="lazy"
             /></span>
+            @if (variant.id === selectedId()) {
+              <span class="painting-selected-indicator" aria-hidden="true"
+                ><svg lucideCheck></svg
+              ></span>
+            }
             <span class="painting-card-meta"
               ><strong [attr.title]="label(variant.id)">{{ label(variant.id) }}</strong
               ><small>{{ variant.width }} &times; {{ variant.height }}</small></span
@@ -80,12 +86,13 @@
       >
     </div>
   }
-  <div class="painting-grid" role="listbox">
+  <div class="painting-grid" role="group" [attr.aria-label]="i18n.t('paintingVariants')">
     @for (variant of filteredVariants(); track variant.id) {
       <button
         type="button"
         class="painting-card"
         [class.selected]="variant.id === selectedId()"
+        [attr.aria-pressed]="variant.id === selectedId()"
         (click)="choose(variant.id)"
       >
         <span class="painting-image"
@@ -96,6 +103,11 @@
             [style.height.px]="imageSize(variant, 'card').height"
             loading="lazy"
         /></span>
+        @if (variant.id === selectedId()) {
+          <span class="painting-selected-indicator" aria-hidden="true"
+            ><svg lucideCheck></svg
+          ></span>
+        }
         <span class="painting-card-meta"
           ><strong [attr.title]="label(variant.id)">{{ label(variant.id) }}</strong
           ><small>{{ variant.width }} &times; {{ variant.height }}</small></span

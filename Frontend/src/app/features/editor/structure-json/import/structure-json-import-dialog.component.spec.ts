@@ -127,7 +127,7 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(aiStyles).toContain('@media (max-width: 680px)');
     const fixedRegions = [
       '<header class="structure-json-header">',
-      'class="structure-json-tabs"',
+      'class="structure-json-tabs ui-tab-strip"',
       'class="structure-json-body"',
       '<footer class="structure-json-footer">',
       'structureJsonApplyImport',

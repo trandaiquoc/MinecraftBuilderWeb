@@ -116,7 +116,11 @@
           >
             <svg lucideX aria-hidden="true"></svg>
           </button>
-          <div class="sidebar-tabs" role="tablist" [attr.aria-label]="i18n.t('sidebarTabs')">
+          <div
+            class="sidebar-tabs ui-tab-strip ui-tab-strip--3"
+            role="tablist"
+            [attr.aria-label]="i18n.t('sidebarTabs')"
+          >
             <button
               id="sidebar-tab-blocks"
               type="button"
@@ -124,10 +128,11 @@
               [attr.aria-selected]="leftSidebarTab() === 'blocks'"
               [attr.aria-controls]="'sidebar-panel-blocks'"
               [class.active]="leftSidebarTab() === 'blocks'"
+              [attr.aria-label]="i18n.t('blocksPanel')"
               (keydown)="handleSidebarTabKeydown($event, 0)"
               (click)="leftSidebarTab.set('blocks')"
             >
-              {{ i18n.t('blocksPanel') }}
+              <span class="sidebar-tab-label">{{ i18n.t('blocksPanel') }}</span>
             </button>
             <button
               id="sidebar-tab-decorations"
@@ -136,10 +141,11 @@
               [attr.aria-selected]="leftSidebarTab() === 'decorations'"
               [attr.aria-controls]="'sidebar-panel-decorations'"
               [class.active]="leftSidebarTab() === 'decorations'"
+              [attr.aria-label]="i18n.t('decorationsPanel')"
               (keydown)="handleSidebarTabKeydown($event, 1)"
               (click)="leftSidebarTab.set('decorations')"
             >
-              {{ i18n.t('decorationsPanel') }}
+              <span class="sidebar-tab-label">{{ i18n.t('decorationsPanel') }}</span>
             </button>
             <button
               id="sidebar-tab-groups"
@@ -148,10 +154,11 @@
               [attr.aria-selected]="leftSidebarTab() === 'groups'"
               [attr.aria-controls]="'sidebar-panel-groups'"
               [class.active]="leftSidebarTab() === 'groups'"
+              [attr.aria-label]="i18n.t('groupsPanel')"
               (keydown)="handleSidebarTabKeydown($event, 2)"
               (click)="leftSidebarTab.set('groups')"
             >
-              {{ i18n.t('groupsPanel') }}
+              <span class="sidebar-tab-label">{{ i18n.t('groupsPanel') }}</span>
             </button>
           </div>
           @if (leftSidebarTab() === 'blocks') {
@@ -246,7 +253,7 @@
             <svg lucideX aria-hidden="true"></svg>
           </button>
           <div
-            class="sidebar-tabs right-sidebar-tabs"
+            class="sidebar-tabs right-sidebar-tabs ui-tab-strip"
             role="tablist"
             [attr.aria-label]="i18n.t('inspector')"
           >
@@ -257,6 +264,7 @@
               aria-controls="right-sidebar-panel-selection"
               [attr.aria-selected]="rightSidebarTab() === 'selection'"
               [class.active]="rightSidebarTab() === 'selection'"
+              (keydown)="handleRightSidebarTabKeydown($event, 0)"
               (click)="rightSidebarTab.set('selection')"
             >
               {{ i18n.t('selection') }}
@@ -268,6 +276,7 @@
               aria-controls="right-sidebar-panel-usage"
               [attr.aria-selected]="rightSidebarTab() === 'block-usage'"
               [class.active]="rightSidebarTab() === 'block-usage'"
+              (keydown)="handleRightSidebarTabKeydown($event, 1)"
               (click)="rightSidebarTab.set('block-usage')"
             >
               {{ i18n.t('blockUsage') }}

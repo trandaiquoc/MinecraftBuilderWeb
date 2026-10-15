@@ -34,6 +34,9 @@
                 ◇
               }</span
             ><small>{{ index === 9 ? 0 : index + 1 }}</small>
+            @if (entry.active) {
+              <svg class="slot-selected-indicator" lucideCheck aria-hidden="true"></svg>
+            }
           </button>
           <button
             type="button"

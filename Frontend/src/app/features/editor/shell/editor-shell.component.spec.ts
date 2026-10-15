@@ -160,6 +160,36 @@ describe('editor shell movement/delete routing', () => {
     mount.mockRestore();
   });
 
+  it('keeps Inspector tabs keyboard-operable with the selected tab in sync', () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    TestBed.inject(WorkspaceStateService).activate(project, undefined);
+    document.body.append(fixture.nativeElement);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const selectionTab = root.querySelector<HTMLButtonElement>(
+      '.right-sidebar-tabs button[aria-selected="true"]',
+    );
+    const usageTarget = root.querySelector<HTMLButtonElement>('#right-sidebar-tab-usage');
+    if (!usageTarget) throw new Error('Inspector Usage tab is missing');
+    const focusUsage = vi.spyOn(usageTarget, 'focus');
+    selectionTab?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+    );
+    fixture.detectChanges();
+
+    const usageTab = root.querySelector<HTMLButtonElement>(
+      '.right-sidebar-tabs button[aria-selected="true"]',
+    );
+    expect(usageTab?.id).toBe('right-sidebar-tab-usage');
+    expect(focusUsage).toHaveBeenCalledOnce();
+
+    fixture.destroy();
+    fixture.nativeElement.remove();
+    mount.mockRestore();
+  });
+
   it('does not delete on cancellation and reports navigation failure after successful deletion', async () => {
     const fixture = TestBed.createComponent(EditorShellComponent);
     const shell = fixture.componentInstance as unknown as { deleteProject: () => Promise<void> };

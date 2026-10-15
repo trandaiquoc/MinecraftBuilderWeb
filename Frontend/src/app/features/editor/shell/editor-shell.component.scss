@@ -89,8 +89,8 @@
   content: '';
   transform: translateX(-50%);
   transition:
-    background 0.12s ease,
-    box-shadow 0.12s ease;
+    background var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
 .sidebar-resize-handle:hover::after,
@@ -158,6 +158,13 @@
   gap: 0.3rem;
   margin: 0 -0.25rem 0.65rem;
 }
+.sidebar-tabs.ui-tab-strip {
+  display: grid;
+  grid-template-columns: repeat(var(--ui-tab-count), minmax(0, 1fr));
+  gap: 0.15rem;
+  margin: 0 -0.25rem 0.65rem;
+  padding: 0.2rem;
+}
 
 .left-panel > .sidebar-tabs {
   display: grid;
@@ -179,17 +186,24 @@
   font: inherit;
   font-size: 0.76rem;
   transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    border-color 140ms ease,
-    box-shadow 140ms ease;
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
 .left-panel > .sidebar-tabs button {
-  padding-inline: 0.12rem;
+  min-height: 2.35rem;
+  padding-inline: 0.15rem;
+  font-size: 0.64rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.left-panel > .sidebar-tabs .sidebar-tab-label {
+  display: block;
+  min-width: 0;
   overflow: hidden;
-  font-size: 0.7rem;
-  line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -199,16 +213,8 @@
   color: var(--workspace-sidebar-text);
 }
 
-.sidebar-tabs button.active,
-.sidebar-tabs button[aria-selected='true'] {
-  border-color: color-mix(in srgb, var(--workspace-primary) 62%, var(--workspace-sidebar-bg));
-  background: var(--workspace-primary);
-  color: var(--workspace-text-on-primary);
-  box-shadow: var(--shadow-control);
-}
-
 .sidebar-tabs button:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid var(--focus-color);
   outline-offset: 2px;
 }
 
@@ -301,8 +307,8 @@
     max-width: calc(100vw - 2.5rem);
     box-shadow: var(--shadow-dialog);
     transition:
-      transform 0.16s ease,
-      visibility 0.16s ease;
+      transform var(--motion-duration-ui) var(--motion-easing-emphasized),
+      visibility var(--motion-duration-ui) var(--motion-easing-standard);
   }
 
   .panel.left-panel {

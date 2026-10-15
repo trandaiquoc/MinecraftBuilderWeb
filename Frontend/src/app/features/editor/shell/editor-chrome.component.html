@@ -22,13 +22,18 @@
           {{ i18n.t('fileMenu') }}
         </button>
         @if (activeMenu() === 'file') {
-          <div class="menu-popover" role="menu">
+          <div
+            class="menu-popover"
+            role="menu"
+            animate.enter="workspace-popover-enter"
+            animate.leave="workspace-popover-exit"
+          >
             <button type="button" role="menuitem" (click)="emit({ type: 'navigate-projects' })">
-              {{ i18n.t('newProjectMenu') }}</button
+              <svg lucideFolderPlus aria-hidden="true"></svg>{{ i18n.t('newProjectMenu') }}</button
             ><button type="button" role="menuitem" (click)="emit({ type: 'navigate-projects' })">
-              {{ i18n.t('openProjectMenu') }}</button
+              <svg lucideFolderOpen aria-hidden="true"></svg>{{ i18n.t('openProjectMenu') }}</button
             ><button type="button" role="menuitem" (click)="emit({ type: 'save-project' })">
-              {{ i18n.t('saveProjectMenu') }}
+              <svg lucideSave aria-hidden="true"></svg>{{ i18n.t('saveProjectMenu') }}
             </button>
             <hr />
             <button
@@ -38,23 +43,25 @@
               [disabled]="state().deletingProject"
               (click)="emit({ type: 'delete-project' })"
             >
+              <svg lucideTrash aria-hidden="true"></svg>
               {{
                 state().deletingProject ? i18n.t('deletingProject') : i18n.t('deleteProjectMenu')
               }}
             </button>
             <hr />
             <button type="button" role="menuitem" (click)="emit({ type: 'import-structure-json' })">
-              {{ i18n.t('importStructureJson') }}</button
+              <svg lucideFileInput aria-hidden="true"></svg
+              >{{ i18n.t('importStructureJson') }}</button
             ><button
               type="button"
               role="menuitem"
               (click)="emit({ type: 'export-structure-json' })"
             >
-              {{ i18n.t('exportStructureJson') }}
+              <svg lucideFileOutput aria-hidden="true"></svg>{{ i18n.t('exportStructureJson') }}
             </button>
             <hr />
             <button type="button" role="menuitem" (click)="emit({ type: 'export-structure-nbt' })">
-              {{ i18n.t('exportStructureNbt') }}
+              <svg lucideDownload aria-hidden="true"></svg>{{ i18n.t('exportStructureNbt') }}
             </button>
           </div>
         }
@@ -71,21 +78,26 @@
           {{ i18n.t('editMenu') }}
         </button>
         @if (activeMenu() === 'edit') {
-          <div class="menu-popover" role="menu">
+          <div
+            class="menu-popover"
+            role="menu"
+            animate.enter="workspace-popover-enter"
+            animate.leave="workspace-popover-exit"
+          >
             <button
               type="button"
               role="menuitem"
               [disabled]="!state().canUndo"
               (click)="emit({ type: 'undo' })"
             >
-              {{ i18n.t('undo') }}</button
+              <svg lucideUndo2 aria-hidden="true"></svg>{{ i18n.t('undo') }}</button
             ><button
               type="button"
               role="menuitem"
               [disabled]="!state().canRedo"
               (click)="emit({ type: 'redo' })"
             >
-              {{ i18n.t('redo') }}
+              <svg lucideRedo2 aria-hidden="true"></svg>{{ i18n.t('redo') }}
             </button>
             <hr />
             <button type="button" role="menuitem" (click)="emit({ type: 'select-all' })">
@@ -120,7 +132,12 @@
           {{ i18n.t('viewMenu') }}
         </button>
         @if (activeMenu() === 'view') {
-          <div class="menu-popover" role="menu">
+          <div
+            class="menu-popover"
+            role="menu"
+            animate.enter="workspace-popover-enter"
+            animate.leave="workspace-popover-exit"
+          >
             <button
               type="button"
               role="menuitemradio"
@@ -128,6 +145,9 @@
               [class.active]="state().mode === '3d'"
               (click)="emit({ type: 'set-mode', mode: '3d' })"
             >
+              @if (state().mode === '3d') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
               {{ i18n.t('mode3d') }}</button
             ><button
               type="button"
@@ -136,6 +156,9 @@
               [class.active]="state().mode === 'y-layer'"
               (click)="emit({ type: 'set-mode', mode: 'y-layer' })"
             >
+              @if (state().mode === 'y-layer') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
               {{ i18n.t('modeYLayer') }}
             </button>
             <hr />
@@ -145,7 +168,10 @@
               [attr.aria-checked]="state().layout.editorToolbarVisible"
               (click)="emit({ type: 'toggle-layout', key: 'editorToolbarVisible' })"
             >
-              {{ state().layout.editorToolbarVisible ? '✓ ' : '' }}{{ i18n.t('editorToolbar') }}
+              @if (state().layout.editorToolbarVisible) {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('editorToolbar') }}
             </button>
             <button
               type="button"
@@ -153,7 +179,10 @@
               [attr.aria-checked]="state().layout.leftSidebarVisible"
               (click)="emit({ type: 'toggle-layout', key: 'leftSidebarVisible' })"
             >
-              {{ state().layout.leftSidebarVisible ? '✓ ' : '' }}{{ i18n.t('leftSidebar') }}
+              @if (state().layout.leftSidebarVisible) {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('leftSidebar') }}
             </button>
             <button
               type="button"
@@ -161,7 +190,10 @@
               [attr.aria-checked]="state().layout.rightSidebarVisible"
               (click)="emit({ type: 'toggle-layout', key: 'rightSidebarVisible' })"
             >
-              {{ state().layout.rightSidebarVisible ? '✓ ' : '' }}{{ i18n.t('rightSidebar') }}
+              @if (state().layout.rightSidebarVisible) {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('rightSidebar') }}
             </button>
             <button
               type="button"
@@ -169,7 +201,10 @@
               [attr.aria-checked]="state().layout.quickBarVisible"
               (click)="emit({ type: 'toggle-layout', key: 'quickBarVisible' })"
             >
-              {{ state().layout.quickBarVisible ? '✓ ' : '' }}{{ i18n.t('quickBlockBar') }}
+              @if (state().layout.quickBarVisible) {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('quickBlockBar') }}
             </button>
             <button
               type="button"
@@ -177,7 +212,10 @@
               [attr.aria-checked]="state().layout.statusBarVisible"
               (click)="emit({ type: 'toggle-layout', key: 'statusBarVisible' })"
             >
-              {{ state().layout.statusBarVisible ? '✓ ' : '' }}{{ i18n.t('statusBar') }}
+              @if (state().layout.statusBarVisible) {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('statusBar') }}
             </button>
             <button type="button" role="menuitem" (click)="emit({ type: 'reset-layout' })">
               {{ i18n.t('resetLayout') }}
@@ -208,7 +246,12 @@
           {{ i18n.t('toolsMenu') }}
         </button>
         @if (activeMenu() === 'tools') {
-          <div class="menu-popover" role="menu">
+          <div
+            class="menu-popover"
+            role="menu"
+            animate.enter="workspace-popover-enter"
+            animate.leave="workspace-popover-exit"
+          >
             <button type="button" role="menuitem" (click)="emit({ type: 'open-asset-manager' })">
               {{ i18n.t('assetManager') }}</button
             ><button type="button" role="menuitem" (click)="emit({ type: 'open-diagnostics' })">
@@ -231,7 +274,12 @@
           {{ i18n.t('settingsMenu') }}
         </button>
         @if (activeMenu() === 'settings') {
-          <div class="menu-popover settings-popover" role="menu">
+          <div
+            class="menu-popover settings-popover"
+            role="menu"
+            animate.enter="workspace-popover-enter"
+            animate.leave="workspace-popover-exit"
+          >
             <button type="button" role="menuitem" (click)="emit({ type: 'open-settings' })">
               {{ i18n.t('openSettings') }}
             </button>
@@ -244,7 +292,10 @@
               [class.active]="state().locale === 'en'"
               (click)="emit({ type: 'set-locale', locale: 'en' })"
             >
-              {{ state().locale === 'en' ? '✓ ' : '' }}{{ i18n.t('english') }}</button
+              @if (state().locale === 'en') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('english') }}</button
             ><button
               type="button"
               role="menuitemradio"
@@ -252,7 +303,10 @@
               [class.active]="state().locale === 'vi'"
               (click)="emit({ type: 'set-locale', locale: 'vi' })"
             >
-              {{ state().locale === 'vi' ? '✓ ' : '' }}{{ i18n.t('vietnamese') }}
+              @if (state().locale === 'vi') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('vietnamese') }}
             </button>
             <strong>{{ i18n.t('theme') }}</strong
             ><button
@@ -262,7 +316,10 @@
               [class.active]="state().theme === 'light'"
               (click)="emit({ type: 'set-theme', theme: 'light' })"
             >
-              {{ state().theme === 'light' ? '✓ ' : '' }}{{ i18n.t('light') }}</button
+              @if (state().theme === 'light') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('light') }}</button
             ><button
               type="button"
               role="menuitemradio"
@@ -270,7 +327,10 @@
               [class.active]="state().theme === 'dark'"
               (click)="emit({ type: 'set-theme', theme: 'dark' })"
             >
-              {{ state().theme === 'dark' ? '✓ ' : '' }}{{ i18n.t('dark') }}</button
+              @if (state().theme === 'dark') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('dark') }}</button
             ><button
               type="button"
               role="menuitemradio"
@@ -278,7 +338,10 @@
               [class.active]="state().theme === 'craft'"
               (click)="emit({ type: 'set-theme', theme: 'craft' })"
             >
-              {{ state().theme === 'craft' ? '✓ ' : '' }}{{ i18n.t('craft') }}</button
+              @if (state().theme === 'craft') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('craft') }}</button
             ><button
               type="button"
               role="menuitemradio"
@@ -286,7 +349,10 @@
               [class.active]="state().theme === 'raccoon'"
               (click)="emit({ type: 'set-theme', theme: 'raccoon' })"
             >
-              {{ state().theme === 'raccoon' ? '✓ ' : '' }}{{ i18n.t('raccoon') }}
+              @if (state().theme === 'raccoon') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('raccoon') }}
             </button>
             <strong>{{ i18n.t('editorBackground') }}</strong
             ><button
@@ -296,8 +362,10 @@
               [class.active]="state().background === 'dark'"
               (click)="emit({ type: 'set-background', background: 'dark' })"
             >
-              {{ state().background === 'dark' ? '✓ ' : ''
-              }}{{ i18n.t('editorBackgroundDark') }}</button
+              @if (state().background === 'dark') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('editorBackgroundDark') }}</button
             ><button
               type="button"
               role="menuitemradio"
@@ -305,8 +373,10 @@
               [class.active]="state().background === 'light'"
               (click)="emit({ type: 'set-background', background: 'light' })"
             >
-              {{ state().background === 'light' ? '✓ ' : ''
-              }}{{ i18n.t('editorBackgroundLight') }}</button
+              @if (state().background === 'light') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('editorBackgroundLight') }}</button
             ><button
               type="button"
               role="menuitemradio"
@@ -314,8 +384,10 @@
               [class.active]="state().background === 'reality'"
               (click)="emit({ type: 'set-background', background: 'reality' })"
             >
-              {{ state().background === 'reality' ? '✓ ' : ''
-              }}{{ i18n.t('editorBackgroundReality') }}
+              @if (state().background === 'reality') {
+                <svg lucideCheck aria-hidden="true"></svg>
+              }
+              {{ i18n.t('editorBackgroundReality') }}
             </button>
           </div>
         }
@@ -332,7 +404,12 @@
           {{ i18n.t('helpMenu') }}
         </button>
         @if (activeMenu() === 'help') {
-          <div class="menu-popover" role="menu">
+          <div
+            class="menu-popover"
+            role="menu"
+            animate.enter="workspace-popover-enter"
+            animate.leave="workspace-popover-exit"
+          >
             <button type="button" role="menuitem" (click)="emit({ type: 'open-controls-help' })">
               {{ i18n.t('controlsShortcuts') }}</button
             ><button type="button" role="menuitem" (click)="emit({ type: 'open-about' })">
@@ -356,7 +433,10 @@
           [attr.aria-pressed]="state().mode === '3d'"
           (click)="emit({ type: 'set-mode', mode: '3d' })"
         >
-          <svg lucideCuboid aria-hidden="true"></svg>{{ i18n.t('mode3d') }}</button
+          <svg lucideCuboid aria-hidden="true"></svg>{{ i18n.t('mode3d') }}
+          @if (state().mode === '3d') {
+            <svg class="segment-check" lucideCheck aria-hidden="true"></svg>
+          }</button
         ><button
           type="button"
           class="ui-button ui-button--segmented"
@@ -365,6 +445,9 @@
           (click)="emit({ type: 'set-mode', mode: 'y-layer' })"
         >
           <svg lucideLayers aria-hidden="true"></svg>{{ i18n.t('modeYLayer') }}
+          @if (state().mode === 'y-layer') {
+            <svg class="segment-check" lucideCheck aria-hidden="true"></svg>
+          }
         </button>
       </nav>
       <div class="tool-switch" role="group" [attr.aria-label]="i18n.t('editorTool')">
@@ -375,7 +458,10 @@
           [attr.aria-pressed]="state().tool === 'place'"
           (click)="emit({ type: 'set-tool', tool: 'place' })"
         >
-          <svg lucideMousePointerClick aria-hidden="true"></svg>{{ i18n.t('toolPlace') }}</button
+          <svg lucideMousePointerClick aria-hidden="true"></svg>{{ i18n.t('toolPlace') }}
+          @if (state().tool === 'place') {
+            <svg class="segment-check" lucideCheck aria-hidden="true"></svg>
+          }</button
         ><button
           type="button"
           class="ui-button ui-button--segmented"
@@ -384,6 +470,9 @@
           (click)="emit({ type: 'set-tool', tool: 'select' })"
         >
           <svg lucideMousePointer2 aria-hidden="true"></svg>{{ i18n.t('toolSelect') }}
+          @if (state().tool === 'select') {
+            <svg class="segment-check" lucideCheck aria-hidden="true"></svg>
+          }
         </button>
       </div>
       <div class="toolbar-group history-actions" [attr.aria-label]="i18n.t('editHistory')">
@@ -412,7 +501,7 @@
           class="ui-button ui-button--toolbar"
           (click)="emit({ type: 'fit-structure' })"
         >
-          {{ i18n.t('fitStructure') }}
+          <svg lucideMaximize2 aria-hidden="true"></svg>{{ i18n.t('fitStructure') }}
         </button>
         <button
           type="button"
@@ -420,7 +509,7 @@
           [disabled]="!state().canFocusSelection"
           (click)="emit({ type: 'focus-selection' })"
         >
-          {{ i18n.t('focusSelection') }}
+          <svg lucideFocus aria-hidden="true"></svg>{{ i18n.t('focusSelection') }}
         </button>
         <div class="menu-entry camera-actions-menu">
           <button
@@ -430,10 +519,16 @@
             [attr.aria-expanded]="activeMenu() === 'camera'"
             (click)="toggleMenu('camera', $event)"
           >
-            {{ i18n.t('camera') }} <svg lucideChevronDown aria-hidden="true"></svg>
+            <svg lucideCamera aria-hidden="true"></svg>{{ i18n.t('camera') }}
+            <svg lucideChevronDown aria-hidden="true"></svg>
           </button>
           @if (activeMenu() === 'camera') {
-            <div class="menu-popover camera-popover" role="menu">
+            <div
+              class="menu-popover camera-popover"
+              role="menu"
+              animate.enter="workspace-popover-enter"
+              animate.leave="workspace-popover-exit"
+            >
               @for (preset of cameraPresets; track preset) {
                 <button
                   type="button"

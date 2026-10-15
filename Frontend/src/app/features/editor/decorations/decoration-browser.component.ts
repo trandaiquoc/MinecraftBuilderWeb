@@ -14,10 +14,16 @@ import { PaintingVariantCatalogService } from '../../../core/decorations/catalog
 import { ItemCatalogService } from '../../../core/items/catalog/item-catalog.service';
 import { ItemStackPickerComponent } from '../../../shared/ui/item-stack-picker/item-stack-picker.component';
 import { humanizeDecorationName } from '../../../core/decorations/decoration-display';
+import { LucideCheck } from '@lucide/angular';
 
 @Component({
   selector: 'app-decoration-browser',
-  imports: [PaintingPickerComponent, ContentSourceSelectorComponent, ItemStackPickerComponent],
+  imports: [
+    LucideCheck,
+    PaintingPickerComponent,
+    ContentSourceSelectorComponent,
+    ItemStackPickerComponent,
+  ],
   templateUrl: './decoration-browser.component.html',
   styleUrl: './decoration-browser.component.scss',
 })

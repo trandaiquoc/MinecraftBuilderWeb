@@ -20,8 +20,8 @@
   border-top: 1px solid var(--border);
 }
 .sign-tabs {
-  display: flex;
-  gap: 0.25rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .sign-tabs button,
 .sign-control select,
@@ -35,12 +35,9 @@
 }
 .sign-tabs button {
   padding: 0.25rem 0.5rem;
+  background: transparent;
+  box-shadow: none;
   cursor: pointer;
-}
-.sign-tabs button.active {
-  background: var(--control-selected);
-  color: var(--control-selected-text);
-  box-shadow: var(--shadow-control-raised);
 }
 .helper-text {
   margin: 0;

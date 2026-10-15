@@ -118,29 +118,19 @@
   padding-block: 0.28rem;
 }
 .ai-inner-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .ai-inner-tabs button {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
   padding: 0.4rem 0.6rem;
-  background: var(--surface-muted);
+  background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   font: 0.76rem/1.2 var(--font-ui);
 }
-.ai-inner-tabs button:hover {
+.ai-inner-tabs button:hover:not([aria-selected='true']) {
   background: var(--surface-hover);
   color: var(--text);
-}
-.ai-inner-tabs button.active {
-  border-color: var(--accent);
-  background: var(--control-selected);
-  color: var(--control-selected-text);
 }
 .ai-panel {
   display: grid;
@@ -171,6 +161,27 @@
   min-width: 12rem;
   color: var(--text-muted);
   font: 0.72rem/1.35 var(--font-readable);
+}
+.ai-workspace .ui-button.is-copy-success {
+  box-shadow:
+    inset 0 0 0 1px var(--success),
+    var(--shadow-control-raised);
+}
+.ai-workspace .ui-button.is-copy-success svg {
+  animation: ai-copy-confirm 220ms var(--motion-easing-emphasized) both;
+}
+.ai-workspace .ui-button.is-copy-error {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+@keyframes ai-copy-confirm {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-12deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
 }
 .ai-preview {
   display: grid;

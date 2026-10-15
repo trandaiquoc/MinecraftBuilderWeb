@@ -71,13 +71,19 @@
   background: var(--surface-muted);
 }
 .settings-nav button {
+  position: relative;
+  min-height: 2.3rem;
   border: 0;
   border-radius: var(--radius-sm);
-  padding: 0.55rem 0.65rem;
+  padding: 0.55rem 0.65rem 0.55rem 1.05rem;
   background: transparent;
   color: var(--text-muted);
   text-align: left;
   cursor: pointer;
+  transition:
+    background var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
 }
 .settings-nav button:hover:not(:disabled) {
   background: var(--surface-hover);
@@ -87,6 +93,18 @@
   background: var(--control-selected);
   color: var(--control-selected-text);
   box-shadow: var(--shadow-control-raised);
+  font-weight: 700;
+}
+.settings-nav button.active::before {
+  position: absolute;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  left: 0.38rem;
+  width: 0.18rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 15%, transparent);
+  content: '';
 }
 .settings-nav button:disabled {
   cursor: not-allowed;
@@ -117,11 +135,7 @@
 }
 .appearance-tabs {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: 0.35rem;
-  padding: 0.25rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-muted);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .appearance-tabs button {
   min-height: 2.5rem;
@@ -133,14 +147,9 @@
   font: 0.76rem/1.2 var(--font-ui);
   cursor: pointer;
 }
-.appearance-tabs button:hover:not(:disabled) {
+.appearance-tabs button:hover:not(:disabled):not([aria-selected='true']) {
   background: var(--surface-hover);
   color: var(--text);
-}
-.appearance-tabs button.active {
-  background: var(--control-selected);
-  color: var(--control-selected-text);
-  box-shadow: var(--shadow-control-raised);
 }
 .appearance-settings-pane {
   display: grid;
@@ -577,25 +586,15 @@
   box-shadow: inset 0 0 0 1px var(--border);
 }
 .shortcut-tabs {
-  display: flex;
-  gap: 0.25rem;
-  padding: 0.15rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-muted);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .shortcut-tabs button {
-  flex: 1;
   border: 0;
-  border-radius: var(--radius-sm);
   padding: 0.4rem 0.55rem;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-}
-.shortcut-tabs button.active {
-  background: var(--control-selected);
-  color: var(--control-selected-text);
-  box-shadow: var(--shadow-control-raised);
 }
 .shortcut-group-title {
   margin: 0.35rem 0 -0.2rem;

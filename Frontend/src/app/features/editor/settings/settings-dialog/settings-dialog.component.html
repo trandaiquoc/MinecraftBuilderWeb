@@ -1,6 +1,8 @@
 <div class="settings-backdrop" role="presentation">
   <section
     class="settings-dialog"
+    animate.enter="workspace-dialog-enter"
+    animate.leave="workspace-dialog-exit"
     cdkTrapFocus
     [cdkTrapFocusAutoCapture]="true"
     role="dialog"
@@ -83,7 +85,7 @@
           <section class="appearance-settings">
             <h3>{{ i18n.t('appearanceSettings') }}</h3>
             <nav
-              class="appearance-tabs"
+              class="appearance-tabs ui-tab-strip"
               role="tablist"
               [attr.aria-label]="i18n.t('appearanceSettings')"
             >
@@ -328,7 +330,7 @@
         } @else if (section() === 'shortcuts') {
           <section class="shortcuts-settings" (keydown)="handleShortcutKeydown($event)">
             <h3>{{ i18n.t('shortcutsSettings') }}</h3>
-            <div class="shortcut-tabs" role="tablist">
+            <div class="shortcut-tabs ui-tab-strip" role="tablist">
               <button
                 type="button"
                 role="tab"

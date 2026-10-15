@@ -15,7 +15,7 @@ import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-r
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { DecorationService } from '../../../core/decorations/decoration.service';
 import { ALL_CONTENT_SOURCE } from '../../../core/content/source-selection/content-source-selection';
-import { LucidePlus } from '@lucide/angular';
+import { LucideCheck, LucidePlus } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import {
   ContentSourceOption,
@@ -58,6 +58,7 @@ export function groupBlockItemsIntoRows<T>(
 @Component({
   selector: 'app-block-browser',
   imports: [
+    LucideCheck,
     LucidePlus,
     UiTooltipDirective,
     ContentSourceSelectorComponent,

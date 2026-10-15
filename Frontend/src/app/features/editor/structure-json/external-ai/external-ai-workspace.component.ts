@@ -1,5 +1,5 @@
-import { Component, computed, ElementRef, inject, input, signal } from '@angular/core';
-import { LucideCopy } from '@lucide/angular';
+import { Component, computed, DestroyRef, ElementRef, inject, input, signal } from '@angular/core';
+import { LucideCheck, LucideCopy } from '@lucide/angular';
 import { canonicalPlaceableItemId } from '../../../../core/blocks/placement-palette/placeable-item-resolution';
 import type { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item.types';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
@@ -36,7 +36,7 @@ type AiWorkspaceTab = 'description' | 'content' | 'limits' | 'guidance' | 'examp
 
 @Component({
   selector: 'app-external-ai-workspace',
-  imports: [LucideCopy, ReadonlyCodeViewerComponent],
+  imports: [LucideCheck, LucideCopy, ReadonlyCodeViewerComponent],
   host: {
     role: 'region',
     tabindex: '0',
@@ -47,6 +47,8 @@ type AiWorkspaceTab = 'description' | 'content' | 'limits' | 'guidance' | 'examp
 })
 export class ExternalAiWorkspaceComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly destroyRef = inject(DestroyRef);
+  private copyFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
   protected readonly i18n = inject(I18nService);
   private readonly itemCatalog = inject(ItemCatalogService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
@@ -56,6 +58,12 @@ export class ExternalAiWorkspaceComponent {
   readonly placeableItems = input.required<readonly PlaceableItemDefinition[]>();
   readonly contentLimits = input.required<ExternalAiContentLimits>();
   readonly active = input(false);
+
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      if (this.copyFeedbackTimer !== undefined) clearTimeout(this.copyFeedbackTimer);
+    });
+  }
 
   protected readonly activeAiTab = signal<AiWorkspaceTab>('description');
   protected readonly aiDescription = signal('');
@@ -67,6 +75,7 @@ export class ExternalAiWorkspaceComponent {
   protected readonly contentSearch = signal('');
   protected readonly contentLimitsCategory = signal<ExternalAiContentCategory>('blocks');
   protected readonly aiCopyStatus = signal<'idle' | 'copied' | 'failed'>('idle');
+  protected readonly aiCopyTarget = signal<'prompt' | 'example' | undefined>(undefined);
   protected readonly aiDescriptionInvalid = signal(false);
   protected readonly aiTabs: readonly AiWorkspaceTab[] = [
     'description',
@@ -451,10 +460,10 @@ export class ExternalAiWorkspaceComponent {
       return;
     }
     this.aiDescriptionInvalid.set(false);
-    await this.copyText(this.aiPrompt());
+    await this.copyText(this.aiPrompt(), 'prompt');
   }
   protected async copyAiExample(): Promise<void> {
-    await this.copyText(this.aiExample());
+    await this.copyText(this.aiExample(), 'example');
   }
 
   private canonicalContentId(category: ExternalAiContentCategory, id: string): string {
@@ -463,14 +472,27 @@ export class ExternalAiWorkspaceComponent {
   private currentAiLocale(): ExternalAiPromptLocale {
     return typeof this.i18n.locale === 'function' ? this.i18n.locale() : 'en';
   }
-  private async copyText(value: string): Promise<void> {
+  private async copyText(value: string, target: 'prompt' | 'example'): Promise<void> {
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
       await navigator.clipboard.writeText(value);
-      this.aiCopyStatus.set('copied');
+      this.showCopyFeedback('copied', target);
     } catch {
-      this.aiCopyStatus.set('failed');
+      this.showCopyFeedback('failed', target);
     }
+  }
+
+  private showCopyFeedback(status: 'copied' | 'failed', target: 'prompt' | 'example'): void {
+    if (this.destroyRef.destroyed) return;
+    if (this.copyFeedbackTimer !== undefined) clearTimeout(this.copyFeedbackTimer);
+    this.aiCopyStatus.set(status);
+    this.aiCopyTarget.set(target);
+    this.copyFeedbackTimer = setTimeout(() => {
+      this.copyFeedbackTimer = undefined;
+      if (this.destroyRef.destroyed) return;
+      this.aiCopyStatus.set('idle');
+      this.aiCopyTarget.set(undefined);
+    }, 1400);
   }
 }
 

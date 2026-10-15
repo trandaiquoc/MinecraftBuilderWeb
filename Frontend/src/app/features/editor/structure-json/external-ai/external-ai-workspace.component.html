@@ -125,7 +125,7 @@
       }
     </section>
     <div
-      class="ai-inner-tabs"
+      class="ai-inner-tabs ui-tab-strip ui-tab-strip--5"
       role="tablist"
       [attr.aria-label]="i18n.t('structureJsonAiTabs')"
       (keydown)="onAiTabKeydown($event)"
@@ -164,9 +164,19 @@
           [attr.placeholder]="i18n.t('structureJsonAiDescriptionPlaceholder')"
         ></textarea>
         <div class="ai-actions">
-          <button type="button" class="ui-button ui-button--primary" (click)="copyAiPrompt()">
-            <svg lucideCopy aria-hidden="true"></svg
-            >{{ i18n.t('structureJsonAiCopyPrompt') }}</button
+          <button
+            type="button"
+            class="ui-button ui-button--primary"
+            [class.is-copy-success]="aiCopyStatus() === 'copied' && aiCopyTarget() === 'prompt'"
+            [class.is-copy-error]="aiCopyStatus() === 'failed' && aiCopyTarget() === 'prompt'"
+            (click)="copyAiPrompt()"
+          >
+            @if (aiCopyStatus() === 'copied' && aiCopyTarget() === 'prompt') {
+              <svg lucideCheck aria-hidden="true"></svg>
+            } @else {
+              <svg lucideCopy aria-hidden="true"></svg>
+            }
+            {{ i18n.t('structureJsonAiCopyPrompt') }}</button
           ><span class="ai-prompt-summary">{{ aiPromptSummary() }}</span>
           @if (aiDescriptionInvalid()) {
             <span class="status-error" role="alert">{{
@@ -372,9 +382,16 @@
           <button
             type="button"
             class="ui-button ui-button--secondary ui-button--sm"
+            [class.is-copy-success]="aiCopyStatus() === 'copied' && aiCopyTarget() === 'example'"
+            [class.is-copy-error]="aiCopyStatus() === 'failed' && aiCopyTarget() === 'example'"
             (click)="copyAiExample()"
           >
-            <svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('structureJsonAiCopyExample') }}
+            @if (aiCopyStatus() === 'copied' && aiCopyTarget() === 'example') {
+              <svg lucideCheck aria-hidden="true"></svg>
+            } @else {
+              <svg lucideCopy aria-hidden="true"></svg>
+            }
+            {{ i18n.t('structureJsonAiCopyExample') }}
           </button>
         </div>
         <app-readonly-code-viewer

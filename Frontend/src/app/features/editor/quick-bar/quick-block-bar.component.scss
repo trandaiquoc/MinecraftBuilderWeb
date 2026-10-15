@@ -36,13 +36,26 @@
   box-shadow: var(--shadow-control);
 }
 .slot.active {
-  border-color: var(--control-selected);
+  border-color: var(--control-selected-text);
   background: var(--control-selected);
   color: var(--control-selected-text);
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--control-selected) 42%, transparent),
     inset 0 -3px 0 color-mix(in srgb, var(--control-selected-text) 18%, transparent),
     0 4px 9px rgb(0 0 0 / 0.3);
+}
+.slot-selected-indicator {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  padding: 0.08rem;
+  border-radius: 50%;
+  background: var(--control-selected-text);
+  color: var(--control-selected);
+  box-shadow: var(--shadow-control);
+  stroke-width: 3;
 }
 .slot span {
   display: grid;

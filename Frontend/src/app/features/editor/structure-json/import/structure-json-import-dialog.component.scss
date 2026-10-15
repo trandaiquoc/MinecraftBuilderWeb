@@ -57,28 +57,24 @@
   margin-bottom: 0.35rem;
 }
 .structure-json-tabs {
-  display: flex;
-  gap: 0.25rem;
-  padding: 0.55rem 0.75rem 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 0.75rem;
+  padding: 0.2rem;
   border-bottom: 1px solid var(--border);
   background: var(--surface-raised);
 }
 .structure-json-tabs button {
   border: 0;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   padding: 0.5rem 0.7rem;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   font: inherit;
 }
-.structure-json-tabs button:hover {
+.structure-json-tabs button:hover:not([aria-selected='true']) {
   background: var(--surface-hover);
   color: var(--text);
-}
-.structure-json-tabs button.active {
-  background: var(--control-selected);
-  color: var(--control-selected-text);
 }
 .structure-json-body {
   display: grid;

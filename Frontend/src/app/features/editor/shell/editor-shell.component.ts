@@ -334,6 +334,28 @@ export class EditorShellComponent implements OnDestroy {
     this.leftSidebarTab.set(tabs[next]);
     document.getElementById(`sidebar-tab-${tabs[next]}`)?.focus();
   }
+  protected handleRightSidebarTabKeydown(event: KeyboardEvent, index: number): void {
+    if (
+      event.key !== 'ArrowLeft' &&
+      event.key !== 'ArrowRight' &&
+      event.key !== 'Home' &&
+      event.key !== 'End'
+    )
+      return;
+    event.preventDefault();
+    const tabs = ['selection', 'block-usage'] as const;
+    const next =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? tabs.length - 1
+          : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    this.rightSidebarTab.set(tabs[next]);
+    (event.currentTarget as HTMLElement).parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      .item(next)
+      ?.focus();
+  }
   protected openSettingsDialog(): void {
     this.settingsDialogOpen.set(true);
   }

@@ -7,12 +7,12 @@ import {
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
-import { LucideChevronDown, LucideChevronUp, LucideX } from '@lucide/angular';
+import { LucideCheck, LucideChevronDown, LucideChevronUp, LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 
 @Component({
   selector: 'app-quick-block-bar',
-  imports: [LucideChevronDown, LucideChevronUp, LucideX, UiTooltipDirective],
+  imports: [LucideCheck, LucideChevronDown, LucideChevronUp, LucideX, UiTooltipDirective],
   templateUrl: './quick-block-bar.component.html',
   styleUrl: './quick-block-bar.component.scss',
 })

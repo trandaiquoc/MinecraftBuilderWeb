@@ -87,16 +87,17 @@
   color: var(--danger);
 }
 .manager-tabs {
-  display: flex;
-  gap: 0.35rem;
-  padding: 0.55rem 1rem 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 1rem;
+  padding: 0.2rem;
   background: var(--surface-raised);
   border-bottom: 1px solid var(--border);
 }
 .manager-tab {
   border: 0;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  padding: 0.55rem 0.8rem;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.7rem;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -105,10 +106,6 @@
 .manager-tab:hover {
   color: var(--text);
   background: var(--surface-hover);
-}
-.manager-tab[aria-selected='true'] {
-  background: var(--control-selected);
-  color: var(--control-selected-text);
 }
 .tab-count {
   opacity: 0.72;

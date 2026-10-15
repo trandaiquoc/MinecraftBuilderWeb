@@ -61,12 +61,19 @@
   cursor: pointer;
   font: inherit;
   font-size: 0.82rem;
-  transition: background-color 120ms ease;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
-.app-menu-trigger:hover:not(:disabled),
-.app-menu-trigger.active {
+.app-menu-trigger:hover:not(:disabled):not(.active) {
   background: color-mix(in srgb, var(--workspace-header-text) 13%, var(--workspace-header-bg));
+}
+.app-menu-trigger.active {
+  background: color-mix(in srgb, var(--workspace-header-text) 16%, var(--workspace-header-bg));
+  box-shadow: inset 0 -2px 0 var(--workspace-header-text);
+  font-weight: 700;
 }
 
 .app-menu-trigger:disabled {
@@ -126,19 +133,37 @@
   background: transparent;
   color: var(--workspace-toolbar-text);
   box-shadow: none;
+  border: 1px solid transparent;
   font-size: 0.78rem;
 }
 
-.ui-button--segmented:hover:not(:disabled) {
+.ui-button--segmented:hover:not(:disabled):not([aria-pressed='true']) {
   background: color-mix(in srgb, var(--workspace-toolbar-text) 12%, var(--workspace-toolbar-bg));
   box-shadow: none;
 }
 
 .ui-button--segmented.active,
 .ui-button--segmented[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--button-selected-text) 35%, transparent);
   background: var(--button-selected-bg);
   color: var(--button-selected-text);
-  box-shadow: var(--shadow-control);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--button-selected-text) 18%, transparent),
+    var(--shadow-control-raised);
+  font-weight: 700;
+  transform: none;
+}
+.ui-button--segmented.active:hover:not(:disabled),
+.ui-button--segmented[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--button-selected-bg);
+  color: var(--button-selected-text);
+  transform: translateY(-1px);
+}
+.segment-check {
+  width: 0.78rem;
+  height: 0.78rem;
+  flex: 0 0 auto;
+  stroke-width: 3;
 }
 
 .ui-button--toolbar {
@@ -199,6 +224,9 @@
 }
 
 .menu-popover button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
   min-height: 2rem;
   padding: 0.4rem 0.55rem;
@@ -244,6 +272,15 @@
   margin: 0.3rem 0.35rem;
   border: 0;
   background: var(--border);
+}
+.menu-popover button svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+.menu-popover button[aria-checked='true'] svg {
+  color: currentColor;
 }
 
 .settings-popover strong {

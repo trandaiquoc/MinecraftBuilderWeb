@@ -66,6 +66,13 @@
   --shadow-dialog: 0 18px 60px rgb(0 0 0 / 0.35);
   --shadow-control: 0 2px 0 rgb(0 0 0 / 0.18);
   --shadow-control-raised: 0 4px 10px rgb(0 0 0 / 0.24);
+  --motion-duration-fast: 120ms;
+  --motion-duration-ui: 180ms;
+  --motion-duration-enter: 150ms;
+  --motion-distance-short: 4px;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-easing-spring: cubic-bezier(0.2, 0.8, 0.25, 1.08);
   --z-popover: 40;
   --z-dialog: 120;
   --z-toast: 3000;
@@ -594,8 +601,8 @@ h4 {
   pointer-events: none;
   transform: translate(-50%, -0.15rem);
   transition:
-    opacity 0.12s ease,
-    transform 0.12s ease;
+    opacity var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
   white-space: nowrap;
 }
 .ui-tooltip-target:not(.ui-tooltip-suppressed):hover::after,
@@ -609,6 +616,104 @@ svg[class*='lucide'] {
   height: 1rem;
   stroke-width: 2;
   vertical-align: middle;
+}
+.ui-tab-strip {
+  --ui-tab-count: 2;
+  position: relative;
+  z-index: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--ui-tab-count), minmax(0, 1fr));
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.2rem;
+  isolation: isolate;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.12);
+}
+.ui-tab-strip--3 {
+  --ui-tab-count: 3;
+}
+.ui-tab-strip--5 {
+  --ui-tab-count: 5;
+}
+.ui-tab-strip::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0.2rem auto 0.2rem 0.2rem;
+  width: calc((100% - 0.55rem) / 2);
+  border: 1px solid color-mix(in srgb, var(--control-selected-text) 18%, transparent);
+  border-radius: max(2px, calc(var(--radius-md) - 2px));
+  background: var(--control-selected);
+  box-shadow: var(--shadow-control-raised);
+  content: '';
+  transform: translateX(0);
+  transition: transform var(--motion-duration-ui) var(--motion-easing-spring);
+}
+.ui-tab-strip--3::before {
+  width: calc((100% - 0.7rem) / 3);
+}
+.ui-tab-strip--5::before {
+  width: calc((100% - 1rem) / 5);
+}
+.ui-tab-strip:has(> :nth-child(2)[aria-selected='true'])::before {
+  transform: translateX(calc(100% + 0.15rem));
+}
+.ui-tab-strip:has(> :nth-child(3)[aria-selected='true'])::before {
+  transform: translateX(calc(200% + 0.3rem));
+}
+.ui-tab-strip:has(> :nth-child(4)[aria-selected='true'])::before {
+  transform: translateX(calc(300% + 0.45rem));
+}
+.ui-tab-strip:has(> :nth-child(5)[aria-selected='true'])::before {
+  transform: translateX(calc(400% + 0.6rem));
+}
+.ui-tab-strip > [role='tab'] {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 0;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.45rem;
+  border: 0;
+  border-radius: max(2px, calc(var(--radius-md) - 2px));
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  line-height: var(--line-height-control);
+  text-align: center;
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    font-weight var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.ui-tab-strip > [role='tab']:hover:not(:disabled):not([aria-selected='true']) {
+  background: color-mix(in srgb, var(--surface-hover) 68%, transparent);
+  color: var(--text);
+}
+.ui-tab-strip > [role='tab'][aria-selected='true'] {
+  color: var(--control-selected-text);
+  font-weight: 700;
+}
+.ui-tab-strip > [role='tab'][aria-selected='true']::after {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.18rem;
+  left: 0.45rem;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  content: '';
+  opacity: 0.72;
+}
+.ui-tab-strip > [role='tab']:focus-visible {
+  z-index: 2;
+  outline: 2px solid var(--focus-color, var(--accent));
+  outline-offset: 1px;
 }
 .ui-button {
   display: inline-flex;
@@ -626,17 +731,18 @@ svg[class*='lucide'] {
   font: inherit;
   line-height: var(--line-height-control);
   transition:
-    background 0.12s ease,
-    box-shadow 0.12s ease,
-    transform 0.12s ease,
-    color 0.12s ease;
+    background var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
 }
 .ui-button:hover:not(:disabled) {
   background: var(--control-hover);
   box-shadow: var(--shadow-control-raised);
+  transform: translateY(-1px);
 }
 .ui-button:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(1px) scale(0.99);
   box-shadow: 0 1px 0 rgb(0 0 0 / 0.18);
 }
 .ui-button:disabled {
@@ -662,6 +768,10 @@ svg[class*='lucide'] {
 .ui-button--selected {
   background: var(--button-selected-bg);
   color: var(--button-selected-text);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--button-selected-text) 26%, transparent),
+    var(--shadow-control-raised);
+  font-weight: 700;
 }
 .ui-button--selected:hover:not(:disabled) {
   background: var(--button-selected-bg);
@@ -686,6 +796,13 @@ svg[class*='lucide'] {
 .ui-button--icon {
   width: var(--control-md);
   padding: 0;
+}
+.ui-button:focus-visible,
+.ui-close-button:focus-visible,
+app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visible,
+.cdk-overlay-container :where(button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-color, var(--accent));
+  outline-offset: 2px;
 }
 .ui-button--sm {
   min-height: var(--control-sm);
@@ -744,10 +861,59 @@ svg[class*='lucide'] {
     transform: translateX(260%);
   }
 }
+.workspace-popover-enter {
+  animation: workspace-popover-in var(--motion-duration-enter) var(--motion-easing-emphasized) both;
+  transform-origin: top left;
+}
+.workspace-popover-exit {
+  animation: workspace-popover-out 100ms var(--motion-easing-standard) both;
+  transform-origin: top left;
+}
+.workspace-dialog-enter {
+  animation: workspace-dialog-in var(--motion-duration-ui) var(--motion-easing-emphasized) both;
+}
+.workspace-dialog-exit {
+  animation: workspace-dialog-out 120ms var(--motion-easing-standard) both;
+}
+@keyframes workspace-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.2rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes workspace-popover-out {
+  to {
+    opacity: 0;
+    transform: translateY(-0.12rem) scale(0.99);
+  }
+}
+@keyframes workspace-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-distance-short)) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes workspace-dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(2px) scale(0.995);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .ui-button,
-  .ui-progress__fill {
-    transition: none;
+  app-editor-shell :where(*),
+  .cdk-overlay-container :where(*) {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
   }
   .ui-progress.is-indeterminate .ui-progress__fill {
     animation: none;

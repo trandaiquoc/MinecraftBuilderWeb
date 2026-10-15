@@ -5,9 +5,11 @@ import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-r
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { normalizeSearchText, rankSearchResults } from '../../../core/search/relevance-search';
 import { ALL_CONTENT_SOURCE } from '../../../core/content/source-selection/content-source-selection';
+import { LucideCheck } from '@lucide/angular';
 
 @Component({
   selector: 'app-painting-picker',
+  imports: [LucideCheck],
   templateUrl: './painting-picker.component.html',
   styleUrl: './painting-picker.component.scss',
 })
