@@ -28,6 +28,9 @@ import type { ThumbnailTaskPriority } from '../../../core/assets/vanilla/thumbna
 
 const BLOCK_GRID_TILE_WIDTH = 112;
 const BLOCK_GRID_GAP = 7;
+const COMPACT_BLOCK_GRID_WIDTH = 240;
+const BLOCK_GRID_ROW_HEIGHT = 112;
+const COMPACT_BLOCK_GRID_ROW_HEIGHT = 80;
 
 export function blockGridColumnCount(width: number): number {
   if (!Number.isFinite(width) || width <= 0) return 1;
@@ -35,6 +38,10 @@ export function blockGridColumnCount(width: number): number {
     1,
     Math.floor((width + BLOCK_GRID_GAP) / (BLOCK_GRID_TILE_WIDTH + BLOCK_GRID_GAP)),
   );
+}
+
+export function blockGridRowHeight(width: number): number {
+  return width < COMPACT_BLOCK_GRID_WIDTH ? COMPACT_BLOCK_GRID_ROW_HEIGHT : BLOCK_GRID_ROW_HEIGHT;
 }
 
 export function groupBlockItemsIntoRows<T>(
@@ -92,6 +99,9 @@ export class BlockBrowserComponent {
     this.library.searchPlaceableItems(this.library.query(), this.activeSource()),
   );
   protected readonly columnCount = signal(1);
+  protected readonly panelWidth = signal(0);
+  protected readonly isCompact = computed(() => this.panelWidth() < COMPACT_BLOCK_GRID_WIDTH);
+  protected readonly rowHeight = computed(() => blockGridRowHeight(this.panelWidth()));
   protected readonly rows = computed<readonly (readonly PlaceableItemDefinition[])[]>(() => {
     return groupBlockItemsIntoRows(this.results(), this.columnCount());
   });
@@ -101,8 +111,11 @@ export class BlockBrowserComponent {
     const host = this.catalogGridHost()?.nativeElement;
     if (!host) return;
     const update = (): void => {
+      const nextWidth = host.clientWidth;
       const next = blockGridColumnCount(host.clientWidth);
-      if (next === this.columnCount()) return;
+      const layoutChanged = next !== this.columnCount() || nextWidth !== this.panelWidth();
+      if (!layoutChanged) return;
+      this.panelWidth.set(nextWidth);
       this.columnCount.set(next);
       queueMicrotask(() => this.catalogViewport()?.checkViewportSize());
     };

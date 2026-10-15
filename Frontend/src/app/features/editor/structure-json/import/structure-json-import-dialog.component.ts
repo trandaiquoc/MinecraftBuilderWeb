@@ -1,6 +1,5 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
-import { NgOptimizedImage } from '@angular/common';
 import { LucideCheck, LucideX } from '@lucide/angular';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import type { ProjectDocument } from '../../../../core/domain/project.types';
@@ -18,7 +17,6 @@ type ImportDialogTab = 'import' | 'ai';
   selector: 'app-structure-json-import-dialog',
   imports: [
     CdkTrapFocus,
-    NgOptimizedImage,
     LucideCheck,
     LucideX,
     UiTooltipDirective,

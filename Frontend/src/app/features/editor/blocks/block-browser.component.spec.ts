@@ -10,6 +10,7 @@ import type {
 import {
   BlockBrowserComponent,
   blockGridColumnCount,
+  blockGridRowHeight,
   groupBlockItemsIntoRows,
 } from './block-browser.component';
 
@@ -40,6 +41,9 @@ describe('BlockBrowser grid sizing', () => {
     expect(blockGridColumnCount(650)).toBe(5);
     expect(blockGridColumnCount(800)).toBe(6);
     expect(blockGridColumnCount(800)).toBeGreaterThan(blockGridColumnCount(500));
+    expect(blockGridRowHeight(180)).toBe(80);
+    expect(blockGridRowHeight(239)).toBe(80);
+    expect(blockGridRowHeight(240)).toBe(112);
   });
 
   it('groups items into deterministic virtual rows', () => {

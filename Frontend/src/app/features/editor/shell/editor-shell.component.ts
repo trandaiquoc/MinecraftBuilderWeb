@@ -8,8 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { NgOptimizedImage } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
 import { EditorBackgroundMode } from '../../../core/editor/appearance/editor-background-contract';
@@ -41,17 +40,10 @@ import { ProjectAutosaveService } from '../../../core/persistence/autosave/proje
 import { ProjectDeletionService } from '../../../core/persistence/project-deletion.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/editor-layout-preferences.service';
-import { GroupMovePanelSession } from './group-move/group-move-panel-session';
 import { EditorSidebarResizeSession } from './editor-sidebar-resize-session';
 import { DecorationService } from '../../../core/decorations/decoration.service';
 import { SettingsDialogComponent } from '../settings/settings-dialog/settings-dialog.component';
-import {
-  LucideChevronDown,
-  LucideRedo2,
-  LucideRotateCcw,
-  LucideUndo2,
-  LucideX,
-} from '@lucide/angular';
+import { LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { GroupsPanelComponent } from '../groups/groups-panel.component';
 import { SelectionInspectorComponent } from '../inspector/selection-inspector/selection-inspector.component';
@@ -64,6 +56,9 @@ import { StructureJsonExportDialogComponent } from '../structure-json/export/str
 import { StructureJsonImportDialogComponent } from '../structure-json/import/structure-json-import-dialog.component';
 import { StructureNbtExportDialogComponent } from '../minecraft-structure-export/structure-nbt-export-dialog.component';
 import type { ViewportPerformanceEvidence } from '../../../core/renderer/engine/three-viewport-engine';
+import { EditorChromeComponent } from './editor-chrome.component';
+import type { EditorChromeAction, EditorChromeState } from './editor-chrome.contracts';
+import { GroupMovePanelComponent } from './group-move/group-move-panel.component';
 
 export function hasEditorSelectionState(
   decorationSelected: boolean,
@@ -76,8 +71,8 @@ export function hasEditorSelectionState(
 @Component({
   selector: 'app-editor-shell',
   imports: [
-    NgOptimizedImage,
-    RouterLink,
+    EditorChromeComponent,
+    GroupMovePanelComponent,
     BlockBrowserComponent,
     DecorationBrowserComponent,
     GroupsPanelComponent,
@@ -94,10 +89,6 @@ export function hasEditorSelectionState(
     StructureJsonExportDialogComponent,
     StructureJsonImportDialogComponent,
     StructureNbtExportDialogComponent,
-    LucideChevronDown,
-    LucideRedo2,
-    LucideRotateCcw,
-    LucideUndo2,
     LucideX,
     UiTooltipDirective,
   ],
@@ -108,10 +99,9 @@ export function hasEditorSelectionState(
     '(document:keyup)': 'handleEditorKeyup($event)',
     '(document:focusin)': 'handleFocusIn($event)',
     '(document:visibilitychange)': 'handleVisibilityChange($event)',
-    '(document:click)': 'closeMenus()',
-    '(document:pointermove)': 'movePanelSession.move($event); sidebarResize.move($event)',
-    '(document:pointerup)': 'movePanelSession.end($event); sidebarResize.end($event)',
-    '(document:pointercancel)': 'movePanelSession.end($event); sidebarResize.end($event)',
+    '(document:pointermove)': 'sidebarResize.move($event)',
+    '(document:pointerup)': 'sidebarResize.end($event)',
+    '(document:pointercancel)': 'sidebarResize.end($event)',
     '(window:blur)': 'handleWindowBlur($event)',
     '(window:resize)': 'sidebarResize.clampToViewport()',
   },
@@ -142,14 +132,6 @@ export class EditorShellComponent implements OnDestroy {
   private readonly threeDViewport = viewChild(ViewportComponent);
   private readonly yLayerViewport = viewChild(YLayerComponent);
   protected readonly selectedDecoration = this.decorations.selected;
-  protected readonly presets: readonly CameraPreset[] = [
-    'perspective',
-    'top',
-    'front',
-    'back',
-    'left',
-    'right',
-  ];
   protected readonly logicalSelectionCount = computed(() =>
     this.selection.count(this.workspace.project()),
   );
@@ -163,11 +145,21 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly focusSelectionAvailable = computed(
     () => !!this.selectedDecoration() || this.selection.hasAny(this.workspace.project()),
   );
+  protected readonly chromeState = computed<EditorChromeState>(() => ({
+    theme: this.theme.theme(),
+    locale: this.i18n.locale(),
+    background: this.theme.editorBackground(),
+    layout: this.layout.preferences(),
+    mode: this.mode.mode(),
+    tool: this.tool.active(),
+    canUndo: this.history.canUndo(),
+    canRedo: this.history.canRedo(),
+    hasSelection: this.hasEditorSelection(),
+    canFocusSelection: this.focusSelectionAvailable(),
+    deletingProject: this.deletingProject(),
+    saveStatusLabel: this.saveStatusLabel(),
+  }));
   protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');
-  protected readonly activeMenu = signal<
-    'file' | 'edit' | 'view' | 'tools' | 'settings' | 'help' | undefined
-  >(undefined);
-  protected readonly cameraMenuOpen = signal(false);
   protected readonly deletingProject = signal(false);
   protected readonly settingsDialogOpen = signal(false);
   protected readonly controlsHelpOpen = signal(false);
@@ -186,19 +178,6 @@ export class EditorShellComponent implements OnDestroy {
     () => this.editorBody()?.nativeElement.clientWidth ?? 0,
   );
   protected readonly movePanelVisible = signal(false);
-  private readonly viewportHost = viewChild<ElementRef<HTMLElement>>('viewportHost');
-  private readonly movePanel = viewChild<ElementRef<HTMLElement>>('groupMovePanel');
-  protected readonly movePanelSession = new GroupMovePanelSession(
-    this.layout,
-    () => ({
-      width: this.viewportHost()?.nativeElement.clientWidth ?? 640,
-      height: this.viewportHost()?.nativeElement.clientHeight ?? 480,
-    }),
-    () => ({
-      width: this.movePanel()?.nativeElement.offsetWidth ?? 300,
-      height: this.movePanel()?.nativeElement.offsetHeight ?? 280,
-    }),
-  );
   private previousActiveGroupId: string | undefined;
   private readonly movementInput = new EditorMovementInputSession({
     movementDown: (action) => this.currentViewport()?.cameraKeyDown(action),
@@ -213,13 +192,11 @@ export class EditorShellComponent implements OnDestroy {
       if (activeGroupId === this.previousActiveGroupId) return;
       this.previousActiveGroupId = activeGroupId;
       this.groups.resetMove();
-      this.movePanelSession.cancelDrag();
       if (!activeGroupId) this.movePanelVisible.set(false);
     });
   }
   ngOnDestroy(): void {
     this.sidebarResize.end();
-    this.movePanelSession.cancelDrag();
     this.clearPressedMovementActions();
     void this.autosave.flush().catch(() => undefined);
   }
@@ -233,8 +210,94 @@ export class EditorShellComponent implements OnDestroy {
           : 'projectSaved',
     );
   }
-  protected shortcutTitle(action: KeyboardAction): string {
-    return `${this.i18n.t(action === 'undo' ? 'undo' : 'redo')} (${this.keyboard.bindings()[action].replaceAll('|', ' / ')})`;
+
+  protected handleChromeAction(action: EditorChromeAction): void {
+    switch (action.type) {
+      case 'navigate-projects':
+        void this.navigateToProjects();
+        break;
+      case 'save-project':
+        void this.saveProject();
+        break;
+      case 'delete-project':
+        void this.deleteProject();
+        break;
+      case 'import-structure-json':
+        this.openStructureJsonImport();
+        break;
+      case 'export-structure-json':
+        this.openStructureJsonExport();
+        break;
+      case 'export-structure-nbt':
+        this.openStructureNbtExport();
+        break;
+      case 'undo':
+        this.undoEdit();
+        break;
+      case 'redo':
+        this.redoEdit();
+        break;
+      case 'select-all':
+        this.selectAll();
+        break;
+      case 'clear-selection':
+        this.clearSelection();
+        break;
+      case 'delete-selection':
+        this.deleteSelection();
+        break;
+      case 'set-mode':
+        this.setEditorMode(action.mode);
+        break;
+      case 'toggle-layout':
+        this.toggleLayout(action.key);
+        break;
+      case 'reset-layout':
+        this.resetLayout();
+        break;
+      case 'fit-structure':
+        this.fitStructure();
+        break;
+      case 'focus-selection':
+        this.focusSelection();
+        break;
+      case 'open-asset-manager':
+        this.openAssetManager();
+        break;
+      case 'open-diagnostics':
+        this.openProjectDiagnostics();
+        break;
+      case 'open-settings':
+        this.openSettingsDialog();
+        break;
+      case 'set-locale':
+        this.chooseLanguage(action.locale);
+        break;
+      case 'set-theme':
+        this.chooseTheme(action.theme);
+        break;
+      case 'set-background':
+        this.chooseEditorBackground(action.background);
+        break;
+      case 'open-controls-help':
+        this.showControlsHelp();
+        break;
+      case 'open-about':
+        this.showAbout();
+        break;
+      case 'unavailable-feature':
+        this.showUnavailableFeature();
+        break;
+      case 'set-tool':
+        this.tool.select(action.tool);
+        break;
+      case 'camera-preset':
+        this.setCameraPreset(action.preset);
+        break;
+      case 'reset-camera':
+        this.resetCamera();
+        break;
+    }
   }
 
   protected fitStructure(): void {
@@ -251,24 +314,6 @@ export class EditorShellComponent implements OnDestroy {
   }
   protected currentViewportPerformanceEvidence(): ViewportPerformanceEvidence | undefined {
     return this.currentViewport()?.performanceEvidence();
-  }
-  protected presetLabel(preset: CameraPreset): string {
-    return this.i18n.t(
-      (
-        {
-          perspective: 'cameraPerspective',
-          top: 'cameraTop',
-          front: 'cameraFront',
-          back: 'cameraBack',
-          left: 'cameraLeft',
-          right: 'cameraRight',
-        } as const
-      )[preset],
-    );
-  }
-  protected deleteSelectedDecoration(): void {
-    const decoration = this.selectedDecoration();
-    if (decoration) this.decorations.delete(decoration.instanceId);
   }
   protected handleSidebarTabKeydown(event: KeyboardEvent, index: number): void {
     if (
@@ -289,63 +334,13 @@ export class EditorShellComponent implements OnDestroy {
     this.leftSidebarTab.set(tabs[next]);
     document.getElementById(`sidebar-tab-${tabs[next]}`)?.focus();
   }
-  protected setMoveOffset(axis: 'x' | 'y' | 'z', event: Event): void {
-    this.groups.setMoveOffset(axis, Number((event.target as HTMLInputElement).value));
-  }
-  protected setMoveStep(event: Event): void {
-    this.groups.setMoveStep(Number((event.target as HTMLInputElement).value));
-  }
-  protected nudgeMove(axis: 'x' | 'y' | 'z', direction: 1 | -1): void {
-    this.groups.nudgeMove(axis, direction);
-  }
-  protected toggleAppMenu(
-    menu: 'file' | 'edit' | 'view' | 'tools' | 'settings' | 'help',
-    event: Event,
-  ): void {
-    event.stopPropagation();
-    this.cameraMenuOpen.set(false);
-    this.activeMenu.update((current) => (current === menu ? undefined : menu));
-  }
-  protected toggleCameraMenu(event: Event): void {
-    event.stopPropagation();
-    this.activeMenu.set(undefined);
-    this.cameraMenuOpen.update((open) => !open);
-  }
-  protected handleAppMenuKeydown(event: KeyboardEvent): void {
-    const trigger =
-      event.target instanceof HTMLElement ? event.target.closest('.app-menu-trigger') : null;
-    if (event.key === 'Escape' && (trigger || this.activeMenu())) {
-      event.preventDefault();
-      const activeTrigger =
-        (trigger as HTMLElement | null) ??
-        document.querySelector<HTMLElement>('.app-menu-trigger.active');
-      this.closeMenus();
-      activeTrigger?.focus();
-      return;
-    }
-    if (!this.activeMenu() || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
-    const entry =
-      (trigger as HTMLElement | null)?.closest('.menu-entry') ??
-      document.querySelector('.menu-popover')?.parentElement;
-    const items = entry?.querySelectorAll<HTMLButtonElement>('.menu-popover button:not(:disabled)');
-    if (!items?.length) return;
-    event.preventDefault();
-    (event.key === 'ArrowUp' ? items[items.length - 1] : items[0]).focus();
-  }
-  protected closeMenus(): void {
-    this.activeMenu.set(undefined);
-    this.cameraMenuOpen.set(false);
-  }
   protected openSettingsDialog(): void {
-    this.closeMenus();
     this.settingsDialogOpen.set(true);
   }
   protected openAssetManager(): void {
-    this.closeMenus();
     this.assetManagerOpen.set(true);
   }
   protected openProjectDiagnostics(): void {
-    this.closeMenus();
     this.diagnosticsOpen.set(true);
   }
   protected closeSettingsDialog(): void {
@@ -360,8 +355,6 @@ export class EditorShellComponent implements OnDestroy {
       | 'statusBarVisible',
   ): void {
     this.layout.set(key, !this.layout.preferences()[key]);
-    this.movePanelSession.scheduleClamp();
-    this.closeMenus();
   }
   protected resetLayout(): void {
     this.sidebarResize.reset();
@@ -369,19 +362,15 @@ export class EditorShellComponent implements OnDestroy {
   }
   protected chooseLanguage(locale: 'en' | 'vi'): void {
     this.i18n.setLocale(locale);
-    this.closeMenus();
   }
   protected chooseTheme(theme: 'light' | 'dark' | 'craft' | 'raccoon'): void {
     this.theme.setPreset(theme);
-    this.closeMenus();
   }
   protected chooseEditorBackground(background: EditorBackgroundMode): void {
     this.theme.setEditorBackground(background);
-    this.closeMenus();
   }
   protected setEditorMode(mode: '3d' | 'y-layer'): void {
     this.changeEditorMode(mode);
-    this.closeMenus();
   }
   protected retryRestore(): void {
     void this.workspace.restore(this.projectStore);
@@ -418,11 +407,9 @@ export class EditorShellComponent implements OnDestroy {
     }
   }
   protected async navigateToProjects(): Promise<void> {
-    this.closeMenus();
     await this.router.navigateByUrl('/');
   }
   protected async saveProject(): Promise<void> {
-    this.closeMenus();
     try {
       await this.autosave.flush();
       await this.dialogs.success(this.i18n.t('saveProjectSuccess'));
@@ -433,7 +420,6 @@ export class EditorShellComponent implements OnDestroy {
   protected async deleteProject(): Promise<void> {
     const project = this.workspace.project();
     if (!project || this.deletingProject()) return;
-    this.closeMenus();
     const name = project.metadata.name;
     this.deletingProject.set(true);
     try {
@@ -478,84 +464,61 @@ export class EditorShellComponent implements OnDestroy {
     }
   }
   protected openStructureJsonImport(): void {
-    this.closeMenus();
     this.structureJsonImportOpen.set(true);
   }
   protected closeStructureJsonImport(): void {
     this.structureJsonImportOpen.set(false);
   }
   protected showUnavailableFeature(): void {
-    this.closeMenus();
     void this.dialogs.info(this.i18n.t('featureUnavailable'), this.i18n.t('featureUnavailable'));
   }
   protected openStructureNbtExport(): void {
-    this.closeMenus();
     this.structureNbtExportOpen.set(true);
   }
   protected closeStructureNbtExport(): void {
     this.structureNbtExportOpen.set(false);
   }
   protected openStructureJsonExport(): void {
-    this.closeMenus();
     this.structureJsonExportOpen.set(true);
   }
   protected closeStructureJsonExport(): void {
     this.structureJsonExportOpen.set(false);
   }
   protected showControlsHelp(): void {
-    this.closeMenus();
     this.controlsHelpOpen.set(true);
   }
   protected showAbout(): void {
-    this.closeMenus();
     void this.dialogs.info(this.i18n.t('about'), this.i18n.t('aboutText'));
   }
   protected clearSelection(): void {
     this.selection.clear();
     this.decorations.clearSelection();
-    this.closeMenus();
   }
   protected selectAll(): void {
     const project = this.workspace.project();
     if (project) this.selection.selectAll(project);
-    this.closeMenus();
   }
   protected undoEdit(): void {
     this.history.undo();
-    this.closeMenus();
   }
   protected redoEdit(): void {
     this.history.redo();
-    this.closeMenus();
   }
   protected deleteSelection(): boolean {
     const decoration = this.selectedDecoration();
     const handled = decoration
       ? (this.decorations.delete(decoration.instanceId), true)
       : this.editor.deleteSelection();
-    this.closeMenus();
     return handled;
   }
   protected showMovePanel(): void {
     if (this.groups.activeGroup()) {
       this.movePanelVisible.set(true);
-      this.movePanelSession.scheduleClamp();
     }
   }
   protected hideMovePanel(): void {
     this.groups.resetMove();
     this.movePanelVisible.set(false);
-    this.movePanelSession.cancelDrag();
-  }
-  protected moveReason(): string {
-    const reason = this.groups.movePreview()?.reason;
-    return reason === 'bounds'
-      ? this.i18n.t('moveOutsideBounds')
-      : reason === 'collision'
-        ? this.i18n.t('moveCollision')
-        : reason === 'locked'
-          ? this.i18n.t('moveLocked')
-          : '';
   }
   protected handleEditorShortcut(event: KeyboardEvent): void {
     if (
@@ -574,7 +537,6 @@ export class EditorShellComponent implements OnDestroy {
         event.preventDefault();
         return;
       }
-      this.closeMenus();
       return;
     }
     const action = this.keyboard.actionForEvent(event);

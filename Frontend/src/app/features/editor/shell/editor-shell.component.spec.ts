@@ -108,7 +108,7 @@ describe('editor shell movement/delete routing', () => {
     const logo = brand?.querySelector<HTMLImageElement>('img');
 
     expect(brand?.getAttribute('href')).toBe('/');
-    expect(logo?.getAttribute('ngSrc')).toBe('assets/brand/the-block-laundromat-logo.svg');
+    expect(logo?.getAttribute('src')).toBe('assets/brand/the-block-laundromat-logo.svg');
     expect(logo?.getAttribute('alt')).toBe('The Block Laundromat');
     fixture.destroy();
     mount.mockRestore();
@@ -126,6 +126,38 @@ describe('editor shell movement/delete routing', () => {
     shell.closeStructureNbtExport();
     expect(shell.structureNbtExportOpen()).toBe(false);
     fixture.destroy();
+  });
+
+  it('routes chrome menu and toolbar interactions through the existing editor services', () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    const mode = TestBed.inject(EditorModeService);
+    const tool = TestBed.inject(EditorToolService);
+    workspace.activate(project, undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const fileMenu = root.querySelector<HTMLButtonElement>('.app-menu-trigger');
+    fileMenu?.click();
+    fixture.detectChanges();
+    const importAction = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('.menu-popover [role="menuitem"]'),
+    ).find((button) =>
+      button.textContent?.includes(TestBed.inject(I18nService).t('importStructureJson')),
+    );
+    importAction?.click();
+    fixture.detectChanges();
+    expect(root.querySelector('app-structure-json-import-dialog')).not.toBeNull();
+
+    root
+      .querySelector<HTMLButtonElement>('.toolbar-group.mode-switch button:nth-child(2)')
+      ?.click();
+    root.querySelector<HTMLButtonElement>('.tool-switch button:nth-child(2)')?.click();
+    expect(mode.mode()).toBe('y-layer');
+    expect(tool.active()).toBe('select');
+    fixture.destroy();
+    mount.mockRestore();
   });
 
   it('does not delete on cancellation and reports navigation failure after successful deletion', async () => {

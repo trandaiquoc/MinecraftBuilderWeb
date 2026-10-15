@@ -35,13 +35,14 @@
       </button>
     </div>
   } @else if (results().length) {
-    <div #catalogGridHost class="catalog-grid-host">
+    <div #catalogGridHost class="catalog-grid-host" [class.compact]="isCompact()">
       <cdk-virtual-scroll-viewport
         #catalogViewport
         class="results"
-        itemSize="112"
+        [itemSize]="rowHeight()"
         role="listbox"
         [style.--block-columns]="columnCount()"
+        [style.--block-row-height.px]="rowHeight()"
         [attr.aria-label]="i18n.t('blocksPanel')"
       >
         <div *cdkVirtualFor="let row of rows(); trackBy: trackRow" class="block-row">

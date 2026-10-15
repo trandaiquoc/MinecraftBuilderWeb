@@ -1,0 +1,456 @@
+<header class="shell-header" [class.menu-open]="!!activeMenu()">
+  <div class="app-menu-row" (keydown)="handleMenuKeydown($event)">
+    <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('appName')">
+      <img
+        class="brand-logo"
+        src="assets/brand/the-block-laundromat-logo.svg"
+        width="224"
+        height="112"
+        [alt]="i18n.t('appName')"
+      />
+    </a>
+    <nav class="app-menus" [attr.aria-label]="i18n.t('applicationMenu')">
+      <div class="menu-entry">
+        <button
+          type="button"
+          class="app-menu-trigger menu-trigger"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="activeMenu() === 'file'"
+          [class.active]="activeMenu() === 'file'"
+          (click)="toggleMenu('file', $event)"
+        >
+          {{ i18n.t('fileMenu') }}
+        </button>
+        @if (activeMenu() === 'file') {
+          <div class="menu-popover" role="menu">
+            <button type="button" role="menuitem" (click)="emit({ type: 'navigate-projects' })">
+              {{ i18n.t('newProjectMenu') }}</button
+            ><button type="button" role="menuitem" (click)="emit({ type: 'navigate-projects' })">
+              {{ i18n.t('openProjectMenu') }}</button
+            ><button type="button" role="menuitem" (click)="emit({ type: 'save-project' })">
+              {{ i18n.t('saveProjectMenu') }}
+            </button>
+            <hr />
+            <button
+              type="button"
+              role="menuitem"
+              class="menu-danger-action"
+              [disabled]="state().deletingProject"
+              (click)="emit({ type: 'delete-project' })"
+            >
+              {{
+                state().deletingProject ? i18n.t('deletingProject') : i18n.t('deleteProjectMenu')
+              }}
+            </button>
+            <hr />
+            <button type="button" role="menuitem" (click)="emit({ type: 'import-structure-json' })">
+              {{ i18n.t('importStructureJson') }}</button
+            ><button
+              type="button"
+              role="menuitem"
+              (click)="emit({ type: 'export-structure-json' })"
+            >
+              {{ i18n.t('exportStructureJson') }}
+            </button>
+            <hr />
+            <button type="button" role="menuitem" (click)="emit({ type: 'export-structure-nbt' })">
+              {{ i18n.t('exportStructureNbt') }}
+            </button>
+          </div>
+        }
+      </div>
+      <div class="menu-entry">
+        <button
+          type="button"
+          class="app-menu-trigger menu-trigger"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="activeMenu() === 'edit'"
+          [class.active]="activeMenu() === 'edit'"
+          (click)="toggleMenu('edit', $event)"
+        >
+          {{ i18n.t('editMenu') }}
+        </button>
+        @if (activeMenu() === 'edit') {
+          <div class="menu-popover" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              [disabled]="!state().canUndo"
+              (click)="emit({ type: 'undo' })"
+            >
+              {{ i18n.t('undo') }}</button
+            ><button
+              type="button"
+              role="menuitem"
+              [disabled]="!state().canRedo"
+              (click)="emit({ type: 'redo' })"
+            >
+              {{ i18n.t('redo') }}
+            </button>
+            <hr />
+            <button type="button" role="menuitem" (click)="emit({ type: 'select-all' })">
+              {{ i18n.t('selectAll') }}</button
+            ><button
+              type="button"
+              role="menuitem"
+              [disabled]="!state().hasSelection"
+              (click)="emit({ type: 'clear-selection' })"
+            >
+              {{ i18n.t('clearSelection') }}</button
+            ><button
+              type="button"
+              role="menuitem"
+              [disabled]="!state().hasSelection"
+              (click)="emit({ type: 'delete-selection' })"
+            >
+              {{ i18n.t('deleteSelection') }}
+            </button>
+          </div>
+        }
+      </div>
+      <div class="menu-entry">
+        <button
+          type="button"
+          class="app-menu-trigger menu-trigger"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="activeMenu() === 'view'"
+          [class.active]="activeMenu() === 'view'"
+          (click)="toggleMenu('view', $event)"
+        >
+          {{ i18n.t('viewMenu') }}
+        </button>
+        @if (activeMenu() === 'view') {
+          <div class="menu-popover" role="menu">
+            <button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().mode === '3d'"
+              [class.active]="state().mode === '3d'"
+              (click)="emit({ type: 'set-mode', mode: '3d' })"
+            >
+              {{ i18n.t('mode3d') }}</button
+            ><button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().mode === 'y-layer'"
+              [class.active]="state().mode === 'y-layer'"
+              (click)="emit({ type: 'set-mode', mode: 'y-layer' })"
+            >
+              {{ i18n.t('modeYLayer') }}
+            </button>
+            <hr />
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              [attr.aria-checked]="state().layout.editorToolbarVisible"
+              (click)="emit({ type: 'toggle-layout', key: 'editorToolbarVisible' })"
+            >
+              {{ state().layout.editorToolbarVisible ? '✓ ' : '' }}{{ i18n.t('editorToolbar') }}
+            </button>
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              [attr.aria-checked]="state().layout.leftSidebarVisible"
+              (click)="emit({ type: 'toggle-layout', key: 'leftSidebarVisible' })"
+            >
+              {{ state().layout.leftSidebarVisible ? '✓ ' : '' }}{{ i18n.t('leftSidebar') }}
+            </button>
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              [attr.aria-checked]="state().layout.rightSidebarVisible"
+              (click)="emit({ type: 'toggle-layout', key: 'rightSidebarVisible' })"
+            >
+              {{ state().layout.rightSidebarVisible ? '✓ ' : '' }}{{ i18n.t('rightSidebar') }}
+            </button>
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              [attr.aria-checked]="state().layout.quickBarVisible"
+              (click)="emit({ type: 'toggle-layout', key: 'quickBarVisible' })"
+            >
+              {{ state().layout.quickBarVisible ? '✓ ' : '' }}{{ i18n.t('quickBlockBar') }}
+            </button>
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              [attr.aria-checked]="state().layout.statusBarVisible"
+              (click)="emit({ type: 'toggle-layout', key: 'statusBarVisible' })"
+            >
+              {{ state().layout.statusBarVisible ? '✓ ' : '' }}{{ i18n.t('statusBar') }}
+            </button>
+            <button type="button" role="menuitem" (click)="emit({ type: 'reset-layout' })">
+              {{ i18n.t('resetLayout') }}
+            </button>
+            <hr />
+            <button type="button" role="menuitem" (click)="emit({ type: 'fit-structure' })">
+              {{ i18n.t('fitStructure') }}</button
+            ><button
+              type="button"
+              role="menuitem"
+              [disabled]="!state().canFocusSelection"
+              (click)="emit({ type: 'focus-selection' })"
+            >
+              {{ i18n.t('focusSelection') }}
+            </button>
+          </div>
+        }
+      </div>
+      <div class="menu-entry">
+        <button
+          type="button"
+          class="app-menu-trigger menu-trigger"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="activeMenu() === 'tools'"
+          [class.active]="activeMenu() === 'tools'"
+          (click)="toggleMenu('tools', $event)"
+        >
+          {{ i18n.t('toolsMenu') }}
+        </button>
+        @if (activeMenu() === 'tools') {
+          <div class="menu-popover" role="menu">
+            <button type="button" role="menuitem" (click)="emit({ type: 'open-asset-manager' })">
+              {{ i18n.t('assetManager') }}</button
+            ><button type="button" role="menuitem" (click)="emit({ type: 'open-diagnostics' })">
+              {{ i18n.t('projectDiagnostics') }}</button
+            ><button type="button" role="menuitem" (click)="emit({ type: 'open-asset-manager' })">
+              {{ i18n.t('modJarImport') }}
+            </button>
+          </div>
+        }
+      </div>
+      <div class="menu-entry settings-entry">
+        <button
+          type="button"
+          class="app-menu-trigger menu-trigger"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="activeMenu() === 'settings'"
+          [class.active]="activeMenu() === 'settings'"
+          (click)="toggleMenu('settings', $event)"
+        >
+          {{ i18n.t('settingsMenu') }}
+        </button>
+        @if (activeMenu() === 'settings') {
+          <div class="menu-popover settings-popover" role="menu">
+            <button type="button" role="menuitem" (click)="emit({ type: 'open-settings' })">
+              {{ i18n.t('openSettings') }}
+            </button>
+            <hr />
+            <strong>{{ i18n.t('language') }}</strong
+            ><button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().locale === 'en'"
+              [class.active]="state().locale === 'en'"
+              (click)="emit({ type: 'set-locale', locale: 'en' })"
+            >
+              {{ state().locale === 'en' ? '✓ ' : '' }}{{ i18n.t('english') }}</button
+            ><button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().locale === 'vi'"
+              [class.active]="state().locale === 'vi'"
+              (click)="emit({ type: 'set-locale', locale: 'vi' })"
+            >
+              {{ state().locale === 'vi' ? '✓ ' : '' }}{{ i18n.t('vietnamese') }}
+            </button>
+            <strong>{{ i18n.t('theme') }}</strong
+            ><button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().theme === 'light'"
+              [class.active]="state().theme === 'light'"
+              (click)="emit({ type: 'set-theme', theme: 'light' })"
+            >
+              {{ state().theme === 'light' ? '✓ ' : '' }}{{ i18n.t('light') }}</button
+            ><button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().theme === 'dark'"
+              [class.active]="state().theme === 'dark'"
+              (click)="emit({ type: 'set-theme', theme: 'dark' })"
+            >
+              {{ state().theme === 'dark' ? '✓ ' : '' }}{{ i18n.t('dark') }}</button
+            ><button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().theme === 'craft'"
+              [class.active]="state().theme === 'craft'"
+              (click)="emit({ type: 'set-theme', theme: 'craft' })"
+            >
+              {{ state().theme === 'craft' ? '✓ ' : '' }}{{ i18n.t('craft') }}</button
+            ><button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().theme === 'raccoon'"
+              [class.active]="state().theme === 'raccoon'"
+              (click)="emit({ type: 'set-theme', theme: 'raccoon' })"
+            >
+              {{ state().theme === 'raccoon' ? '✓ ' : '' }}{{ i18n.t('raccoon') }}
+            </button>
+            <strong>{{ i18n.t('editorBackground') }}</strong
+            ><button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().background === 'dark'"
+              [class.active]="state().background === 'dark'"
+              (click)="emit({ type: 'set-background', background: 'dark' })"
+            >
+              {{ state().background === 'dark' ? '✓ ' : ''
+              }}{{ i18n.t('editorBackgroundDark') }}</button
+            ><button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().background === 'light'"
+              [class.active]="state().background === 'light'"
+              (click)="emit({ type: 'set-background', background: 'light' })"
+            >
+              {{ state().background === 'light' ? '✓ ' : ''
+              }}{{ i18n.t('editorBackgroundLight') }}</button
+            ><button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="state().background === 'reality'"
+              [class.active]="state().background === 'reality'"
+              (click)="emit({ type: 'set-background', background: 'reality' })"
+            >
+              {{ state().background === 'reality' ? '✓ ' : ''
+              }}{{ i18n.t('editorBackgroundReality') }}
+            </button>
+          </div>
+        }
+      </div>
+      <div class="menu-entry">
+        <button
+          type="button"
+          class="app-menu-trigger menu-trigger"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="activeMenu() === 'help'"
+          [class.active]="activeMenu() === 'help'"
+          (click)="toggleMenu('help', $event)"
+        >
+          {{ i18n.t('helpMenu') }}
+        </button>
+        @if (activeMenu() === 'help') {
+          <div class="menu-popover" role="menu">
+            <button type="button" role="menuitem" (click)="emit({ type: 'open-controls-help' })">
+              {{ i18n.t('controlsShortcuts') }}</button
+            ><button type="button" role="menuitem" (click)="emit({ type: 'open-about' })">
+              {{ i18n.t('about') }}
+            </button>
+          </div>
+        }
+      </div>
+    </nav>
+    <div class="chrome-project-status" role="status" aria-live="polite">
+      {{ state().saveStatusLabel }}
+    </div>
+  </div>
+  @if (state().layout.editorToolbarVisible) {
+    <div class="editor-toolbar-row" (keydown)="handleMenuKeydown($event)">
+      <nav class="toolbar-group mode-switch" [attr.aria-label]="i18n.t('editorNavigation')">
+        <button
+          type="button"
+          class="ui-button ui-button--segmented"
+          [class.active]="state().mode === '3d'"
+          [attr.aria-pressed]="state().mode === '3d'"
+          (click)="emit({ type: 'set-mode', mode: '3d' })"
+        >
+          <svg lucideCuboid aria-hidden="true"></svg>{{ i18n.t('mode3d') }}</button
+        ><button
+          type="button"
+          class="ui-button ui-button--segmented"
+          [class.active]="state().mode === 'y-layer'"
+          [attr.aria-pressed]="state().mode === 'y-layer'"
+          (click)="emit({ type: 'set-mode', mode: 'y-layer' })"
+        >
+          <svg lucideLayers aria-hidden="true"></svg>{{ i18n.t('modeYLayer') }}
+        </button>
+      </nav>
+      <div class="tool-switch" role="group" [attr.aria-label]="i18n.t('editorTool')">
+        <button
+          type="button"
+          class="ui-button ui-button--segmented"
+          [class.active]="state().tool === 'place'"
+          [attr.aria-pressed]="state().tool === 'place'"
+          (click)="emit({ type: 'set-tool', tool: 'place' })"
+        >
+          <svg lucideMousePointerClick aria-hidden="true"></svg>{{ i18n.t('toolPlace') }}</button
+        ><button
+          type="button"
+          class="ui-button ui-button--segmented"
+          [class.active]="state().tool === 'select'"
+          [attr.aria-pressed]="state().tool === 'select'"
+          (click)="emit({ type: 'set-tool', tool: 'select' })"
+        >
+          <svg lucideMousePointer2 aria-hidden="true"></svg>{{ i18n.t('toolSelect') }}
+        </button>
+      </div>
+      <div class="toolbar-group history-actions" [attr.aria-label]="i18n.t('editHistory')">
+        <button
+          type="button"
+          class="ui-button ui-button--toolbar"
+          [attr.title]="shortcutTitle('undo')"
+          [disabled]="!state().canUndo"
+          (click)="emit({ type: 'undo' })"
+        >
+          <svg lucideUndo2 aria-hidden="true"></svg>{{ i18n.t('undo') }}
+        </button>
+        <button
+          type="button"
+          class="ui-button ui-button--toolbar"
+          [attr.title]="shortcutTitle('redo')"
+          [disabled]="!state().canRedo"
+          (click)="emit({ type: 'redo' })"
+        >
+          <svg lucideRedo2 aria-hidden="true"></svg>{{ i18n.t('redo') }}
+        </button>
+      </div>
+      <div class="toolbar-group camera-actions">
+        <button
+          type="button"
+          class="ui-button ui-button--toolbar"
+          (click)="emit({ type: 'fit-structure' })"
+        >
+          {{ i18n.t('fitStructure') }}
+        </button>
+        <button
+          type="button"
+          class="ui-button ui-button--toolbar"
+          [disabled]="!state().canFocusSelection"
+          (click)="emit({ type: 'focus-selection' })"
+        >
+          {{ i18n.t('focusSelection') }}
+        </button>
+        <div class="menu-entry camera-actions-menu">
+          <button
+            type="button"
+            class="ui-button ui-button--toolbar menu-trigger"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="activeMenu() === 'camera'"
+            (click)="toggleMenu('camera', $event)"
+          >
+            {{ i18n.t('camera') }} <svg lucideChevronDown aria-hidden="true"></svg>
+          </button>
+          @if (activeMenu() === 'camera') {
+            <div class="menu-popover camera-popover" role="menu">
+              @for (preset of cameraPresets; track preset) {
+                <button
+                  type="button"
+                  role="menuitem"
+                  (click)="emit({ type: 'camera-preset', preset })"
+                >
+                  {{ cameraPresetLabel(preset) }}
+                </button>
+              }
+              <hr />
+              <button type="button" role="menuitem" (click)="emit({ type: 'reset-camera' })">
+                {{ i18n.t('resetCamera') }}
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</header>

@@ -116,8 +116,11 @@ describe('Workspace color palette contract', () => {
     const shellStyles = String(
       readFileSync('src/app/features/editor/shell/editor-shell.component.scss', 'utf8'),
     );
-    expect(shellStyles).toContain('background: var(--workspace-header-bg);');
-    expect(shellStyles).toContain('color: var(--workspace-header-text);');
+    const chromeStyles = String(
+      readFileSync('src/app/features/editor/shell/editor-chrome.component.scss', 'utf8'),
+    );
+    expect(chromeStyles).toContain('background: var(--workspace-header-bg);');
+    expect(chromeStyles).toContain('color: var(--workspace-header-text);');
     expect(stylesheet).toContain('--app-bg: #101318;');
     expect(stylesheet).toContain('--app-bg: #f4f6f8;');
     expect(
@@ -139,9 +142,7 @@ describe('Workspace color palette contract', () => {
         ),
       ),
     ).toContain('outline: 2px solid var(--workspace-header-text);');
-    expect(
-      String(readFileSync('src/app/features/editor/shell/editor-shell.component.scss', 'utf8')),
-    ).toContain('outline-color: var(--workspace-header-text);');
+    expect(shellStyles).toContain('outline: 2px solid var(--workspace-header-text);');
     expect(paletteStyles).not.toContain(":root[data-theme='craft'] {\n  --app-bg: #35372f;");
 
     const sidebarConsumers = [
@@ -172,8 +173,8 @@ describe('Workspace color palette contract', () => {
   });
 
   it('keeps menu triggers and floating-surface content in separate color scopes', () => {
-    const shellStyles = String(
-      readFileSync('src/app/features/editor/shell/editor-shell.component.scss', 'utf8'),
+    const chromeStyles = String(
+      readFileSync('src/app/features/editor/shell/editor-chrome.component.scss', 'utf8'),
     );
     const globalStyles = String(readFileSync('src/styles.scss', 'utf8'));
     const dropdownStyles = String(
@@ -183,17 +184,17 @@ describe('Workspace color palette contract', () => {
       ),
     );
 
-    expect(shellStyles).toContain('.app-menus > .menu-entry > .app-menu-trigger {');
-    expect(shellStyles).toContain('.app-menu-row > .brand {');
-    expect(shellStyles).toContain('color: var(--workspace-header-text);');
-    const headerRuleStart = shellStyles.indexOf('.shell-header {');
-    const headerRuleEnd = shellStyles.indexOf('}', headerRuleStart);
-    const headerRule = shellStyles.slice(headerRuleStart, headerRuleEnd);
+    expect(chromeStyles).toContain('.app-menu-trigger {');
+    expect(chromeStyles).toContain('.brand {');
+    expect(chromeStyles).toContain('color: var(--workspace-header-text);');
+    const headerRuleStart = chromeStyles.indexOf('.shell-header {');
+    const headerRuleEnd = chromeStyles.indexOf('}', headerRuleStart);
+    const headerRule = chromeStyles.slice(headerRuleStart, headerRuleEnd);
     expect(headerRule).toContain('background: var(--workspace-header-bg);');
     expect(headerRule).toContain('color: var(--workspace-header-text);');
     expect(headerRule).not.toContain('background: var(--surface);');
-    expect(shellStyles).not.toContain('.app-menu-row .app-menus button');
-    expect(shellStyles).not.toContain('.app-menus button');
+    expect(chromeStyles).not.toContain('.app-menu-row .app-menus button');
+    expect(chromeStyles).not.toContain('.app-menus button');
     expect(globalStyles).not.toContain(":root[data-theme='craft'] .app-menus button");
     expect(globalStyles).not.toContain(":root[data-theme='craft'] .menu-popover button.active");
     expect(globalStyles).not.toContain(":root[data-theme='craft'] .shell-header .brand");
@@ -202,27 +203,27 @@ describe('Workspace color palette contract', () => {
     expect(globalStyles).toContain(
       ":root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container .dropdown-popover",
     );
-    expect(shellStyles).toContain('color: var(--workspace-header-text);');
+    expect(chromeStyles).toContain('color: var(--workspace-header-text);');
 
-    const popoverStart = shellStyles.indexOf('.menu-popover {');
-    const popoverEnd = shellStyles.indexOf('}', popoverStart);
-    const popoverRule = shellStyles.slice(popoverStart, popoverEnd);
+    const popoverStart = chromeStyles.indexOf('.menu-popover {');
+    const popoverEnd = chromeStyles.indexOf('}', popoverStart);
+    const popoverRule = chromeStyles.slice(popoverStart, popoverEnd);
     expect(popoverRule).toContain('background: var(--surface);');
     expect(popoverRule).toContain('color: var(--text);');
 
-    const itemStart = shellStyles.indexOf('.menu-popover button {');
-    const itemEnd = shellStyles.indexOf('}', itemStart);
-    const itemRule = shellStyles.slice(itemStart, itemEnd);
+    const itemStart = chromeStyles.indexOf('.menu-popover button {');
+    const itemEnd = chromeStyles.indexOf('}', itemStart);
+    const itemRule = chromeStyles.slice(itemStart, itemEnd);
     expect(itemRule).toContain('background: transparent;');
     expect(itemRule).toContain('color: var(--text);');
-    expect(shellStyles).toContain('.menu-popover button:hover:not(:disabled)');
-    expect(shellStyles).toContain(".menu-popover button[aria-selected='true']");
-    expect(shellStyles).toContain('.menu-popover button:disabled');
-    expect(shellStyles).toContain('.menu-popover button.menu-danger-action:hover:not(:disabled)');
-    expect(shellStyles).toContain('background: var(--surface-hover);');
-    expect(shellStyles).toContain('color: var(--control-selected-text);');
-    expect(shellStyles).toContain('color: var(--text-disabled);');
-    expect(shellStyles).toContain('background: var(--button-danger-bg);');
+    expect(chromeStyles).toContain('.menu-popover button:hover:not(:disabled)');
+    expect(chromeStyles).toContain(".menu-popover button[aria-checked='true']");
+    expect(chromeStyles).toContain('.menu-popover button:disabled');
+    expect(chromeStyles).toContain('.menu-popover button.menu-danger-action:hover:not(:disabled)');
+    expect(chromeStyles).toContain('background: var(--control-hover);');
+    expect(chromeStyles).toContain('color: var(--control-selected-text);');
+    expect(chromeStyles).toContain('color: var(--text-disabled);');
+    expect(chromeStyles).toContain('color: var(--danger);');
     expect(globalStyles).toContain('outline: 2px solid var(--focus-color, var(--accent));');
     expect(
       String(
