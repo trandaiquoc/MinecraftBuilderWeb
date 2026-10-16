@@ -77,6 +77,22 @@ actions staying focusable without activation, and Camera focus return. Other
 menu contents and screen-reader output were not exhaustively tested in this
 pass.
 
+## Application menu focus across themes and locales
+
+The Help menu's first item was focused with the keyboard in each UI theme and
+in English and Vietnamese. Chrome reported `:focus-visible` on the item in all
+eight states. The focus outline remained visually distinguishable, the
+Vietnamese labels fit, and the 1600 x 900 document had no horizontal overflow.
+This is a visual and browser-state check of one menu item; it does not measure
+formal contrast ratios or cover every menu item, font, or viewport.
+
+| Theme | English | Vietnamese |
+| --- | --- | --- |
+| Light | [workspace-menu-focus-light-en-1600x900-20261017.png](workspace-menu-focus-light-en-1600x900-20261017.png) | [workspace-menu-focus-light-vi-1600x900-20261017.png](workspace-menu-focus-light-vi-1600x900-20261017.png) |
+| Minecraft | [workspace-menu-focus-minecraft-en-1600x900-20261017.png](workspace-menu-focus-minecraft-en-1600x900-20261017.png) | [workspace-menu-focus-minecraft-vi-1600x900-20261017.png](workspace-menu-focus-minecraft-vi-1600x900-20261017.png) |
+| Raccoon | [workspace-menu-focus-raccoon-en-1600x900-20261017.png](workspace-menu-focus-raccoon-en-1600x900-20261017.png) | [workspace-menu-focus-raccoon-vi-1600x900-20261017.png](workspace-menu-focus-raccoon-vi-1600x900-20261017.png) |
+| Dark | [workspace-menu-focus-dark-en-1600x900-20261017.png](workspace-menu-focus-dark-en-1600x900-20261017.png) | [workspace-menu-focus-dark-vi-1600x900-20261017.png](workspace-menu-focus-dark-vi-1600x900-20261017.png) |
+
 ## Reduced motion across Projects and Workspace
 
 The initial reduced-motion rule covered `app-editor-shell` and CDK overlays,
@@ -636,5 +652,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 146 PNG links in this archive
-resolve to files in this folder.
+animated-state and locale matrix remains open. All 153 distinct PNG captures
+in this archive are linked to files in this folder (154 link occurrences, with
+no missing targets).
