@@ -195,6 +195,29 @@ English and Vietnamese; the document stayed 390 px wide. At 320 x 520 in
 Vietnamese, the footer wrapped to two rows and remained 320 px wide. The
 browser was returned to Dark/English with the empty Quick Bar expanded.
 
+## Sidebar resize keyboard access
+
+| State / viewport | Screenshot |
+| --- | --- |
+| Left resize separator focused, Dark EN, 1600 x 900 | [workspace-sidebar-resizer-keyboard-dark-en-1600x900-20261017.png](workspace-sidebar-resizer-keyboard-dark-en-1600x900-20261017.png) |
+| Focus transferred to Open inspector after resizing to mobile mode, Dark EN, 780 x 437 | [workspace-resize-focus-mobile-opener-dark-en-780x437-20261017.png](workspace-resize-focus-mobile-opener-dark-en-780x437-20261017.png) |
+
+At 1600 x 900, the left and right separators expose localized names,
+`aria-valuemin`, `aria-valuenow`, and `aria-valuemax`. ArrowRight increased
+the left width from 260 to 276 px; ArrowLeft restored it to 260 px while the
+visible keyboard focus stayed on the separator. At 900 px, the current
+260/230 px columns report maximum widths of 350/320 px. At 851 px, three
+ArrowRight presses clamp the left column at 301 px, leaving the 320 px minimum
+center workspace; its announced maximum updates to 301. The saved width was
+restored to 260 px after the clamp check.
+
+The accessible names and ranges were checked in Minecraft, Raccoon, Light, and
+Dark with English and Vietnamese. At 780 x 437 and 390 x 520, the resize
+separators are hidden and the responsive sidebar controls are available; the
+document has no horizontal overflow. When a focused desktop separator becomes
+hidden at 780 x 437, focus moves to the matching responsive sidebar opener and
+remains visible. The browser was returned to the 260/230 px saved widths.
+
 ## Structure JSON browser round trip
 
 | Step                                          | Screenshot                                                                                                                                                                           |

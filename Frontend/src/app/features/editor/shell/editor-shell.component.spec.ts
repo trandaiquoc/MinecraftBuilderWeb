@@ -13,6 +13,7 @@ import { EditorModeService } from '../../../core/editor/state/editor-mode.servic
 import { EditorToolService } from '../../../core/editor/state/tool.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
+import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/editor-layout-preferences.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
 import { PROJECT_STORE } from '../../../core/persistence/project-store/project-store.token';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
@@ -261,6 +262,76 @@ describe('editor shell movement/delete routing', () => {
     expect(modeSwitch?.classList.contains('dragging')).toBe(false);
     fixture.destroy();
     mount.mockRestore();
+  });
+
+  it('exposes keyboard sidebar resizers with localized names and current ranges', () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    const layout = TestBed.inject(EditorLayoutPreferencesService);
+    const i18n = TestBed.inject(I18nService);
+    workspace.activate(project, undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const left = root.querySelector<HTMLElement>('.left-resize-handle');
+    const right = root.querySelector<HTMLElement>('.right-resize-handle');
+    const leftWidth = layout.preferences().leftSidebarWidth;
+    const rightWidth = layout.preferences().rightSidebarWidth;
+
+    expect(left?.getAttribute('role')).toBe('separator');
+    expect(left?.getAttribute('aria-orientation')).toBe('vertical');
+    expect(left?.getAttribute('aria-label')).toBe(i18n.t('leftSidebar'));
+    expect(left?.getAttribute('aria-valuemin')).toBe('180');
+    expect(left?.getAttribute('aria-valuenow')).toBe(String(leftWidth));
+    expect(left?.getAttribute('aria-valuemax')).toBeTruthy();
+    expect(right?.getAttribute('aria-label')).toBe(i18n.t('rightSidebar'));
+    expect(right?.getAttribute('aria-valuemin')).toBe('200');
+    expect(right?.getAttribute('aria-valuenow')).toBe(String(rightWidth));
+    expect(right?.getAttribute('aria-valuemax')).toBeTruthy();
+
+    left?.focus();
+    left?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    fixture.detectChanges();
+    expect(left?.getAttribute('aria-valuenow')).toBe(String(leftWidth + 16));
+    expect(document.activeElement).toBe(left);
+
+    layout.setSidebarWidth('left', leftWidth);
+    layout.setSidebarWidth('right', rightWidth);
+    fixture.destroy();
+    mount.mockRestore();
+  });
+
+  it('moves focus to the matching drawer opener when a resize handle becomes hidden', async () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    await workspace.restore(TestBed.inject(PROJECT_STORE), undefined);
+    workspace.activate(project, undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const left = root.querySelector<HTMLElement>('.left-resize-handle');
+    const leftLabel = TestBed.inject(I18nService).t('openLeftSidebar');
+    const opener = [
+      ...root.querySelectorAll<HTMLButtonElement>('.responsive-drawer-actions button'),
+    ].find((button) => button.getAttribute('aria-label') === leftLabel);
+    const widthDescriptor = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    const shell = fixture.componentInstance as unknown as { handleViewportResize: () => void };
+
+    try {
+      left?.focus();
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 780 });
+      if (left) left.style.display = 'none';
+      shell.handleViewportResize();
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+
+      expect(document.activeElement).toBe(opener);
+    } finally {
+      if (widthDescriptor) Object.defineProperty(window, 'innerWidth', widthDescriptor);
+      fixture.destroy();
+      mount.mockRestore();
+    }
   });
 
   it('keeps Inspector tabs keyboard-operable with the selected tab in sync', () => {

@@ -87,6 +87,13 @@ describe('EditorSidebarResizeSession', () => {
     expect(session.gridTemplate()).toBe('276px minmax(0, 1fr)');
   });
 
+  it('reports the current allowed resize range for each sidebar', () => {
+    const { session } = setup(1000);
+
+    expect(session.resizeRange('left')).toEqual({ min: 180, max: 450, value: 260 });
+    expect(session.resizeRange('right')).toEqual({ min: 200, max: 420, value: 230 });
+  });
+
   it('constrains sidebar columns to the viewport without changing saved widths', () => {
     const { session, preferences, viewportWidth } = setup(1600);
     preferences.update((current) => ({

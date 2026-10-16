@@ -70,6 +70,21 @@ export class EditorSidebarResizeSession {
     );
   }
 
+  resizeRange(side: Sidebar): { min: number; max: number; value: number } {
+    const min = side === 'left' ? 180 : 200;
+    const preferences = this.layout.preferences();
+    const otherSide: Sidebar = side === 'left' ? 'right' : 'left';
+    const otherVisible =
+      otherSide === 'left' ? preferences.leftSidebarVisible : preferences.rightSidebarVisible;
+    const total =
+      this.containerWidth() || (typeof window === 'undefined' ? 1024 : window.innerWidth);
+    const max = Math.min(
+      520,
+      Math.max(min, total - (otherVisible ? this.effectiveWidth(otherSide) : 0) - 320),
+    );
+    return { min, max, value: this.effectiveWidth(side) };
+  }
+
   begin(side: Sidebar, event: PointerEvent): void {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -135,17 +150,7 @@ export class EditorSidebarResizeSession {
   }
 
   private clamp(side: Sidebar, width: number): number {
-    const preferences = this.layout.preferences();
-    const total =
-      this.containerWidth() || (typeof window === 'undefined' ? 1024 : window.innerWidth);
-    const minimum = side === 'left' ? 180 : 200;
-    const otherSide: Sidebar = side === 'left' ? 'right' : 'left';
-    const otherVisible =
-      otherSide === 'left' ? preferences.leftSidebarVisible : preferences.rightSidebarVisible;
-    const maximum = Math.min(
-      520,
-      Math.max(minimum, total - (otherVisible ? this.effectiveWidth(otherSide) : 0) - 320),
-    );
-    return Math.round(Math.min(maximum, Math.max(minimum, width)));
+    const { min, max } = this.resizeRange(side);
+    return Math.round(Math.min(max, Math.max(min, width)));
   }
 }

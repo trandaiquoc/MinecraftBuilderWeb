@@ -8,6 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { Router } from '@angular/router';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
@@ -106,7 +107,7 @@ export function hasEditorSelectionState(
     '(document:pointerup)': 'sidebarResize.end($event)',
     '(document:pointercancel)': 'sidebarResize.end($event)',
     '(window:blur)': 'handleWindowBlur($event)',
-    '(window:resize)': 'sidebarResize.clampToViewport()',
+    '(window:resize)': 'handleViewportResize()',
   },
 })
 export class EditorShellComponent implements OnDestroy {
@@ -175,6 +176,8 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly rightDrawerOpen = signal(false);
   protected readonly rightSidebarTab = signal<'selection' | 'block-usage'>('selection');
   private drawerOpener?: HTMLElement;
+  private focusedResizeSide?: 'left' | 'right';
+  private readonly document = inject(DOCUMENT);
   private readonly editorBody = viewChild<ElementRef<HTMLElement>>('editorBody');
   protected readonly sidebarResize = new EditorSidebarResizeSession(
     this.layout,
@@ -586,8 +589,37 @@ export class EditorShellComponent implements OnDestroy {
     if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
   }
 
-  protected handleFocusIn(_event?: FocusEvent): void {
+  protected handleFocusIn(event?: FocusEvent): void {
+    const target = event?.target;
+    if (target instanceof HTMLElement && target.classList.contains('left-resize-handle')) {
+      this.focusedResizeSide = 'left';
+    } else if (target instanceof HTMLElement && target.classList.contains('right-resize-handle')) {
+      this.focusedResizeSide = 'right';
+    } else if (target instanceof HTMLElement && target !== this.document.body) {
+      this.focusedResizeSide = undefined;
+    }
     this.clearPressedMovementActions();
+  }
+  protected handleViewportResize(): void {
+    this.sidebarResize.clampToViewport();
+    const side = this.focusedResizeSide;
+    const view = this.document.defaultView;
+    if (!side || !view) return;
+
+    view.requestAnimationFrame(() => {
+      if (view.innerWidth > 850) return;
+      const editorBody = this.editorBody()?.nativeElement;
+      const handle = editorBody?.querySelector<HTMLElement>(`.${side}-resize-handle`);
+      if (!handle || view.getComputedStyle(handle).display !== 'none') return;
+
+      const openerLabel = side === 'left' ? 'openLeftSidebar' : 'openRightSidebar';
+      const opener = [
+        ...(editorBody?.querySelectorAll<HTMLButtonElement>('.responsive-drawer-actions button') ??
+          []),
+      ].find((button) => button.getAttribute('aria-label') === this.i18n.t(openerLabel));
+      opener?.focus();
+      this.focusedResizeSide = undefined;
+    });
   }
   protected handleVisibilityChange(_event?: Event): void {
     this.clearPressedMovementActions();
