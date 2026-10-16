@@ -140,10 +140,12 @@ describe('editor shell movement/delete routing', () => {
     const root = fixture.nativeElement as HTMLElement;
     const modeSwitch = root.querySelector<HTMLElement>('.mode-switch');
     const toolSwitch = root.querySelector<HTMLElement>('.tool-switch');
-    expect(modeSwitch?.getAttribute('role')).toBe('group');
-    expect(toolSwitch?.getAttribute('role')).toBe('group');
-    expect(modeSwitch?.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
-    expect(toolSwitch?.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
+    expect(modeSwitch?.getAttribute('role')).toBe('radiogroup');
+    expect(toolSwitch?.getAttribute('role')).toBe('radiogroup');
+    expect(modeSwitch?.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(1);
+    expect(toolSwitch?.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(1);
+    expect(modeSwitch?.querySelectorAll('[role="radio"][tabindex="0"]')).toHaveLength(1);
+    expect(toolSwitch?.querySelectorAll('[role="radio"][tabindex="0"]')).toHaveLength(1);
     const fileMenu = root.querySelector<HTMLButtonElement>('.app-menu-trigger');
     fileMenu?.click();
     fixture.detectChanges();
@@ -163,16 +165,64 @@ describe('editor shell movement/delete routing', () => {
     expect(mode.mode()).toBe('y-layer');
     expect(tool.active()).toBe('select');
     fixture.detectChanges();
-    expect(modeSwitch?.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
-    expect(modeSwitch?.querySelector('[aria-pressed="true"]')?.textContent).toContain(
+    expect(modeSwitch?.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(1);
+    expect(modeSwitch?.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toContain(
       TestBed.inject(I18nService).t('modeYLayer'),
     );
-    expect(toolSwitch?.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
-    expect(toolSwitch?.querySelector('[aria-pressed="true"]')?.textContent).toContain(
+    expect(toolSwitch?.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(1);
+    expect(toolSwitch?.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toContain(
       TestBed.inject(I18nService).t('toolSelect'),
     );
     expect(modeSwitch?.querySelector('.segment-check')).toBeNull();
     expect(toolSwitch?.querySelector('.segment-check')).toBeNull();
+
+    const modeBounds = {
+      left: 0,
+      right: 100,
+      top: 0,
+      bottom: 40,
+      width: 100,
+      height: 40,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect;
+    vi.spyOn(modeSwitch!, 'getBoundingClientRect').mockReturnValue(modeBounds);
+    const pointerEvent = (type: string, clientX: number): Event => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperties(event, {
+        button: { value: 0 },
+        clientX: { value: clientX },
+        isPrimary: { value: true },
+        pointerId: { value: 1 },
+      });
+      return event;
+    };
+    modeSwitch?.dispatchEvent(pointerEvent('pointerdown', 20));
+    fixture.detectChanges();
+    expect(modeSwitch?.classList.contains('dragging')).toBe(true);
+    expect(mode.mode()).toBe('3d');
+    modeSwitch?.dispatchEvent(pointerEvent('pointermove', 80));
+    expect(mode.mode()).toBe('y-layer');
+    modeSwitch?.dispatchEvent(pointerEvent('pointerup', 80));
+    fixture.detectChanges();
+    expect(mode.mode()).toBe('y-layer');
+    expect(modeSwitch?.classList.contains('dragging')).toBe(false);
+
+    const selectedMode = modeSwitch?.querySelector<HTMLButtonElement>(
+      '[role="radio"][aria-checked="true"]',
+    );
+    selectedMode?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    fixture.detectChanges();
+    expect(mode.mode()).toBe('3d');
+    expect(document.activeElement).toBe(
+      modeSwitch?.querySelector('[role="radio"][aria-checked="true"]'),
+    );
+    modeSwitch?.dispatchEvent(pointerEvent('pointerdown', 80));
+    fixture.detectChanges();
+    modeSwitch?.dispatchEvent(pointerEvent('pointercancel', 80));
+    fixture.detectChanges();
+    expect(modeSwitch?.classList.contains('dragging')).toBe(false);
     fixture.destroy();
     mount.mockRestore();
   });

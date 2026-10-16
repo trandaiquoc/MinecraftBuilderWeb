@@ -301,8 +301,11 @@
             [attr.aria-hidden]="rightSidebarTab() !== 'selection'"
           >
             <app-selection-inspector
+              [canFocusSelection]="focusSelectionAvailable()"
               (selectAllRequested)="selectAll()"
               (clearSelectionRequested)="clearSelection()"
+              (fitStructureRequested)="fitStructure()"
+              (focusSelectionRequested)="focusSelection()"
             ></app-selection-inspector>
           </div>
           <div

@@ -31,7 +31,16 @@ The latest navigation pass has a separate 1600 x 1200 set; all four captures use
 | Light     | [workspace-renovation-light-20261016.png](evidence/workspace-renovation-light-20261016.png)         |
 | Dark      | [workspace-renovation-dark-20261016.png](evidence/workspace-renovation-dark-20261016.png)           |
 
-The segmented-control captures below show the current 3D Edit and Place choices selected in one real browser state per theme, at 1600 x 1200. They use the same editor project, 230/230 px panel widths, English locale, and Comfortaa/Normal font. The shell header and editor body both begin at y=113.656 px in all four captures, so Minecraft's separator no longer changes layout geometry.
+The toolbar-switcher captures show the 3D Edit and Place choices selected in one shared track per control, at 1600 x 1200. Each pair has one sliding selected surface; the unselected option remains subdued in the same track. They use the same editor project, panel widths, English locale, and Comfortaa/Normal font.
+
+| Theme     | Browser capture                                                                         |
+| --------- | --------------------------------------------------------------------------------------- |
+| Minecraft | [toolbar-switcher-craft-20261016.png](evidence/toolbar-switcher-craft-20261016.png)     |
+| Raccoon   | [toolbar-switcher-raccoon-20261016.png](evidence/toolbar-switcher-raccoon-20261016.png) |
+| Light     | [toolbar-switcher-light-20261016.png](evidence/toolbar-switcher-light-20261016.png)     |
+| Dark      | [toolbar-switcher-dark-20261016.png](evidence/toolbar-switcher-dark-20261016.png)       |
+
+The earlier segmented-control captures show the immediately preceding visual iteration and are retained as historical QA evidence.
 
 | Theme     | Browser capture                                                                               |
 | --------- | --------------------------------------------------------------------------------------------- |
@@ -39,6 +48,17 @@ The segmented-control captures below show the current 3D Edit and Place choices 
 | Raccoon   | [workspace-segmented-raccoon-20261016.png](evidence/workspace-segmented-raccoon-20261016.png) |
 | Light     | [workspace-segmented-light-20261016.png](evidence/workspace-segmented-light-20261016.png)     |
 | Dark      | [workspace-segmented-dark-20261016.png](evidence/workspace-segmented-dark-20261016.png)       |
+
+## Selection inspector states
+
+These browser captures show the empty-project inspector and a real selected Stone block, not a static mock. Each four-theme set shares one project state, camera, viewport (1600 x 1200), English locale, Comfortaa/Normal font, and 230 px sidebars. The selected set contains one Stone at X 9, Y 0, Z 9 with the existing Focus Selection action enabled.
+
+| Theme     | Empty selection                                                                               | Selected Stone                                                                                            |
+| --------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Minecraft | [selection-inspector-craft-20261016.png](evidence/selection-inspector-craft-20261016.png)     | [selection-inspector-stone-craft-20261016.png](evidence/selection-inspector-stone-craft-20261016.png)     |
+| Raccoon   | [selection-inspector-raccoon-20261016.png](evidence/selection-inspector-raccoon-20261016.png) | [selection-inspector-stone-raccoon-20261016.png](evidence/selection-inspector-stone-raccoon-20261016.png) |
+| Light     | [selection-inspector-light-20261016.png](evidence/selection-inspector-light-20261016.png)     | [selection-inspector-stone-light-20261016.png](evidence/selection-inspector-stone-light-20261016.png)     |
+| Dark      | [selection-inspector-dark-20261016.png](evidence/selection-inspector-dark-20261016.png)       | [selection-inspector-stone-dark-20261016.png](evidence/selection-inspector-stone-dark-20261016.png)       |
 
 The narrow-sidebar empty-state captures use the same new 16 x 16 x 16 project, empty structure, camera, 1600 x 900 browser viewport, Comfortaa/Normal typography, and 180/200 px sidebar widths. They verify the structure overview and narrow navigation treatment in every theme.
 

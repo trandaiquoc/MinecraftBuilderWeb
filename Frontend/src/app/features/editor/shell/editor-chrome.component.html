@@ -439,38 +439,70 @@
     <div class="editor-toolbar-row" (keydown)="handleMenuKeydown($event)">
       <div
         class="toolbar-group mode-switch"
-        role="group"
+        role="radiogroup"
+        aria-orientation="horizontal"
         [attr.aria-label]="i18n.t('editorNavigation')"
+        [class.dragging]="isSegmentDragging('mode')"
+        (pointerdown)="beginSegmentDrag('mode', $event)"
+        (pointermove)="moveSegmentDrag('mode', $event)"
+        (pointerup)="endSegmentDrag('mode')"
+        (pointercancel)="endSegmentDrag('mode')"
+        (lostpointercapture)="endSegmentDrag('mode')"
       >
         <button
           type="button"
           class="ui-button ui-button--segmented"
-          [attr.aria-pressed]="state().mode === '3d'"
-          (click)="emit({ type: 'set-mode', mode: '3d' })"
+          role="radio"
+          [attr.aria-checked]="state().mode === '3d'"
+          [attr.tabindex]="state().mode === '3d' ? 0 : -1"
+          (keydown)="handleSegmentKeydown('mode', state().mode === '3d' ? 0 : 1, $event)"
+          (click)="selectSegment('mode', 0)"
         >
-          <svg lucideCuboid aria-hidden="true"></svg>{{ i18n.t('mode3d') }}</button
-        ><button
+          <svg lucideCuboid aria-hidden="true"></svg>{{ i18n.t('mode3d') }}
+        </button>
+        <button
           type="button"
           class="ui-button ui-button--segmented"
-          [attr.aria-pressed]="state().mode === 'y-layer'"
-          (click)="emit({ type: 'set-mode', mode: 'y-layer' })"
+          role="radio"
+          [attr.aria-checked]="state().mode === 'y-layer'"
+          [attr.tabindex]="state().mode === 'y-layer' ? 0 : -1"
+          (keydown)="handleSegmentKeydown('mode', state().mode === '3d' ? 0 : 1, $event)"
+          (click)="selectSegment('mode', 1)"
         >
           <svg lucideLayers aria-hidden="true"></svg>{{ i18n.t('modeYLayer') }}
         </button>
       </div>
-      <div class="tool-switch" role="group" [attr.aria-label]="i18n.t('editorTool')">
+      <div
+        class="tool-switch"
+        role="radiogroup"
+        aria-orientation="horizontal"
+        [attr.aria-label]="i18n.t('editorTool')"
+        [class.dragging]="isSegmentDragging('tool')"
+        (pointerdown)="beginSegmentDrag('tool', $event)"
+        (pointermove)="moveSegmentDrag('tool', $event)"
+        (pointerup)="endSegmentDrag('tool')"
+        (pointercancel)="endSegmentDrag('tool')"
+        (lostpointercapture)="endSegmentDrag('tool')"
+      >
         <button
           type="button"
           class="ui-button ui-button--segmented"
-          [attr.aria-pressed]="state().tool === 'place'"
-          (click)="emit({ type: 'set-tool', tool: 'place' })"
+          role="radio"
+          [attr.aria-checked]="state().tool === 'place'"
+          [attr.tabindex]="state().tool === 'place' ? 0 : -1"
+          (keydown)="handleSegmentKeydown('tool', state().tool === 'place' ? 0 : 1, $event)"
+          (click)="selectSegment('tool', 0)"
         >
-          <svg lucideMousePointerClick aria-hidden="true"></svg>{{ i18n.t('toolPlace') }}</button
-        ><button
+          <svg lucideMousePointerClick aria-hidden="true"></svg>{{ i18n.t('toolPlace') }}
+        </button>
+        <button
           type="button"
           class="ui-button ui-button--segmented"
-          [attr.aria-pressed]="state().tool === 'select'"
-          (click)="emit({ type: 'set-tool', tool: 'select' })"
+          role="radio"
+          [attr.aria-checked]="state().tool === 'select'"
+          [attr.tabindex]="state().tool === 'select' ? 0 : -1"
+          (keydown)="handleSegmentKeydown('tool', state().tool === 'place' ? 0 : 1, $event)"
+          (click)="selectSegment('tool', 1)"
         >
           <svg lucideMousePointer2 aria-hidden="true"></svg>{{ i18n.t('toolSelect') }}
         </button>

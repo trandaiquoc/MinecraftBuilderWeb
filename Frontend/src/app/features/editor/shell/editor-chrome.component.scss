@@ -122,18 +122,25 @@
 
 .mode-switch,
 .tool-switch {
-  --segment-gap: 0.12rem;
-  --segment-inset: 0.16rem;
+  --segment-inset: 0.14rem;
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
-  gap: var(--segment-gap);
+  gap: 0;
   min-width: 0;
   padding: var(--segment-inset);
   border: 1px solid color-mix(in srgb, var(--workspace-toolbar-text) 16%, transparent);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--workspace-toolbar-text) 7%, var(--workspace-toolbar-bg));
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--workspace-toolbar-text) 8%, transparent);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.mode-switch.dragging,
+.tool-switch.dragging {
+  cursor: grabbing;
 }
 
 .mode-switch {
@@ -151,7 +158,7 @@
   inset-block: var(--segment-inset);
   left: var(--segment-inset);
   right: auto;
-  width: calc((100% - 0.52rem) / 2);
+  width: calc((100% - 0.28rem) / 2);
   border: 1px solid color-mix(in srgb, var(--button-selected-text) 26%, transparent);
   border-radius: max(2px, calc(var(--radius-md) - 1px));
   background: var(--button-selected-bg);
@@ -165,9 +172,9 @@
     box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
-.mode-switch:has(> button:nth-child(2)[aria-pressed='true'])::before,
-.tool-switch:has(> button:nth-child(2)[aria-pressed='true'])::before {
-  transform: translateX(calc(100% + var(--segment-gap)));
+.mode-switch:has(> button:nth-child(2)[aria-checked='true'])::before,
+.tool-switch:has(> button:nth-child(2)[aria-checked='true'])::before {
+  transform: translateX(100%);
 }
 
 .ui-button--segmented {
@@ -175,31 +182,34 @@
   z-index: 1;
   width: 100%;
   min-width: 0;
-  min-height: 2rem;
-  padding: 0.35rem 0.4rem;
+  min-height: 2.05rem;
+  padding: 0.35rem 0.5rem;
   border: 1px solid transparent;
-  border-radius: max(2px, calc(var(--radius-md) - 1px));
+  border-radius: 0;
   background: transparent;
-  color: color-mix(in srgb, var(--workspace-toolbar-text) 68%, var(--workspace-toolbar-bg));
+  color: color-mix(in srgb, var(--workspace-toolbar-text) 76%, var(--workspace-toolbar-bg));
   box-shadow: none;
   font-size: 0.78rem;
   white-space: nowrap;
+  cursor: inherit;
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    opacity var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
-.ui-button--segmented:hover:not(:disabled):not([aria-pressed='true']) {
-  background: color-mix(in srgb, var(--workspace-toolbar-text) 9%, transparent);
-  color: var(--workspace-toolbar-text);
+.ui-button--segmented:hover:not(:disabled):not([aria-checked='true']) {
+  color: color-mix(in srgb, var(--workspace-toolbar-text) 84%, var(--workspace-toolbar-bg));
   box-shadow: none;
 }
 
-.ui-button--segmented[aria-pressed='true'] {
+.ui-button--segmented[aria-checked='true'] {
   color: var(--button-selected-text);
   background: transparent;
   box-shadow: none;
   font-weight: 700;
   transform: none;
 }
-.ui-button--segmented[aria-pressed='true']:hover:not(:disabled) {
+.ui-button--segmented[aria-checked='true']:hover:not(:disabled) {
   color: var(--button-selected-text);
   background: transparent;
 }
@@ -405,7 +415,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-menu-trigger {
+  .app-menu-trigger,
+  .ui-button--segmented,
+  .mode-switch::before,
+  .tool-switch::before {
     transition: none;
   }
 }
