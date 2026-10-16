@@ -72,6 +72,69 @@ function importWorkspace(
 }
 
 describe('StructureJsonImportDialogComponent', () => {
+  it('supports arrow, Home, and End navigation in the outer tablist', async () => {
+    await TestBed.configureTestingModule({
+      imports: [StructureJsonImportDialogComponent],
+      providers: [
+        ...catalogProviders,
+        { provide: I18nService, useValue: { t: (key: string) => key } },
+        {
+          provide: BlockLibraryService,
+          useValue: { get: () => undefined, allPlaceableItems: () => [] },
+        },
+        {
+          provide: ExternalAiPromptContextService,
+          useValue: {
+            snapshot: () => ({
+              minecraftVersion: '1.21.1',
+              vanillaSource: 'test',
+              projectContext,
+              mods: [],
+            }),
+          },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
+    fixture.componentRef.setInput('project', project);
+    // jsdom reports zero geometry for every element, so let CDK see the initial tab as visible.
+    const clientRects = vi
+      .spyOn(HTMLElement.prototype, 'getClientRects')
+      .mockReturnValue([{}] as unknown as DOMRectList);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    clientRects.mockRestore();
+    const tabs = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+        '.structure-json-tabs [role="tab"]',
+      ),
+    );
+    const press = (index: number, key: string): KeyboardEvent => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      tabs[index].dispatchEvent(event);
+      fixture.detectChanges();
+      expect(event.defaultPrevented).toBe(true);
+      return event;
+    };
+
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1]);
+    expect(document.activeElement).toBe(tabs[0]);
+    press(0, 'ArrowRight');
+    expect(document.activeElement).toBe(tabs[1]);
+    expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, 0]);
+
+    press(1, 'ArrowRight');
+    expect(document.activeElement).toBe(tabs[0]);
+    press(0, 'ArrowLeft');
+    expect(document.activeElement).toBe(tabs[1]);
+    press(1, 'Home');
+    expect(document.activeElement).toBe(tabs[0]);
+    press(0, 'End');
+    expect(document.activeElement).toBe(tabs[1]);
+  });
+
   it('keeps narrow import content and the JSON editor independently scrollable', () => {
     const workspaceStyles = String(
       readFileSync(

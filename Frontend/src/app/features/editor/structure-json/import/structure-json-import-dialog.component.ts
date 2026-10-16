@@ -73,6 +73,28 @@ export class StructureJsonImportDialogComponent {
   protected setTab(tab: ImportDialogTab): void {
     this.activeTab.set(tab);
   }
+
+  protected onTabKeydown(event: KeyboardEvent, current: ImportDialogTab): void {
+    const currentIndex = this.tabs.indexOf(current);
+    const nextTab =
+      event.key === 'ArrowRight'
+        ? this.tabs[(currentIndex + 1) % this.tabs.length]
+        : event.key === 'ArrowLeft'
+          ? this.tabs[(currentIndex + this.tabs.length - 1) % this.tabs.length]
+          : event.key === 'Home'
+            ? this.tabs[0]
+            : event.key === 'End'
+              ? this.tabs[this.tabs.length - 1]
+              : undefined;
+    if (!nextTab) return;
+
+    event.preventDefault();
+    this.setTab(nextTab);
+    (event.currentTarget as HTMLButtonElement).parentElement
+      ?.querySelector<HTMLButtonElement>(`#structure-json-tab-${nextTab}`)
+      ?.focus();
+  }
+
   protected applyImport(): void {
     void this.importWorkspace()?.applyImport();
   }

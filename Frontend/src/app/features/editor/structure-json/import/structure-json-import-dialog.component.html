@@ -43,10 +43,13 @@
           type="button"
           role="tab"
           [id]="'structure-json-tab-' + item"
+          [attr.cdkFocusInitial]="item === 'import' ? '' : null"
           [attr.aria-controls]="'structure-json-panel-' + item"
           [attr.aria-selected]="activeTab() === item"
+          [attr.tabindex]="activeTab() === item ? 0 : -1"
           [class.active]="activeTab() === item"
           (click)="setTab(item)"
+          (keydown)="onTabKeydown($event, item)"
         >
           {{
             item === 'import'

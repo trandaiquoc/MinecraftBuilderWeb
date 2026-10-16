@@ -56,3 +56,7 @@ If the browser cannot read a selected JSON file, the import workspace shows a
 localized alert, keeps the existing draft, and clears the error when another
 file loads, the draft is edited, or the current draft is validated. No project
 changes occur until the user applies a validated import.
+
+The dialog opens with its selected Import JSON tab focused. The outer tablist
+supports ArrowLeft/ArrowRight with wraparound and Home/End; only the selected
+tab participates in the regular Tab sequence.

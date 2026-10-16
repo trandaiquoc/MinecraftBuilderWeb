@@ -108,17 +108,19 @@ was not part of this browser check.
 
 ## Structure JSON browser round trip
 
-| Step                         | Screenshot                                                                                                                                                                           |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Export                       | [workspace-structure-json-export-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-export-two-blocks-dark-en-1600x900-20261017.png)                                 |
-| Import validation, desktop   | [workspace-structure-json-import-validated-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-1600x900-20261017.png)             |
-| Import validation, 390 x 520 | [workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png)               |
-| Replace confirmation         | [workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png) |
-| Inspector after save         | [workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png)       |
-| Invalid JSON syntax          | [workspace-structure-json-invalid-syntax-dark-en-1600x900-20261017.png](workspace-structure-json-invalid-syntax-dark-en-1600x900-20261017.png)                                       |
-| Simulated file-read failure  | [workspace-structure-json-file-read-error-dark-en-1600x900-20261017.png](workspace-structure-json-file-read-error-dark-en-1600x900-20261017.png)                                     |
-| Valid source after error     | [workspace-structure-json-recovered-valid-source-dark-en-1600x900-20261017.png](workspace-structure-json-recovered-valid-source-dark-en-1600x900-20261017.png)                       |
-| Escape returns focus to File | [workspace-structure-json-import-focus-return-dark-en-1600x900-20261017.png](workspace-structure-json-import-focus-return-dark-en-1600x900-20261017.png)                             |
+| Step                              | Screenshot                                                                                                                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Export                            | [workspace-structure-json-export-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-export-two-blocks-dark-en-1600x900-20261017.png)                                 |
+| Import validation, desktop        | [workspace-structure-json-import-validated-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-1600x900-20261017.png)             |
+| Import validation, 390 x 520      | [workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png)               |
+| Replace confirmation              | [workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png) |
+| Inspector after save              | [workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png)       |
+| Invalid JSON syntax               | [workspace-structure-json-invalid-syntax-dark-en-1600x900-20261017.png](workspace-structure-json-invalid-syntax-dark-en-1600x900-20261017.png)                                       |
+| Simulated file-read failure       | [workspace-structure-json-file-read-error-dark-en-1600x900-20261017.png](workspace-structure-json-file-read-error-dark-en-1600x900-20261017.png)                                     |
+| Valid source after error          | [workspace-structure-json-recovered-valid-source-dark-en-1600x900-20261017.png](workspace-structure-json-recovered-valid-source-dark-en-1600x900-20261017.png)                       |
+| Escape returns focus to File      | [workspace-structure-json-import-focus-return-dark-en-1600x900-20261017.png](workspace-structure-json-import-focus-return-dark-en-1600x900-20261017.png)                             |
+| Initial focus on Import JSON      | [workspace-structure-json-import-initial-focus-dark-en-1600x900-20261017.png](workspace-structure-json-import-initial-focus-dark-en-1600x900-20261017.png)                           |
+| ArrowRight selects Create with AI | [workspace-structure-json-ai-tab-keyboard-dark-en-1600x900-20261017.png](workspace-structure-json-ai-tab-keyboard-dark-en-1600x900-20261017.png)                                     |
 
 The app exported a 466-byte Structure JSON file from the same isolated project,
 then imported that downloaded file through the visible file picker. Validation
@@ -143,6 +145,12 @@ saved two-block project. Loading a valid file afterward cleared the alert and
 restored the validation preview. The browser API override used for this
 simulation was restored immediately after the read-error check.
 
+Opening the dialog puts focus on the selected Import JSON tab rather than the
+Cancel button. The outer tablist uses roving focus: ArrowRight switches to
+Create with AI, ArrowLeft returns to Import JSON, and the selected tab is the
+only tab stop. Unit coverage also verifies wraparound plus Home/End. Escape
+from the tablist closes the dialog and restores focus to File.
+
 ## Changes verified in this pass
 
 - Resizing the viewport 1600→390→1600 kept saved sidebar preferences at
@@ -157,6 +165,8 @@ simulation was restored immediately after the read-error check.
 - Structure JSON parse and file-read failures appear as alerts and prevent
   Apply Import; a valid-file retry restores the preview, and Escape returns
   focus to File.
+- Import JSON is the dialog's initial focus; ArrowLeft/Right and Home/End
+  navigate the outer tabs while preserving a visible focus ring.
 - The narrow Workspace drawer and the 780×437 shell fit without document-level
   horizontal overflow.
 
@@ -165,9 +175,9 @@ Before the file-read error fix, the Workspace suite passed with
 along with production build, app/spec/worker TypeScript checks, tool tests (2/2),
 encoding, Prettier, and `git diff --check`. The default worker-isolated full
 suite run failed with Vitest worker timeouts and IPC errors; the successful run
-disabled test isolation. The follow-up file-read error change passed its
-focused workflow spec (1 file, 6 tests), production build, encoding check,
-Prettier, `git diff --check`, and a check that all 44 linked PNGs exist.
+disabled test isolation. The follow-up file-read and tab-navigation changes
+passed two focused specs (19 tests total), production build, encoding check,
+Prettier, `git diff --check`, and a check that all 46 linked PNGs exist.
 Workspace acceptance remains in progress. Remaining checks cover trusted
 mod/JAR fixtures, External AI, diagnostics, all locales and fonts, focus return
 for other dialogs, and reduced-motion behavior. The non-empty
