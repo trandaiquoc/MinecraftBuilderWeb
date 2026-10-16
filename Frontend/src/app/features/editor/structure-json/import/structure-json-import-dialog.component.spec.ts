@@ -124,6 +124,20 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(aiStyles).toContain('.ai-panel {');
     expect(aiStyles).toContain('overflow: auto;');
     expect(aiStyles).toContain('overscroll-behavior: contain;');
+    const promptPreviewClosedStyles = aiStyles.slice(
+      aiStyles.indexOf('.ai-preview:not([open]) > app-readonly-code-viewer {'),
+      aiStyles.indexOf(
+        '}',
+        aiStyles.indexOf('.ai-preview:not([open]) > app-readonly-code-viewer {'),
+      ),
+    );
+    const promptPreviewOpenStyles = aiStyles.slice(
+      aiStyles.indexOf('.ai-preview[open] > app-readonly-code-viewer {'),
+      aiStyles.indexOf('}', aiStyles.indexOf('.ai-preview[open] > app-readonly-code-viewer {')),
+    );
+    expect(promptPreviewClosedStyles).toContain('display: none;');
+    expect(promptPreviewOpenStyles).toContain('height: clamp(12rem, 36dvh, 24rem);');
+    expect(promptPreviewOpenStyles).toContain('min-height: 0;');
     expect(aiStyles).toContain('.ai-content-limits-workspace {');
     expect(aiStyles).toContain('overflow: hidden;');
     expect(aiStyles).toContain('.ai-content-limits-controls {');
@@ -153,7 +167,12 @@ describe('StructureJsonImportDialogComponent', () => {
       imports: [StructureJsonImportDialogComponent],
       providers: [
         ...catalogProviders,
-        { provide: I18nService, useValue: { t: (key: string) => key } },
+        {
+          provide: I18nService,
+          useValue: {
+            t: (key: string) => (key === 'structureJsonShowMoreIssues' ? 'Show next {count}' : key),
+          },
+        },
         {
           provide: BlockLibraryService,
           useValue: { get: () => undefined, allPlaceableItems: () => [] },
@@ -188,6 +207,42 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(instance.preview()).toBeUndefined();
     await instance.validate();
     expect(instance.preview()).toMatchObject({ structuralValid: true, totalBlocks: 0 });
+
+    instance.setDraft(
+      JSON.stringify({
+        format: 'the-block-laundromat-structure',
+        minecraftVersion: '1.21.1',
+        blocks: Array.from({ length: 26 }, (_, index) => ({
+          id: 'example:missing',
+          x: index % 2,
+          y: 0,
+          z: 0,
+        })),
+        decorations: [],
+      }),
+    );
+    await instance.validate();
+    fixture.detectChanges();
+
+    const missingGroup = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('details.issue-group'),
+    ).find((group) =>
+      group.querySelector('summary')?.textContent?.includes('structureJsonMissingBlocks'),
+    );
+    expect(missingGroup?.querySelectorAll('li')).toHaveLength(12);
+    const showMore = missingGroup?.querySelector('button.issue-more') as
+      HTMLButtonElement | undefined;
+    expect(showMore?.textContent).toContain('Show next 12');
+
+    showMore?.click();
+    fixture.detectChanges();
+    expect(missingGroup?.querySelectorAll('li')).toHaveLength(24);
+    expect(missingGroup?.querySelector('button.issue-more')?.textContent).toContain('Show next 2');
+
+    missingGroup?.querySelector<HTMLButtonElement>('button.issue-more')?.click();
+    fixture.detectChanges();
+    expect(missingGroup?.querySelectorAll('li')).toHaveLength(26);
+    expect(missingGroup?.querySelector('button.issue-more')).toBeNull();
   });
 
   it('keeps AI viewers in dedicated scroll regions while preserving the complete example', async () => {

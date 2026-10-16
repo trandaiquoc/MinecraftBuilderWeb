@@ -161,7 +161,9 @@
               }
             </ul>
             @if (moreIssueCount(group.category) > 0) {
-              <small>{{ moreIssueLabel(group.category) }}</small>
+              <button type="button" class="issue-more" (click)="showMoreIssues(group.category)">
+                {{ moreIssueLabel(group.category) }}
+              </button>
             }
           </details>
         }
@@ -196,9 +198,9 @@
             </div>
           }
           @if (moreDuplicateCount() > 0) {
-            <small>{{
-              i18n.t('structureJsonMoreIssues').replace('{count}', `${moreDuplicateCount()}`)
-            }}</small>
+            <button type="button" class="issue-more" (click)="showMoreIssues('duplicate')">
+              {{ moreIssueLabel('duplicate') }}
+            </button>
           }
         </details>
       }
@@ -239,9 +241,9 @@
             }
           </ul>
           @if (moreDecorationIssueCount() > 0) {
-            <small>{{
-              i18n.t('structureJsonMoreIssues').replace('{count}', `${moreDecorationIssueCount()}`)
-            }}</small>
+            <button type="button" class="issue-more" (click)="showMoreIssues('decoration')">
+              {{ moreIssueLabel('decoration') }}
+            </button>
           }
         </details>
       }
@@ -335,7 +337,7 @@
                 ><strong>{{ plan.currentConflictCount }}</strong>
               </summary>
               @for (
-                conflict of plan.currentConflicts.slice(0, 12);
+                conflict of currentConflicts();
                 track conflict.coordinate.x +
                   ',' +
                   conflict.coordinate.y +
@@ -357,6 +359,11 @@
                     <code>{{ id }}</code>
                   }
                 </div>
+              }
+              @if (moreImportConflictCount() > 0) {
+                <button type="button" class="issue-more" (click)="showMoreIssues('import')">
+                  {{ moreIssueLabel('import') }}
+                </button>
               }
             </details>
           }

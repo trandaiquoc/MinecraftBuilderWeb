@@ -188,9 +188,13 @@
   gap: 0.45rem;
   margin-top: 0.25rem;
 }
-.ai-preview > app-readonly-code-viewer {
+.ai-preview:not([open]) > app-readonly-code-viewer {
+  display: none;
+}
+.ai-preview[open] > app-readonly-code-viewer {
   display: block;
-  min-height: clamp(16rem, 36vh, 30rem);
+  height: clamp(12rem, 36dvh, 24rem);
+  min-height: 0;
 }
 .ai-preview summary,
 .ai-exact-ids summary {

@@ -1,4 +1,4 @@
-import { Component, OnChanges, inject, input, output } from '@angular/core';
+import { Component, OnChanges, inject, input, output, signal } from '@angular/core';
 import {
   LucideCheck,
   LucideCheckCircle2,
@@ -19,6 +19,7 @@ import type {
 import type {
   StructureJsonImportBlocker,
   StructureJsonImportMode,
+  StructureJsonProjectConflict,
 } from '../../../../core/persistence/structure-json/import/structure-json-import-plan';
 import {
   structureJsonBlockIssueSeverity,
@@ -32,6 +33,27 @@ import {
   type StructureJsonImportProgress,
   type StructureJsonImportValidationContext,
 } from './structure-json-import-workflow';
+
+type StructureJsonBlockIssueCategory =
+  'missing' | 'bounds' | 'state' | 'contentLimit' | 'support' | 'warning';
+type StructureJsonIssueList =
+  StructureJsonBlockIssueCategory | 'duplicate' | 'decoration' | 'import';
+
+const structureJsonIssueBatchSize = 12;
+
+function createIssueDisplayCounts(): Record<StructureJsonIssueList, number> {
+  return {
+    missing: structureJsonIssueBatchSize,
+    bounds: structureJsonIssueBatchSize,
+    state: structureJsonIssueBatchSize,
+    contentLimit: structureJsonIssueBatchSize,
+    support: structureJsonIssueBatchSize,
+    warning: structureJsonIssueBatchSize,
+    duplicate: structureJsonIssueBatchSize,
+    decoration: structureJsonIssueBatchSize,
+    import: structureJsonIssueBatchSize,
+  };
+}
 
 @Component({
   selector: 'app-structure-json-import-workspace',
@@ -50,6 +72,7 @@ import {
 export class StructureJsonImportWorkspaceComponent implements OnChanges {
   protected readonly i18n = inject(I18nService);
   private readonly workflow = inject(StructureJsonImportWorkflow);
+  private readonly issueDisplayCounts = signal(createIssueDisplayCounts());
 
   readonly project = input.required<ProjectDocument>();
   readonly placeableItems = input.required<readonly PlaceableItemDefinition[]>();
@@ -66,6 +89,7 @@ export class StructureJsonImportWorkspaceComponent implements OnChanges {
   protected readonly importModes = this.workflow.importModes;
 
   ngOnChanges(): void {
+    this.resetIssueDisplayCounts();
     this.workflow.setProject(this.project());
   }
 
@@ -74,6 +98,7 @@ export class StructureJsonImportWorkspaceComponent implements OnChanges {
   }
 
   protected setDraft(value: string): void {
+    this.resetIssueDisplayCounts();
     this.workflow.setDraft(value);
   }
 
@@ -81,14 +106,19 @@ export class StructureJsonImportWorkspaceComponent implements OnChanges {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
-    if (file) void this.workflow.loadFile(file);
+    if (file) {
+      this.resetIssueDisplayCounts();
+      void this.workflow.loadFile(file);
+    }
   }
 
   protected validate(): Promise<void> {
+    this.resetIssueDisplayCounts();
     return this.workflow.validate(this.validationContext());
   }
 
   protected selectImportMode(mode: StructureJsonImportMode): Promise<void> {
+    this.resetIssueDisplayCounts();
     return this.workflow.selectImportMode(mode, this.validationContext());
   }
 
@@ -155,38 +185,49 @@ export class StructureJsonImportWorkspaceComponent implements OnChanges {
     ];
   }
 
-  protected issues(
-    category: 'missing' | 'bounds' | 'state' | 'contentLimit' | 'support' | 'warning',
-  ): readonly StructureJsonBlockIssue[] {
-    return (this.preview()?.issues[category] ?? []).slice(0, 12);
+  protected issues(category: StructureJsonBlockIssueCategory): readonly StructureJsonBlockIssue[] {
+    return (this.preview()?.issues[category] ?? []).slice(0, this.issueDisplayCounts()[category]);
   }
 
   protected duplicateConflicts(): readonly StructureJsonCoordinateConflict[] {
-    return (this.preview()?.issues.duplicate ?? []).slice(0, 12);
+    return (this.preview()?.issues.duplicate ?? []).slice(0, this.issueDisplayCounts().duplicate);
   }
 
-  protected issueCount(
-    category: 'missing' | 'bounds' | 'state' | 'contentLimit' | 'support' | 'warning' | 'duplicate',
-  ): number {
+  protected issueCount(category: StructureJsonBlockIssueCategory | 'duplicate'): number {
     return this.preview()?.issues[category].length ?? 0;
   }
 
-  protected moreIssueCount(
-    category: 'missing' | 'bounds' | 'state' | 'contentLimit' | 'support' | 'warning',
-  ): number {
-    return Math.max(0, this.issueCount(category) - 12);
+  protected moreIssueCount(category: StructureJsonBlockIssueCategory | 'duplicate'): number {
+    return Math.max(0, this.issueCount(category) - this.issueDisplayCounts()[category]);
   }
 
   protected moreDuplicateCount(): number {
-    return Math.max(0, this.issueCount('duplicate') - 12);
+    return this.moreIssueCount('duplicate');
   }
 
   protected decorationIssues(): readonly StructureJsonDecorationIssue[] {
-    return (this.preview()?.decorationIssues ?? []).slice(0, 12);
+    return (this.preview()?.decorationIssues ?? []).slice(0, this.issueDisplayCounts().decoration);
   }
 
   protected moreDecorationIssueCount(): number {
-    return Math.max(0, (this.preview()?.decorationIssues.length ?? 0) - 12);
+    const total = this.preview()?.decorationIssues.length ?? 0;
+    return Math.max(0, total - this.issueDisplayCounts().decoration);
+  }
+
+  protected currentConflicts(): readonly StructureJsonProjectConflict[] {
+    return (this.importPlan()?.currentConflicts ?? []).slice(0, this.issueDisplayCounts().import);
+  }
+
+  protected moreImportConflictCount(): number {
+    const total = this.importPlan()?.currentConflicts.length ?? 0;
+    return Math.max(0, total - this.issueDisplayCounts().import);
+  }
+
+  protected showMoreIssues(list: StructureJsonIssueList): void {
+    this.issueDisplayCounts.update((counts) => ({
+      ...counts,
+      [list]: counts[list] + structureJsonIssueBatchSize,
+    }));
   }
 
   protected blockIssueSeverity(
@@ -233,12 +274,16 @@ export class StructureJsonImportWorkspaceComponent implements OnChanges {
     return this.i18n.t(key);
   }
 
-  protected moreIssueLabel(
-    category: 'missing' | 'bounds' | 'state' | 'contentLimit' | 'support' | 'warning',
-  ): string {
+  protected moreIssueLabel(list: StructureJsonIssueList): string {
+    const remaining =
+      list === 'decoration'
+        ? this.moreDecorationIssueCount()
+        : list === 'import'
+          ? this.moreImportConflictCount()
+          : this.moreIssueCount(list);
     return this.i18n
-      .t('structureJsonMoreIssues')
-      .replace('{count}', String(this.moreIssueCount(category)));
+      .t('structureJsonShowMoreIssues')
+      .replace('{count}', String(Math.min(structureJsonIssueBatchSize, remaining)));
   }
 
   protected reasonLabel(issue: StructureJsonBlockIssue): string {
@@ -282,6 +327,10 @@ export class StructureJsonImportWorkspaceComponent implements OnChanges {
         } as const
       )[mode],
     );
+  }
+
+  private resetIssueDisplayCounts(): void {
+    this.issueDisplayCounts.set(createIssueDisplayCounts());
   }
 
   protected modeLabel(mode: StructureJsonImportMode): string {

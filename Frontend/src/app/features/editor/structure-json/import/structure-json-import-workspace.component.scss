@@ -295,6 +295,24 @@
   color: var(--text-muted);
   font: 0.68rem/1.3 var(--font-readable);
 }
+.issue-more {
+  justify-self: start;
+  min-height: 2rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--text);
+  cursor: pointer;
+  font: 0.68rem/1.25 var(--font-ui);
+}
+.issue-more:hover {
+  background: var(--surface-hover);
+}
+.issue-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .import-apply-section {
   display: grid;
   gap: 0.6rem;
