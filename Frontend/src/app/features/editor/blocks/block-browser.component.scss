@@ -331,7 +331,7 @@
 }
 
 .catalog-grid-host.compact .block-select-action {
-  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr);
   grid-template-rows: 1fr;
   align-items: center;
   gap: 0.35rem;
@@ -339,8 +339,8 @@
 }
 
 .catalog-grid-host.compact .preview {
-  width: 40px;
-  height: 40px;
+  width: 52px;
+  height: 52px;
   justify-self: start;
 }
 
