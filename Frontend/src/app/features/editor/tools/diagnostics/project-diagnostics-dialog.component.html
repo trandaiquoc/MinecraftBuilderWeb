@@ -8,11 +8,12 @@
     role="dialog"
     aria-modal="true"
     tabindex="-1"
-    autofocus
-    [attr.aria-label]="i18n.t('diagnosticsTitle')"
+    aria-labelledby="project-diagnostics-title"
   >
     <header>
-      <h2>{{ i18n.t('diagnosticsTitle') }}</h2>
+      <h2 id="project-diagnostics-title" tabindex="-1" cdkFocusInitial>
+        {{ i18n.t('diagnosticsTitle') }}
+      </h2>
       <button
         type="button"
         class="ui-close-button"

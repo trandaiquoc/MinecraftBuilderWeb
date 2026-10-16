@@ -163,6 +163,24 @@ y=323 to 365. Native Tab traversal from Create with AI also reaches the
 selected Available content tab with the same visible focus and scroll position.
 The screenshots record both paths and the persistent dialog footer.
 
+## Project Diagnostics focus and empty state
+
+| State / viewport                                 | Screenshot                                                                                                                         |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Initial empty state before focus fix, 1600 x 900 | [workspace-diagnostics-overview-dark-en-1600x900-20261017.png](workspace-diagnostics-overview-dark-en-1600x900-20261017.png)       |
+| Initial empty state before focus fix, 390 x 520  | [workspace-diagnostics-overview-dark-en-390x520-20261017.png](workspace-diagnostics-overview-dark-en-390x520-20261017.png)         |
+| Title focus and neutral close, 1600 x 900        | [workspace-diagnostics-title-focus-dark-en-1600x900-20261017.png](workspace-diagnostics-title-focus-dark-en-1600x900-20261017.png) |
+| Title focus and neutral close, 390 x 520         | [workspace-diagnostics-title-focus-dark-en-390x520-20261017.png](workspace-diagnostics-title-focus-dark-en-390x520-20261017.png)   |
+
+The initial captures use the isolated two-block project and show zero issue
+groups. Before the update, opening Diagnostics focused the red Cancel close
+control. Afterward, focus lands on the dialog title and the close control uses
+the neutral shared color. At 390 x 520 the dialog measures 374 x 504 px; its
+body scrolls internally and the document remains 390 px wide with no horizontal
+overflow. The renderer interval label and hint explain that the value is
+smoothed and includes idle time. Browser coverage of valid, warning, and
+invalid-placement cases remains open.
+
 ## Changes verified in this pass
 
 - Resizing the viewport 1600→390→1600 kept saved sidebar preferences at
@@ -181,6 +199,8 @@ The screenshots record both paths and the persistent dialog footer.
   navigate the outer tabs while preserving a visible focus ring.
 - Home and ArrowRight navigate the nested AI tabs; the focused tab scrolls into
   view at 390 x 520 with no document-level horizontal overflow.
+- Diagnostics starts focus at its heading, uses a neutral close control, and
+  labels its render interval as smoothed with idle time included.
 - The narrow Workspace drawer and the 780×437 shell fit without document-level
   horizontal overflow.
 
@@ -193,11 +213,14 @@ disabled test isolation. The follow-up file-read and tab-navigation changes
 passed two focused specs (19 tests total), production build, encoding check,
 Prettier, and `git diff --check`. The nested AI mobile-focus follow-up passed
 its focused component spec (4 tests), production build, encoding check,
-Prettier, `git diff --check`, and a check that all 49 linked PNGs exist. Native
-Tab entry and arrow navigation were both checked in Chrome at 390 x 520.
-Workspace acceptance remains in progress. Remaining checks cover trusted
-mod/JAR fixtures, External AI, diagnostics, all locales and fonts, focus return
-for other dialogs, and reduced-motion behavior. The non-empty
+Prettier, `git diff --check`, and a check that its 49 linked PNGs exist. Native
+Tab entry and arrow navigation were both checked in Chrome at 390 x 520. The
+Diagnostics focus and wording follow-up passed its focused component spec (8
+tests), production build, encoding check, Prettier, `git diff --check`, and a
+check that all 53 linked PNGs exist. Workspace acceptance remains in progress.
+Remaining checks cover trusted mod/JAR fixtures, External AI, Diagnostics
+warning/error cases, all locales and fonts, focus return for other dialogs,
+and reduced-motion behavior. The non-empty
 Structure JSON browser round trip is recorded above. Both non-empty NBT
 export modes were decoded in this pass; manual loading in Minecraft remains
 pending. The repository's independent Java 1.21.1 NBT fixture is covered by

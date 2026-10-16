@@ -115,6 +115,18 @@ describe('ProjectDiagnosticsDialogComponent', () => {
     fixture.detectChanges();
   });
 
+  it('focuses the dialog title instead of the close control on open', () => {
+    const dialog = fixture.nativeElement.querySelector('.tool-dialog');
+    const title = fixture.nativeElement.querySelector('#project-diagnostics-title');
+    const close = fixture.nativeElement.querySelector('.ui-close-button');
+
+    expect(dialog.getAttribute('aria-labelledby')).toBe('project-diagnostics-title');
+    expect(dialog.hasAttribute('autofocus')).toBe(false);
+    expect(title.tabIndex).toBe(-1);
+    expect(title.hasAttribute('cdkfocusinitial')).toBe(true);
+    expect(close.hasAttribute('cdkfocusinitial')).toBe(false);
+  });
+
   it('filters the collected project report without rescanning blocks for each query', () => {
     expect(component.issues().map((issue) => issue.id)).toEqual(['example:unknown']);
     expect(library.get).toHaveBeenCalledTimes(2);
