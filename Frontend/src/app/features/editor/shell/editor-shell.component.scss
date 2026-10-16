@@ -193,6 +193,17 @@
     box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
+:host-context([data-theme='craft']) .sidebar-tabs button:not([aria-selected='true']) {
+  color: var(--workspace-text-secondary);
+}
+
+:host-context([data-theme='craft'])
+  .sidebar-tabs
+  button:hover:not(:disabled):not([aria-selected='true']) {
+  background: color-mix(in srgb, var(--workspace-hover) 76%, transparent);
+  color: var(--workspace-text-primary);
+}
+
 .left-panel > .sidebar-tabs button {
   display: flex;
   flex-direction: column;
@@ -243,7 +254,7 @@
 }
 
 .sidebar-tabs button[aria-selected='true'] {
-  background: transparent;
+  background: var(--control-selected);
   color: var(--control-selected-text);
   font-weight: 700;
 }

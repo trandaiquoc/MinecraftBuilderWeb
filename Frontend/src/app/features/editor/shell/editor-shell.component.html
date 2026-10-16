@@ -109,7 +109,7 @@
         <aside class="panel left-panel" [class.drawer-open]="leftDrawerOpen()">
           <button
             type="button"
-            class="drawer-close ui-close-button"
+            class="drawer-close ui-close-button ui-tooltip-align-end"
             uiTooltip="{{ i18n.t('closePanel') }}"
             (click)="closeDrawers()"
             [attr.aria-label]="i18n.t('closePanel')"
@@ -254,7 +254,7 @@
         <aside class="panel right-panel" [class.drawer-open]="rightDrawerOpen()">
           <button
             type="button"
-            class="drawer-close ui-close-button"
+            class="drawer-close ui-close-button ui-tooltip-align-end"
             uiTooltip="{{ i18n.t('closePanel') }}"
             (click)="closeDrawers()"
             [attr.aria-label]="i18n.t('closePanel')"

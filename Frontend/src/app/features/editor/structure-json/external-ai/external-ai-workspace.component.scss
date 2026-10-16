@@ -416,17 +416,29 @@
   gap: 0.75rem;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 .ai-content-limits-controls,
 .ai-content-limits-json {
   display: grid;
-  align-content: start;
   gap: 0.6rem;
   min-width: 0;
+  min-height: 0;
   padding: 0.75rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.ai-content-limits-controls {
+  grid-template-rows: auto auto auto minmax(6rem, 1fr) auto;
+  overflow: auto;
+}
+.ai-content-limits-json {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
 }
 .ai-content-limits-field {
   display: grid;
@@ -446,9 +458,13 @@
 }
 .ai-content-limits-candidates {
   display: grid;
+  align-content: start;
   gap: 0.2rem;
-  max-height: min(23rem, 42vh);
+  min-height: 0;
+  max-height: none;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .ai-content-limits-candidate {
   display: grid;
@@ -479,10 +495,14 @@
   overflow-wrap: anywhere;
 }
 .ai-content-limits-json pre {
-  min-height: 20rem;
-  max-height: min(48rem, 60vh);
+  min-height: 0;
+  max-height: none;
+  height: 100%;
+  box-sizing: border-box;
   margin: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 0.7rem;
   border-radius: var(--radius-sm);
   background: var(--surface-muted);
@@ -546,5 +566,15 @@
     overflow: visible;
     overscroll-behavior: auto;
     scrollbar-gutter: auto;
+  }
+
+  .ai-content-limits-controls {
+    grid-template-rows: auto auto auto auto auto;
+    overflow: visible;
+    scrollbar-gutter: auto;
+  }
+
+  .ai-content-limits-candidates {
+    max-height: min(16rem, 40dvh);
   }
 }

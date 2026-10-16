@@ -15,6 +15,10 @@
   background: var(--surface);
   box-shadow: var(--shadow-control);
 }
+
+:host-context([data-theme='craft']) .structure-overview {
+  color: var(--workspace-text-primary);
+}
 .overview-heading {
   display: flex;
   align-items: start;

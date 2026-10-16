@@ -268,35 +268,75 @@
     height: calc(100dvh - 1rem);
   }
   .structure-json-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
-    overflow: auto;
-  }
-  .structure-json-info {
-    max-height: 10rem;
+    grid-template-columns: minmax(180px, 29%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
   }
   .structure-json-limitations {
     margin-top: 0.7rem;
   }
 }
 @media (max-width: 460px) {
+  .structure-json-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 7rem) minmax(0, 1fr);
+  }
+  .structure-json-info {
+    max-height: 7rem;
+  }
+  .structure-json-info dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 0.65rem;
+  }
   .structure-json-tabs {
     overflow-x: auto;
   }
   .structure-json-footer {
-    align-items: stretch;
-    flex-direction: column-reverse;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.6rem;
   }
   .structure-json-footer > div,
   .download-guard > div {
-    justify-content: stretch;
+    justify-content: flex-end;
+    flex: 1 1 auto;
   }
   .structure-json-footer button,
   .download-guard button {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
   }
   .editor-heading {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-height: 600px) {
+  .structure-json-header {
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+  }
+  .structure-json-header > div {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.6rem;
+  }
+  .brand-logo {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 4.25rem;
+    margin: 0;
+  }
+  .structure-json-header h2 {
+    grid-column: 2;
+    align-self: end;
+    font-size: 0.95rem;
+  }
+  .structure-json-header p:last-child {
+    grid-column: 2;
+    max-width: none;
+    margin-top: 0.1rem;
+    font-size: 0.72rem;
+    line-height: 1.3;
   }
 }

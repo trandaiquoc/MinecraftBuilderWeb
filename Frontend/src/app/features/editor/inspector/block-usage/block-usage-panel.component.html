@@ -14,46 +14,52 @@
       </button>
     }
   </div>
-  <div class="usage-metrics">
-    <div>
-      <span>{{ i18n.t('totalBlocks') }}</span
-      ><strong>{{ formatCount(totalBlocks()) }}</strong>
+  <dl class="usage-metrics" [attr.aria-label]="i18n.t('blockUsage')">
+    <div class="usage-metric usage-metric--total">
+      <dt>{{ i18n.t('totalBlocks') }}</dt>
+      <dd>{{ formatCount(totalBlocks()) }}</dd>
     </div>
-    <div>
-      <span>{{ i18n.t('uniqueTypes') }}</span
-      ><strong>{{ formatCount(uniqueTypes()) }}</strong>
+    <div class="usage-metric usage-metric--types">
+      <dt>{{ i18n.t('uniqueTypes') }}</dt>
+      <dd>{{ formatCount(uniqueTypes()) }}</dd>
     </div>
-    <div>
-      <span>{{ i18n.t('missingBlocks') }}</span
-      ><strong>{{ formatCount(missingBlocks()) }}</strong>
+    <div class="usage-metric usage-metric--missing">
+      <dt>{{ i18n.t('missingBlocks') }}</dt>
+      <dd>{{ formatCount(missingBlocks()) }}</dd>
     </div>
+  </dl>
+  <div class="usage-tools">
+    <label class="usage-search">
+      <svg lucideSearch aria-hidden="true"></svg>
+      <input
+        type="search"
+        [value]="query()"
+        (input)="search($event)"
+        [attr.aria-label]="i18n.t('searchBlockUsage')"
+        [placeholder]="i18n.t('searchBlockUsagePlaceholder')"
+      />
+    </label>
+    <label class="usage-sort">
+      <span>{{ i18n.t('sortBy') }}</span>
+      <select [value]="sort()" [attr.aria-label]="i18n.t('sortBy')" (change)="setSort($event)">
+        <option value="count-desc">{{ i18n.t('countDescending') }}</option>
+        <option value="count-asc">{{ i18n.t('countAscending') }}</option>
+        <option value="name-asc">{{ i18n.t('nameAscending') }}</option>
+        <option value="name-desc">{{ i18n.t('nameDescending') }}</option>
+      </select>
+    </label>
   </div>
-  <label class="usage-search"
-    ><span>{{ i18n.t('searchBlockUsage') }}</span
-    ><input
-      type="search"
-      [value]="query()"
-      (input)="search($event)"
-      [placeholder]="i18n.t('searchBlockUsagePlaceholder')"
-  /></label>
-  <label class="usage-sort"
-    ><span>{{ i18n.t('sortBy') }}</span
-    ><select [value]="sort()" (change)="setSort($event)">
-      <option value="count-desc">{{ i18n.t('countDescending') }}</option>
-      <option value="count-asc">{{ i18n.t('countAscending') }}</option>
-      <option value="name-asc">{{ i18n.t('nameAscending') }}</option>
-      <option value="name-desc">{{ i18n.t('nameDescending') }}</option>
-    </select></label
-  >
   @if (usageRows().length) {
     <cdk-virtual-scroll-viewport
       class="usage-list"
-      itemSize="72"
+      itemSize="64"
+      role="list"
       [attr.aria-label]="i18n.t('blockUsage')"
     >
       <article
         *cdkVirtualFor="let row of usageRows(); trackBy: trackRow"
         class="usage-row"
+        role="listitem"
         [class.highlighted]="isHighlighted(row.entry.id)"
         [class.missing]="row.entry.missingCount > 0"
         thumbnailVisibility
@@ -64,7 +70,15 @@
           type="button"
           class="usage-row-button"
           [attr.aria-pressed]="isHighlighted(row.entry.id)"
-          [attr.aria-label]="i18n.t('highlightBlockUsage') + ': ' + row.displayName"
+          [attr.aria-label]="
+            i18n.t('highlightBlockUsage') +
+            ': ' +
+            row.displayName +
+            ', ' +
+            formatCount(row.entry.count) +
+            ', ' +
+            percentage(row.entry.count)
+          "
           (click)="toggleHighlight(row.entry.id)"
         >
           <span class="usage-thumbnail">
@@ -74,17 +88,20 @@
               <span aria-hidden="true">{{ row.entry.missingCount ? '?' : '◇' }}</span>
             }
           </span>
-          <span class="usage-copy"
-            ><strong>{{ row.displayName }}</strong
-            ><code>{{ row.entry.id }}</code
-            ><small
-              >{{ row.source }} · {{ formatCount(row.entry.count) }} ·
-              {{ percentage(row.entry.count) }}
+          <span class="usage-copy">
+            <strong>{{ row.displayName }}</strong>
+            <code [title]="row.entry.id">{{ row.entry.id }}</code>
+            <small>
+              {{ row.source }}
               @if (row.entry.missingCount) {
                 · {{ row.entry.missingCount }} {{ i18n.t('missingShort') }}
               }
-            </small></span
-          >
+            </small>
+          </span>
+          <span class="usage-count" aria-hidden="true">
+            <strong>{{ formatCount(row.entry.count) }}</strong>
+            <small>{{ percentage(row.entry.count) }}</small>
+          </span>
         </button>
       </article>
     </cdk-virtual-scroll-viewport>

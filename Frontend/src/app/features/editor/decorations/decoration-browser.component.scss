@@ -104,6 +104,25 @@
 .decoration-card.active small {
   color: color-mix(in srgb, var(--control-selected-text) 78%, transparent);
 }
+
+:host-context([data-theme='craft']) .decoration-card {
+  border: 1px solid var(--workspace-control-frame);
+  border-bottom-width: 2px;
+  border-radius: var(--workspace-radius-sm);
+}
+
+:host-context([data-theme='craft']) .decoration-card.active {
+  border-color: var(--workspace-primary);
+  background: var(--workspace-selected);
+  box-shadow:
+    inset 3px 0 0 var(--workspace-primary),
+    var(--shadow-control-raised);
+}
+
+:host-context([data-theme='craft']) .decoration-selected-indicator {
+  background: var(--workspace-primary);
+  color: var(--workspace-text-on-primary);
+}
 .frame-item-picker {
   display: grid;
   gap: 0.3rem;

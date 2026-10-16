@@ -69,6 +69,14 @@ const mixColors = (foreground: string, background: string, foregroundPercent: nu
 };
 
 describe('Workspace color palette contract', () => {
+  it('marks the selected tab surface without a detached or moving indicator', () => {
+    const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
+    expect(stylesheet).not.toContain('.ui-tab-strip::before');
+    expect(stylesheet).not.toContain(".ui-tab-strip > [role='tab'][aria-selected='true']::after");
+    expect(stylesheet).toContain(".ui-tab-strip > [role='tab'][aria-selected='true']");
+    expect(stylesheet).toContain('background: var(--control-selected);');
+  });
+
   it('matches the approved 92 colors and keeps generic tokens workspace-scoped', () => {
     const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
     const designContract = String(
@@ -294,6 +302,43 @@ describe('Workspace color palette contract', () => {
 
     expect(stylesheet).toContain('--radius-sm: var(--workspace-radius-sm);');
     expect(shellStyles).not.toContain('border-radius: 4px;');
+  });
+
+  it('keeps Minecraft dropdowns in the same stone control system as buttons', () => {
+    const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
+    const blockStyles = String(
+      readFileSync('src/app/features/editor/blocks/block-browser.component.scss', 'utf8'),
+    );
+
+    expect(stylesheet).toContain(":root[data-theme='craft'] app-editor-shell :where(select)");
+    expect(stylesheet).toContain('appearance: none;');
+    expect(stylesheet).toContain('background-color: var(--workspace-raised);');
+    expect(stylesheet).toContain('border-bottom-width: 2px;');
+    expect(stylesheet).toContain('--workspace-control-frame-strong: #817c69;');
+    expect(blockStyles).toContain('border: 1px solid var(--workspace-border);');
+    expect(blockStyles).toContain('.block-browser input:focus-visible');
+  });
+
+  it('keeps the Minecraft toolbar dirt-brown with readable dark controls', () => {
+    const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
+    const chromeStyles = String(
+      readFileSync('src/app/features/editor/shell/editor-chrome.component.scss', 'utf8'),
+    );
+    const paletteStyles = stylesheet.slice(stylesheet.indexOf('/* Workspace V2 palette'));
+    const craftTheme = paletteStyles.match(/:root\[data-theme='craft'\]\s*\{([^}]+)\}/)?.[1];
+    const toolbarBackground = craftTheme?.match(
+      /--workspace-toolbar-bg:\s*(#[0-9A-Fa-f]{6});/,
+    )?.[1];
+    const toolbarText = craftTheme?.match(/--workspace-toolbar-text:\s*(#[0-9A-Fa-f]{6});/)?.[1];
+
+    expect(toolbarBackground?.toLowerCase()).toBe('#b9956b');
+    expect(toolbarText).toBeDefined();
+    expect(contrastRatio(toolbarText!, toolbarBackground!)).toBeGreaterThanOrEqual(4.5);
+    expect(craftTheme).toContain('--workspace-segment-idle-text-mix: 100%;');
+    expect(chromeStyles).toContain('box-shadow: inset 0 -2px var(--workspace-secondary-accent);');
+    expect(chromeStyles).toContain(
+      'background: color-mix(in srgb, var(--workspace-toolbar-bg) 78%, white);',
+    );
   });
 
   it('keeps interactive text, focus, danger, and status combinations accessible', () => {

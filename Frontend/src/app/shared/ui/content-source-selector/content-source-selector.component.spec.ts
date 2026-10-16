@@ -28,6 +28,7 @@ describe('ContentSourceSelectorComponent navigation', () => {
     });
     const sourceButtons = fixture.nativeElement.querySelectorAll('.source-option');
     expect(sourceButtons).toHaveLength(2);
+    expect(sourceButtons[1].getAttribute('aria-label')).toBe('Vanilla');
     sourceButtons[1].click();
     fixture.nativeElement.querySelector('.source-manage').click();
     expect(selected).toEqual(['vanilla']);

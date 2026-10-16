@@ -254,41 +254,44 @@
 /* Workspace V2 palette. The Project Screen keeps its independent root tokens. */
 :root[data-theme='craft'] {
   --workspace-color-scheme: light;
-  --workspace-segment-idle-text-mix: 75%;
-  --workspace-app-bg: #35372f;
-  --workspace-header-bg: #416f2c;
-  --workspace-toolbar-bg: #564330;
-  --workspace-sidebar-bg: #564330;
-  --workspace-panel-bg: #e4d9be;
-  --workspace-raised: #f2e8d3;
-  --workspace-muted: #d2c1a3;
-  --workspace-hover: #dac8ac;
-  --workspace-selected: #b5cb98;
-  --workspace-border: #887252;
-  --workspace-separator: rgb(255 243 221 / 0.42);
-  --workspace-text-primary: #2a2117;
-  --workspace-text-secondary: #5b4a35;
-  --workspace-header-text: #f9f4e6;
-  --workspace-toolbar-text: #fff3dd;
-  --workspace-sidebar-text: #fff3dd;
-  --workspace-text-disabled: #776e61;
-  --workspace-primary: #427a25;
-  --workspace-primary-hover: #30631c;
+  --workspace-segment-idle-text-mix: 100%;
+  --workspace-app-bg: #292c25;
+  --workspace-header-bg: #2d5127;
+  --workspace-toolbar-bg: #b9956b;
+  --workspace-sidebar-bg: #e4e2d7;
+  --workspace-panel-bg: #f4f2e9;
+  --workspace-raised: #fbfaf4;
+  --workspace-muted: #e9e7dc;
+  --workspace-hover: #dfe5d6;
+  --workspace-selected: #d0dfba;
+  --workspace-border: #a7a18f;
+  --workspace-separator: #c0bcad;
+  --workspace-text-primary: #292a25;
+  --workspace-text-secondary: #55584f;
+  --workspace-header-text: #f7f6ed;
+  --workspace-toolbar-text: #292a25;
+  --workspace-sidebar-text: #292a25;
+  --workspace-text-disabled: #74766d;
+  --workspace-primary: #35772e;
+  --workspace-primary-hover: #2a6424;
   --workspace-text-on-primary: #ffffff;
-  --workspace-secondary-accent: #c48845;
-  --workspace-focus: #286b1c;
-  --workspace-success: #246e3c;
-  --workspace-warning: #835217;
-  --workspace-danger: #aa3535;
-  --workspace-info: #315f83;
+  --workspace-secondary-accent: #8d6542;
+  --workspace-focus: #286c27;
+  --workspace-control-frame: var(--workspace-border);
+  --workspace-control-frame-strong: #817c69;
+  --workspace-control-depth: var(--workspace-shadow-control);
+  --workspace-success: #286d3a;
+  --workspace-warning: #81551d;
+  --workspace-danger: #a33232;
+  --workspace-info: #465f6d;
   --workspace-radius-sm: 0.125rem;
   --workspace-radius-md: 0.25rem;
   --workspace-radius-lg: 0.375rem;
   --workspace-radius-xl: 0.5rem;
-  --workspace-shadow-control: 0 2px 0 rgb(37 27 17 / 0.18);
-  --workspace-shadow-control-raised: 0 4px 10px rgb(37 27 17 / 0.2);
-  --workspace-shadow-popover: 0 10px 26px rgb(37 27 17 / 0.3);
-  --workspace-shadow-dialog: 0 18px 54px rgb(37 27 17 / 0.3);
+  --workspace-shadow-control: 0 2px 0 rgb(102 76 48 / 0.2);
+  --workspace-shadow-control-raised: 0 4px 10px rgb(41 42 37 / 0.14);
+  --workspace-shadow-popover: 0 10px 26px rgb(28 31 25 / 0.22);
+  --workspace-shadow-dialog: 0 18px 54px rgb(28 31 25 / 0.28);
   --workspace-status-valid: color-mix(
     in srgb,
     var(--workspace-success) 12%,
@@ -313,7 +316,7 @@
 }
 :root[data-theme='light'] {
   --workspace-color-scheme: light;
-  --workspace-segment-idle-text-mix: 70%;
+  --workspace-segment-idle-text-mix: 66%;
   --workspace-app-bg: #f7f7f6;
   --workspace-header-bg: #ffffff;
   --workspace-toolbar-bg: #f1f1f0;
@@ -356,7 +359,7 @@
 }
 :root[data-theme='raccoon'] {
   --workspace-color-scheme: dark;
-  --workspace-segment-idle-text-mix: 63%;
+  --workspace-segment-idle-text-mix: 56%;
   --workspace-app-bg: #181a1c;
   --workspace-header-bg: #202326;
   --workspace-toolbar-bg: #292d30;
@@ -415,7 +418,7 @@
 }
 :root[data-theme='dark'] {
   --workspace-color-scheme: dark;
-  --workspace-segment-idle-text-mix: 56%;
+  --workspace-segment-idle-text-mix: 53%;
   --workspace-app-bg: #08090c;
   --workspace-header-bg: #050608;
   --workspace-toolbar-bg: #0f1115;
@@ -615,6 +618,16 @@ h4 {
   opacity: 1;
   transform: translate(-50%, 0);
 }
+.ui-tooltip-target.ui-tooltip-align-end::after {
+  right: 0;
+  left: auto;
+  transform: translateY(-0.15rem);
+}
+.ui-tooltip-target.ui-tooltip-align-end:not(.ui-tooltip-suppressed):hover::after,
+.ui-tooltip-target.ui-tooltip-align-end:not(.ui-tooltip-suppressed):focus-visible::after,
+.ui-tooltip-target.ui-tooltip-align-end:not(.ui-tooltip-suppressed):focus-within::after {
+  transform: translateY(0);
+}
 svg[class*='lucide'] {
   width: 1rem;
   height: 1rem;
@@ -623,14 +636,11 @@ svg[class*='lucide'] {
 }
 .ui-tab-strip {
   --ui-tab-count: 2;
-  position: relative;
-  z-index: 0;
   display: grid;
   grid-template-columns: repeat(var(--ui-tab-count), minmax(0, 1fr));
   gap: 0.15rem;
   min-width: 0;
   padding: 0.2rem;
-  isolation: isolate;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-muted);
@@ -642,40 +652,8 @@ svg[class*='lucide'] {
 .ui-tab-strip--5 {
   --ui-tab-count: 5;
 }
-.ui-tab-strip::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0.2rem auto 0.2rem 0.2rem;
-  width: calc((100% - 0.55rem) / 2);
-  border: 1px solid color-mix(in srgb, var(--control-selected-text) 18%, transparent);
-  border-radius: max(2px, calc(var(--radius-md) - 2px));
-  background: var(--control-selected);
-  box-shadow: var(--shadow-control-raised);
-  content: '';
-  transform: translateX(0);
-  transition: transform var(--motion-duration-ui) var(--motion-easing-spring);
-}
-.ui-tab-strip--3::before {
-  width: calc((100% - 0.7rem) / 3);
-}
-.ui-tab-strip--5::before {
-  width: calc((100% - 1rem) / 5);
-}
-.ui-tab-strip:has(> :nth-child(2)[aria-selected='true'])::before {
-  transform: translateX(calc(100% + 0.15rem));
-}
-.ui-tab-strip:has(> :nth-child(3)[aria-selected='true'])::before {
-  transform: translateX(calc(200% + 0.3rem));
-}
-.ui-tab-strip:has(> :nth-child(4)[aria-selected='true'])::before {
-  transform: translateX(calc(300% + 0.45rem));
-}
-.ui-tab-strip:has(> :nth-child(5)[aria-selected='true'])::before {
-  transform: translateX(calc(400% + 0.6rem));
-}
 .ui-tab-strip > [role='tab'] {
   position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -700,19 +678,9 @@ svg[class*='lucide'] {
   color: var(--text);
 }
 .ui-tab-strip > [role='tab'][aria-selected='true'] {
+  background: var(--control-selected);
   color: var(--control-selected-text);
   font-weight: 700;
-}
-.ui-tab-strip > [role='tab'][aria-selected='true']::after {
-  position: absolute;
-  right: 0.45rem;
-  bottom: 0.18rem;
-  left: 0.45rem;
-  height: 2px;
-  border-radius: 2px;
-  background: currentColor;
-  content: '';
-  opacity: 0.72;
 }
 .ui-tab-strip > [role='tab']:focus-visible {
   z-index: 2;
@@ -983,8 +951,8 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
 :root[data-theme='craft'] app-editor-shell .camera-popover,
 :root[data-theme='craft'] app-editor-shell .dropdown-popover,
 :root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container .dropdown-popover {
-  border-color: transparent;
-  box-shadow: 0 12px 28px rgb(0 0 0 / 0.45);
+  border-color: var(--workspace-control-frame);
+  box-shadow: 0 8px 20px rgb(42 34 23 / 0.28);
 }
 :root[data-theme='craft'] button.danger {
   background: var(--button-danger-bg);
@@ -1009,6 +977,103 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
 :root[data-theme='craft'] .validation-feedback {
   font-family: var(--font-readable);
 }
+
+:root[data-theme='craft'] app-editor-shell .ui-tab-strip,
+:root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container .ui-tab-strip {
+  border-color: var(--workspace-control-frame);
+  background: var(--workspace-muted);
+  box-shadow: inset 0 1px 2px rgb(59 45 27 / 0.16);
+}
+:root[data-theme='craft']
+  app-editor-shell
+  .ui-button:not(.ui-button--toolbar):not(.ui-button--segmented),
+:root[data-theme='craft'] app-editor-shell .themed-select-trigger,
+:root[data-theme='craft'] app-editor-shell .source-option,
+:root[data-theme='craft'] app-editor-shell .source-scroll,
+:root[data-theme='craft'] app-editor-shell .source-manage,
+:root[data-theme='craft'] app-editor-shell .layer-controls button,
+:root[data-theme='craft'] app-editor-shell .layer-controls select,
+:root[data-theme='craft']:has(app-editor-shell)
+  .cdk-overlay-container
+  .ui-button:not(.ui-button--toolbar):not(.ui-button--segmented),
+:root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container .themed-select-trigger {
+  border: 1px solid var(--workspace-control-frame);
+  border-bottom-width: 2px;
+  border-radius: var(--workspace-radius-sm);
+  box-shadow: var(--workspace-control-depth);
+}
+:root[data-theme='craft'] app-editor-shell .source-option.selected {
+  border-color: var(--workspace-primary);
+  background: var(--workspace-raised);
+  box-shadow:
+    inset 0 -2px 0 var(--workspace-primary),
+    var(--workspace-control-depth);
+}
+:root[data-theme='craft'] app-editor-shell .themed-select-option.selected,
+:root[data-theme='craft']:has(app-editor-shell)
+  .cdk-overlay-container
+  .themed-select-option.selected {
+  background: var(--workspace-raised);
+  color: var(--workspace-text-primary);
+  box-shadow: inset 3px 0 0 var(--workspace-primary);
+}
+:root[data-theme='craft'] app-editor-shell .ui-button--selected {
+  border-color: var(--workspace-primary);
+  background: var(--workspace-raised);
+  color: var(--workspace-text-primary);
+  box-shadow:
+    inset 0 -2px 0 var(--workspace-primary),
+    var(--workspace-control-depth);
+}
+:root[data-theme='craft'] app-editor-shell .themed-select-popup,
+:root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container .themed-select-popup {
+  border-color: var(--workspace-control-frame-strong);
+  border-radius: var(--workspace-radius-sm);
+}
+
+:root[data-theme='craft'] app-editor-shell :where(select),
+:root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container :where(select) {
+  appearance: none;
+  min-height: 2.05rem;
+  padding: 0.35rem 2rem 0.35rem 0.6rem;
+  border: 1px solid var(--workspace-control-frame);
+  border-bottom-width: 2px;
+  border-radius: var(--workspace-radius-sm);
+  background-color: var(--workspace-raised);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--workspace-text-secondary) 50%),
+    linear-gradient(135deg, var(--workspace-text-secondary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 12px) 50%,
+    calc(100% - 8px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  box-shadow: var(--workspace-control-depth);
+  color: var(--workspace-text-primary);
+  cursor: pointer;
+}
+:root[data-theme='craft'] app-editor-shell :where(select:hover:not(:disabled)),
+:root[data-theme='craft']:has(app-editor-shell)
+  .cdk-overlay-container
+  :where(select:hover:not(:disabled)) {
+  background-color: var(--workspace-hover);
+}
+:root[data-theme='craft'] app-editor-shell :where(select:disabled),
+:root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container :where(select:disabled) {
+  color: var(--workspace-text-disabled);
+  cursor: not-allowed;
+}
+:root[data-theme='craft'] app-editor-shell option,
+:root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container option {
+  background: var(--workspace-raised);
+  color: var(--workspace-text-primary);
+}
+:root[data-theme='craft'] app-editor-shell .themed-select-trigger,
+:root[data-theme='craft']:has(app-editor-shell) .cdk-overlay-container .themed-select-trigger {
+  min-height: 2.05rem;
+  padding-block: 0.35rem;
+}
+
 .ui-close-button {
   display: inline-grid;
   place-items: center;

@@ -124,7 +124,19 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(aiStyles).toContain('.ai-panel {');
     expect(aiStyles).toContain('overflow: auto;');
     expect(aiStyles).toContain('overscroll-behavior: contain;');
+    expect(aiStyles).toContain('.ai-content-limits-workspace {');
+    expect(aiStyles).toContain('overflow: hidden;');
+    expect(aiStyles).toContain('.ai-content-limits-controls {');
+    expect(aiStyles).toContain('grid-template-rows: auto auto auto minmax(6rem, 1fr) auto;');
+    expect(aiStyles).toContain('overflow: auto;');
+    expect(aiStyles).toContain('.ai-content-limits-candidates {');
+    expect(aiStyles).toContain('max-height: none;');
+    expect(aiStyles).toContain('.ai-content-limits-json {');
+    expect(aiStyles).toContain('grid-template-rows: auto auto minmax(0, 1fr);');
+    expect(aiStyles).toContain('.ai-content-limits-json pre {');
+    expect(aiStyles).toContain('min-height: 0;');
     expect(aiStyles).toContain('@media (max-width: 680px)');
+    expect(aiStyles).toContain('max-height: min(16rem, 40dvh);');
     const fixedRegions = [
       '<header class="structure-json-header">',
       'class="structure-json-tabs ui-tab-strip"',

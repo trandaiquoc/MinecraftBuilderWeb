@@ -160,7 +160,7 @@
 }
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.55rem 0.8rem;
   margin: 0;
 }
@@ -168,15 +168,23 @@
   display: grid;
   gap: 0.12rem;
   min-width: 0;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
 }
 .summary-grid dt {
   color: var(--text-muted);
   font-size: 0.68rem;
+  line-height: 1.3;
 }
 .summary-grid dd {
   margin: 0;
   overflow-wrap: break-word;
-  font-size: 0.78rem;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.35;
 }
 .manager-actions,
 .mods-toolbar,
@@ -408,10 +416,9 @@
   min-width: 0;
   padding: 0.7rem;
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--danger) 8%, var(--surface-raised));
-  box-shadow:
-    inset 3px 0 var(--danger),
-    var(--shadow-control);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-raised));
+  box-shadow: inset 3px 0 var(--accent);
 }
 .active-task-heading {
   display: flex;
@@ -433,8 +440,8 @@
   height: 0.55rem;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: var(--danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 .operation-cancel {
   display: grid;
@@ -500,7 +507,7 @@
 }
 .stage-list .stage-active,
 .phase-list .phase-active {
-  color: var(--danger);
+  color: var(--accent);
   font-weight: 700;
 }
 .stage-list .stage-complete,
@@ -508,7 +515,7 @@
   color: var(--success, var(--accent));
 }
 .stage-list .stage-awaiting-user {
-  color: var(--control-selected-text);
+  color: var(--success, var(--accent));
   font-weight: 700;
 }
 .stage-list .stage-blocked {
@@ -553,7 +560,7 @@
   border-radius: 50%;
 }
 .stage-dot {
-  background: var(--danger);
+  background: var(--accent);
 }
 .stage-pending {
   background: var(--text-disabled);
@@ -613,9 +620,10 @@
 .activity-current {
   display: grid;
   gap: 0.3rem;
-  padding: 0.55rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-muted);
+  padding: 0.65rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
 }
 .activity-current small,
 .activity-recent {
@@ -629,24 +637,53 @@
   font-size: 0.76rem;
 }
 .activity-list {
+  position: relative;
   display: grid;
   align-content: start;
-  gap: 0.35rem;
+  gap: 0;
   max-height: none;
   overflow: auto;
+  padding: 0.15rem 0 0.15rem 0.65rem;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .activity-entry {
+  position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.45rem;
-  font-size: 0.7rem;
+  align-items: start;
+  gap: 0.5rem;
+  padding: 0.45rem 0 0.5rem 0.55rem;
+  border-left: 1px solid var(--border-strong);
+  font-size: 0.72rem;
+}
+.activity-entry::before {
+  position: absolute;
+  top: 0.67rem;
+  left: -0.26rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border: 2px solid var(--surface-raised);
+  border-radius: 50%;
+  background: var(--text-disabled);
+  content: '';
 }
 .activity-entry time {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .activity-entry span {
   overflow-wrap: break-word;
+}
+.activity-entry.level-success::before {
+  background: var(--success, var(--accent));
+}
+.activity-entry.level-warning::before {
+  background: var(--warning);
+}
+.activity-entry.level-error::before {
+  background: var(--danger);
 }
 .activity-entry.level-error span {
   color: var(--danger);
@@ -710,10 +747,19 @@
   }
   .manager-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: max-content max-content;
+    align-content: start;
     overflow: auto;
   }
   .manager-main {
+    min-height: auto;
     overflow: visible;
+  }
+  .manager-pane {
+    height: auto;
+    min-height: auto;
+    overflow: visible;
+    padding-right: 0;
   }
   .manager-activity {
     min-height: 190px;

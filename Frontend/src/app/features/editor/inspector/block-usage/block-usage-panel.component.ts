@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { ScrollingModule } from '@angular/cdk/scrolling';
+import { LucideSearch } from '@lucide/angular';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import {
@@ -24,7 +25,7 @@ interface UsageRow {
 
 @Component({
   selector: 'app-block-usage-panel',
-  imports: [ScrollingModule, ThumbnailVisibilityDirective],
+  imports: [LucideSearch, ScrollingModule, ThumbnailVisibilityDirective],
   templateUrl: './block-usage-panel.component.html',
   styleUrl: './block-usage-panel.component.scss',
 })

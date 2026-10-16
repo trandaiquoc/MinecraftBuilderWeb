@@ -146,6 +146,8 @@ describe('editor shell movement/delete routing', () => {
     expect(toolSwitch?.querySelectorAll('[role="radio"][aria-checked="true"]')).toHaveLength(1);
     expect(modeSwitch?.querySelectorAll('[role="radio"][tabindex="0"]')).toHaveLength(1);
     expect(toolSwitch?.querySelectorAll('[role="radio"][tabindex="0"]')).toHaveLength(1);
+    expect(modeSwitch?.classList.contains('segment-selected-right')).toBe(false);
+    expect(toolSwitch?.classList.contains('segment-selected-right')).toBe(false);
     const fileMenu = root.querySelector<HTMLButtonElement>('.app-menu-trigger');
     fileMenu?.click();
     fixture.detectChanges();
@@ -173,6 +175,8 @@ describe('editor shell movement/delete routing', () => {
     expect(toolSwitch?.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toContain(
       TestBed.inject(I18nService).t('toolSelect'),
     );
+    expect(modeSwitch?.classList.contains('segment-selected-right')).toBe(true);
+    expect(toolSwitch?.classList.contains('segment-selected-right')).toBe(true);
     expect(modeSwitch?.querySelector('.segment-check')).toBeNull();
     expect(toolSwitch?.querySelector('.segment-check')).toBeNull();
 
@@ -204,6 +208,8 @@ describe('editor shell movement/delete routing', () => {
     expect(mode.mode()).toBe('3d');
     modeSwitch?.dispatchEvent(pointerEvent('pointermove', 80));
     expect(mode.mode()).toBe('y-layer');
+    fixture.detectChanges();
+    expect(modeSwitch?.classList.contains('segment-selected-right')).toBe(true);
     modeSwitch?.dispatchEvent(pointerEvent('pointerup', 80));
     fixture.detectChanges();
     expect(mode.mode()).toBe('y-layer');
@@ -215,6 +221,7 @@ describe('editor shell movement/delete routing', () => {
     selectedMode?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     fixture.detectChanges();
     expect(mode.mode()).toBe('3d');
+    expect(modeSwitch?.classList.contains('segment-selected-right')).toBe(false);
     expect(document.activeElement).toBe(
       modeSwitch?.querySelector('[role="radio"][aria-checked="true"]'),
     );

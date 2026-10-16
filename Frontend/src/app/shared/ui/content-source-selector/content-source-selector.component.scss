@@ -3,6 +3,7 @@
   min-width: 0;
 }
 .content-source-selector {
+  container: content-source-selector / inline-size;
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -100,4 +101,27 @@
 :host-context([data-font='chakra-petch']) .source-option {
   font-size: 0.78rem;
   line-height: 1.05;
+}
+
+:host-context([data-theme='craft']) .source-options {
+  gap: 0.15rem;
+  padding: 0.15rem;
+  border: 1px solid var(--workspace-control-frame);
+  background: var(--workspace-muted);
+  box-shadow: inset 0 1px 2px rgb(59 45 27 / 0.12);
+}
+
+@container content-source-selector (max-width: 220px) {
+  .source-scroll:disabled {
+    display: none;
+  }
+
+  .source-option {
+    gap: 0.1rem;
+    padding-inline: 0.3rem;
+  }
+
+  .source-option small {
+    display: none;
+  }
 }
