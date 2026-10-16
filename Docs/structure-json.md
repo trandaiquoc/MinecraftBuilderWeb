@@ -59,4 +59,6 @@ changes occur until the user applies a validated import.
 
 The dialog opens with its selected Import JSON tab focused. The outer tablist
 supports ArrowLeft/ArrowRight with wraparound and Home/End; only the selected
-tab participates in the regular Tab sequence.
+tab participates in the regular Tab sequence. The nested Create with AI
+tablist uses the same keys and keeps its focused tab in view while scrolling
+on narrow screens.

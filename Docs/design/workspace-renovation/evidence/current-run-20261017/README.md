@@ -108,19 +108,22 @@ was not part of this browser check.
 
 ## Structure JSON browser round trip
 
-| Step                              | Screenshot                                                                                                                                                                           |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Export                            | [workspace-structure-json-export-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-export-two-blocks-dark-en-1600x900-20261017.png)                                 |
-| Import validation, desktop        | [workspace-structure-json-import-validated-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-1600x900-20261017.png)             |
-| Import validation, 390 x 520      | [workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png)               |
-| Replace confirmation              | [workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png) |
-| Inspector after save              | [workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png)       |
-| Invalid JSON syntax               | [workspace-structure-json-invalid-syntax-dark-en-1600x900-20261017.png](workspace-structure-json-invalid-syntax-dark-en-1600x900-20261017.png)                                       |
-| Simulated file-read failure       | [workspace-structure-json-file-read-error-dark-en-1600x900-20261017.png](workspace-structure-json-file-read-error-dark-en-1600x900-20261017.png)                                     |
-| Valid source after error          | [workspace-structure-json-recovered-valid-source-dark-en-1600x900-20261017.png](workspace-structure-json-recovered-valid-source-dark-en-1600x900-20261017.png)                       |
-| Escape returns focus to File      | [workspace-structure-json-import-focus-return-dark-en-1600x900-20261017.png](workspace-structure-json-import-focus-return-dark-en-1600x900-20261017.png)                             |
-| Initial focus on Import JSON      | [workspace-structure-json-import-initial-focus-dark-en-1600x900-20261017.png](workspace-structure-json-import-initial-focus-dark-en-1600x900-20261017.png)                           |
-| ArrowRight selects Create with AI | [workspace-structure-json-ai-tab-keyboard-dark-en-1600x900-20261017.png](workspace-structure-json-ai-tab-keyboard-dark-en-1600x900-20261017.png)                                     |
+| Step                                          | Screenshot                                                                                                                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Export                                        | [workspace-structure-json-export-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-export-two-blocks-dark-en-1600x900-20261017.png)                                 |
+| Import validation, desktop                    | [workspace-structure-json-import-validated-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-1600x900-20261017.png)             |
+| Import validation, 390 x 520                  | [workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png)               |
+| Replace confirmation                          | [workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png) |
+| Inspector after save                          | [workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png)       |
+| Invalid JSON syntax                           | [workspace-structure-json-invalid-syntax-dark-en-1600x900-20261017.png](workspace-structure-json-invalid-syntax-dark-en-1600x900-20261017.png)                                       |
+| Simulated file-read failure                   | [workspace-structure-json-file-read-error-dark-en-1600x900-20261017.png](workspace-structure-json-file-read-error-dark-en-1600x900-20261017.png)                                     |
+| Valid source after error                      | [workspace-structure-json-recovered-valid-source-dark-en-1600x900-20261017.png](workspace-structure-json-recovered-valid-source-dark-en-1600x900-20261017.png)                       |
+| Escape returns focus to File                  | [workspace-structure-json-import-focus-return-dark-en-1600x900-20261017.png](workspace-structure-json-import-focus-return-dark-en-1600x900-20261017.png)                             |
+| Initial focus on Import JSON                  | [workspace-structure-json-import-initial-focus-dark-en-1600x900-20261017.png](workspace-structure-json-import-initial-focus-dark-en-1600x900-20261017.png)                           |
+| ArrowRight selects Create with AI             | [workspace-structure-json-ai-tab-keyboard-dark-en-1600x900-20261017.png](workspace-structure-json-ai-tab-keyboard-dark-en-1600x900-20261017.png)                                     |
+| ArrowRight selects Available content, desktop | [workspace-structure-json-ai-inner-content-tab-keyboard-dark-en-1600x900-20261017.png](workspace-structure-json-ai-inner-content-tab-keyboard-dark-en-1600x900-20261017.png)         |
+| ArrowRight selects Available content, mobile  | [workspace-structure-json-ai-inner-content-tab-keyboard-dark-en-390x520-20261017.png](workspace-structure-json-ai-inner-content-tab-keyboard-dark-en-390x520-20261017.png)           |
+| Native Tab reaches Available content, mobile  | [workspace-structure-json-ai-inner-tab-native-tab-focus-dark-en-390x520-20261017.png](workspace-structure-json-ai-inner-tab-native-tab-focus-dark-en-390x520-20261017.png)           |
 
 The app exported a 466-byte Structure JSON file from the same isolated project,
 then imported that downloaded file through the visible file picker. Validation
@@ -151,6 +154,15 @@ Create with AI, ArrowLeft returns to Import JSON, and the selected tab is the
 only tab stop. Unit coverage also verifies wraparound plus Home/End. Escape
 from the tablist closes the dialog and restores focus to File.
 
+The nested Create with AI tablist also uses roving focus with ArrowLeft,
+ArrowRight, Home, and End. At 390 x 520, the Home then ArrowRight keyboard
+sequence selects and focuses Available content; the focused tab is fully
+visible inside the scrollable AI workspace and the document has no horizontal
+overflow. The measured workspace spans y=223 to 466 and the focused tab spans
+y=323 to 365. Native Tab traversal from Create with AI also reaches the
+selected Available content tab with the same visible focus and scroll position.
+The screenshots record both paths and the persistent dialog footer.
+
 ## Changes verified in this pass
 
 - Resizing the viewport 1600→390→1600 kept saved sidebar preferences at
@@ -167,6 +179,8 @@ from the tablist closes the dialog and restores focus to File.
   focus to File.
 - Import JSON is the dialog's initial focus; ArrowLeft/Right and Home/End
   navigate the outer tabs while preserving a visible focus ring.
+- Home and ArrowRight navigate the nested AI tabs; the focused tab scrolls into
+  view at 390 x 520 with no document-level horizontal overflow.
 - The narrow Workspace drawer and the 780×437 shell fit without document-level
   horizontal overflow.
 
@@ -177,7 +191,10 @@ encoding, Prettier, and `git diff --check`. The default worker-isolated full
 suite run failed with Vitest worker timeouts and IPC errors; the successful run
 disabled test isolation. The follow-up file-read and tab-navigation changes
 passed two focused specs (19 tests total), production build, encoding check,
-Prettier, `git diff --check`, and a check that all 46 linked PNGs exist.
+Prettier, and `git diff --check`. The nested AI mobile-focus follow-up passed
+its focused component spec (4 tests), production build, encoding check,
+Prettier, `git diff --check`, and a check that all 49 linked PNGs exist. Native
+Tab entry and arrow navigation were both checked in Chrome at 390 x 520.
 Workspace acceptance remains in progress. Remaining checks cover trusted
 mod/JAR fixtures, External AI, diagnostics, all locales and fonts, focus return
 for other dialogs, and reduced-motion behavior. The non-empty

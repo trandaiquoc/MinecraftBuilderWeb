@@ -195,11 +195,13 @@ export class ExternalAiWorkspaceComponent {
   protected setAiTab(tab: AiWorkspaceTab): void {
     if (this.activeAiTab() === tab) return;
     this.activeAiTab.set(tab);
-    this.host.nativeElement.scrollTop = 0;
     const panel = (this.host.nativeElement as HTMLElement).querySelector(
       '.ai-panel, .ai-content-limits-workspace',
     ) as HTMLElement | null;
     if (panel) panel.scrollTop = 0;
+  }
+  protected scrollAiTabIntoView(event: FocusEvent): void {
+    (event.currentTarget as HTMLElement).scrollIntoView({ block: 'center', inline: 'nearest' });
   }
   protected aiTabIndex(tab: AiWorkspaceTab): 0 | -1 {
     return this.activeAiTab() === tab ? 0 : -1;

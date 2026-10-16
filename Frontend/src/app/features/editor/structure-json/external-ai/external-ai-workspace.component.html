@@ -139,6 +139,7 @@
           [attr.aria-selected]="activeAiTab() === tab"
           [tabIndex]="aiTabIndex(tab)"
           [class.active]="activeAiTab() === tab"
+          (focus)="scrollAiTabIntoView($event)"
           (click)="setAiTab(tab)"
         >
           {{ aiTabLabel(tab) }}

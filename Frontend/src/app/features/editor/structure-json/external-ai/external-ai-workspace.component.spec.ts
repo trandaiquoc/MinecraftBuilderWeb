@@ -118,4 +118,18 @@ describe('ExternalAiWorkspaceComponent copy feedback', () => {
     expect(document.activeElement).toBe(tabs[0]);
     tablist.remove();
   });
+
+  it('scrolls a focused AI tab into the visible area', () => {
+    const state = component as unknown as {
+      scrollAiTabIntoView: (event: FocusEvent) => void;
+    };
+    const tab = document.createElement('button');
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(tab, 'scrollIntoView', { value: scrollIntoView });
+    tab.addEventListener('focus', (event) => state.scrollAiTabIntoView(event as FocusEvent));
+
+    tab.dispatchEvent(new FocusEvent('focus'));
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center', inline: 'nearest' });
+  });
 });
