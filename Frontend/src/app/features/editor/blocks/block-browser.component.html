@@ -20,7 +20,7 @@
   </div>
   @if (assetsUnavailable()) {
     <div class="asset-empty-state">
-      <p>{{ assets.message() || i18n.t('assetsUnavailableForBrowser') }}</p>
+      <p role="alert">{{ assets.message() || i18n.t('assetsUnavailableForBrowser') }}</p>
       <button
         type="button"
         class="ui-button ui-button--secondary ui-button--sm"

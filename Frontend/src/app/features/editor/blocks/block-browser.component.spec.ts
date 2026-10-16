@@ -91,6 +91,9 @@ describe('BlockBrowserComponent bootstrap presentation', () => {
     assets.contentRestore.set({ phase: 'error', current: 0, total: 0, failed: 1 });
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.asset-empty-state')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.asset-empty-state p')?.getAttribute('role')).toBe(
+      'alert',
+    );
     expect(fixture.nativeElement.querySelector('.asset-loading-state')).toBeNull();
   });
 

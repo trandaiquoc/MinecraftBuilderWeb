@@ -76,6 +76,29 @@ last virtual row and then left the list; Shift+Tab returned to the final row's
 Quick Bar action. The screenshot pair shows the tooltip clipping before the
 row-aware flip and its corrected placement afterward.
 
+## Block Browser unavailable-assets recovery
+
+The unavailable-assets message now uses `role="alert"`; Retry and Open Asset
+Manager remain separate native buttons outside the live region. Native Tab
+moved from search to Retry and then Open Asset Manager. Enter opened Asset
+Manager on its Vanilla tab; Escape closed it and returned focus to the opener.
+At 390×520, the Raccoon drawer kept the Vietnamese alert and both actions
+inside its 340 px width, with no horizontal document overflow.
+
+| State / theme / viewport               | Capture                                                                                                                                          |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Before alert semantics, Dark, 1600×900 | [workspace-block-browser-no-assets-before-dark-en-1600x900-20261017.png](workspace-block-browser-no-assets-before-dark-en-1600x900-20261017.png) |
+| Alert state, Dark, 1600×900            | [workspace-block-browser-no-assets-after-dark-en-1600x900-20261017.png](workspace-block-browser-no-assets-after-dark-en-1600x900-20261017.png)   |
+| Alert state, Minecraft, 1600×900       | [workspace-block-browser-no-assets-craft-en-1600x900-20261017.png](workspace-block-browser-no-assets-craft-en-1600x900-20261017.png)             |
+| Alert state, Light, 1600×900           | [workspace-block-browser-no-assets-light-en-1600x900-20261017.png](workspace-block-browser-no-assets-light-en-1600x900-20261017.png)             |
+| Alert and actions, Raccoon VI, 390×520 | [workspace-block-browser-no-assets-raccoon-vi-390x520-20261017.png](workspace-block-browser-no-assets-raccoon-vi-390x520-20261017.png)           |
+
+The no-assets presentation was forced in the isolated browser after normal
+bootstrap to capture the fallback; no asset download or cache removal was
+started. The component spec verifies the real no-assets branch and alert role.
+This visual pass does not simulate a network failure or verify Retry's
+download result.
+
 ## Workspace panels and responsive shell
 
 | State / viewport                                   | Capture                                                                                                                                                                |
