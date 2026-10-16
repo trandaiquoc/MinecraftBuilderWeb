@@ -18,6 +18,31 @@ and saved 260/230 px sidebars. Only the UI theme changes.
 | Light     | [workspace-final-light-en-1600x900-20261017.png](workspace-final-light-en-1600x900-20261017.png)     |
 | Dark      | [workspace-final-dark-en-1600x900-20261017.png](workspace-final-dark-en-1600x900-20261017.png)       |
 
+## Mobile application menus
+
+The File menu aligns inside the viewport at 390 px in English and Vietnamese.
+At 320 px, Vietnamese menu labels wrap as needed; the long Minecraft NBT export
+label uses two lines instead of creating horizontal scroll. All six application
+menus were opened in Vietnamese at 320 x 520. Their items remained reachable by
+scrolling inside the popover, and the page stayed 320 px wide. The File menu was
+also checked at 320 px in all four themes and both locales: it stayed inside the
+viewport and every menu item remained hit-testable. Escape and outside clicks
+dismiss menus; Escape restores focus to the trigger.
+
+| State / locale / viewport                           | Capture                                                                                                                              |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Before horizontal alignment fix, English, 390 x 520 | [workspace-menu-file-overflow-before-dark-en-390x520-20261017.png](workspace-menu-file-overflow-before-dark-en-390x520-20261017.png) |
+| After alignment fix, English, 390 x 520             | [workspace-menu-file-mobile-dark-en-390x520-20261017.png](workspace-menu-file-mobile-dark-en-390x520-20261017.png)                   |
+| After alignment fix, Vietnamese, 390 x 520          | [workspace-menu-file-mobile-dark-vi-390x520-20261017.png](workspace-menu-file-mobile-dark-vi-390x520-20261017.png)                   |
+| After narrow-label wrapping, English, 320 x 520     | [workspace-menu-file-mobile-dark-en-320x520-20261017.png](workspace-menu-file-mobile-dark-en-320x520-20261017.png)                   |
+| Before narrow-label wrapping, Vietnamese, 320 x 520 | [workspace-menu-file-overflow-before-dark-vi-320x520-20261017.png](workspace-menu-file-overflow-before-dark-vi-320x520-20261017.png) |
+| After narrow-label wrapping, Vietnamese, 320 x 520  | [workspace-menu-file-mobile-wrap-dark-vi-320x520-20261017.png](workspace-menu-file-mobile-wrap-dark-vi-320x520-20261017.png)         |
+
+The 320 px menus with taller content use their own vertical scrolling; after
+scrolling each item into view, every item received pointer hit-testing inside
+the menu bounds. The View and Settings menus therefore remain usable without
+extending the document viewport.
+
 ## Settings
 
 The Settings window was opened from the real Workspace. General is the initial

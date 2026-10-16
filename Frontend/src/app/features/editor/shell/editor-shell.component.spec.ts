@@ -158,6 +158,45 @@ describe('editor shell movement/delete routing', () => {
     mount.mockRestore();
   });
 
+  it('dismisses editor menus with Escape and outside clicks', async () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    await workspace.restore(TestBed.inject(PROJECT_STORE), undefined);
+    workspace.activate(project, undefined);
+    fixture.detectChanges();
+
+    const trigger = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '.app-menu-trigger',
+    );
+    try {
+      trigger?.focus();
+      trigger?.click();
+      fixture.detectChanges();
+      expect(trigger?.getAttribute('aria-expanded')).toBe('true');
+
+      const firstItem = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        '.menu-popover button',
+      );
+      firstItem?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+      );
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).querySelector('.menu-popover')).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+
+      trigger?.click();
+      fixture.detectChanges();
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+      expect(trigger?.getAttribute('aria-expanded')).toBe('false');
+      expect((fixture.nativeElement as HTMLElement).querySelector('.menu-popover')).toBeNull();
+    } finally {
+      fixture.destroy();
+      mount.mockRestore();
+    }
+  });
+
   it('routes chrome menu and toolbar interactions through the existing editor services', () => {
     const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
     const fixture = TestBed.createComponent(EditorShellComponent);

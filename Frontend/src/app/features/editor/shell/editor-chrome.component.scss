@@ -443,6 +443,10 @@
 }
 
 @media (max-width: 850px) {
+  :host(.menu-open) {
+    z-index: 40;
+  }
+
   .app-menu-row {
     flex-wrap: wrap;
     gap: 0.3rem 0.65rem;
@@ -498,6 +502,17 @@
 
   .tool-switch {
     min-width: 10.25rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .menu-popover button {
+    align-items: flex-start;
+    white-space: normal;
+  }
+
+  .menu-popover button svg {
+    margin-top: 0.15rem;
   }
 }
 

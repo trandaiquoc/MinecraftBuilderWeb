@@ -1,4 +1,4 @@
-import { Component, ElementRef, inject, input, output, signal } from '@angular/core';
+import { Component, ElementRef, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
@@ -71,8 +71,10 @@ type SegmentControl = 'mode' | 'tool';
   templateUrl: './editor-chrome.component.html',
   styleUrl: './editor-chrome.component.scss',
   host: {
+    '[class.menu-open]': '!!activeMenu()',
     '(document:click)': 'closeMenus()',
     '(document:keydown)': 'handleDocumentKeydown($event)',
+    '(window:resize)': 'alignActiveMenu()',
   },
 })
 export class EditorChromeComponent {
@@ -83,6 +85,11 @@ export class EditorChromeComponent {
   readonly state = input.required<EditorChromeState>();
   readonly action = output<EditorChromeAction>();
   protected readonly activeMenu = signal<EditorMenu | undefined>(undefined);
+  private readonly alignActiveMenuEffect = effect(() => {
+    if (!this.activeMenu()) return;
+    this.i18n.locale();
+    this.alignActiveMenu();
+  });
   private segmentDrag: SegmentControl | undefined;
   protected readonly cameraPresets = [
     'perspective',
@@ -95,7 +102,37 @@ export class EditorChromeComponent {
 
   protected toggleMenu(menu: EditorMenu, event: Event): void {
     event.stopPropagation();
-    this.activeMenu.update((current) => (current === menu ? undefined : menu));
+    const next = this.activeMenu() === menu ? undefined : menu;
+    this.activeMenu.set(next);
+  }
+
+  protected alignActiveMenu(): void {
+    if (!this.activeMenu()) return;
+    const view = this.host.nativeElement.ownerDocument.defaultView;
+    view?.requestAnimationFrame(() => {
+      const popover = this.host.nativeElement.querySelector<HTMLElement>('.menu-popover');
+      const entry = popover?.closest<HTMLElement>('.menu-entry');
+      if (!popover || !entry || !view) return;
+
+      popover.style.removeProperty('left');
+      popover.style.removeProperty('right');
+      const entryBounds = entry.getBoundingClientRect();
+      const style = view.getComputedStyle(popover);
+      const width = popover.offsetWidth;
+      const leftOffset = Number.parseFloat(style.left);
+      const rightOffset = Number.parseFloat(style.right);
+      const currentLeft = Number.isFinite(leftOffset)
+        ? entryBounds.left + leftOffset
+        : entryBounds.right - (Number.isFinite(rightOffset) ? rightOffset : 0) - width;
+      const viewportWidth = this.host.nativeElement.ownerDocument.documentElement.clientWidth;
+      const gutter = 8;
+      const maximumLeft = Math.max(gutter, viewportWidth - gutter - width);
+      const targetLeft = Math.min(maximumLeft, Math.max(gutter, currentLeft));
+      if (targetLeft === currentLeft) return;
+
+      popover.style.left = `${targetLeft - entryBounds.left}px`;
+      popover.style.right = 'auto';
+    });
   }
 
   protected emit(action: EditorChromeAction): void {
