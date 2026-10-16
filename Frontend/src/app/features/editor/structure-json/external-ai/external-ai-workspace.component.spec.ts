@@ -74,4 +74,48 @@ describe('ExternalAiWorkspaceComponent copy feedback', () => {
     expect(state.aiCopyStatus()).toBe('copied');
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it('keeps one tab stop and moves selection and focus with tab navigation keys', () => {
+    const state = component as unknown as {
+      aiTabs: readonly string[];
+      activeAiTab: () => string;
+      aiTabIndex: (tab: string) => 0 | -1;
+      onAiTabKeydown: (event: KeyboardEvent) => void;
+    };
+    const tablist = document.createElement('div');
+    const tabs = state.aiTabs.map((tab) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('role', 'tab');
+      button.textContent = tab;
+      button.tabIndex = state.aiTabIndex(tab);
+      tablist.append(button);
+      return button;
+    });
+    document.body.append(tablist);
+    tablist.addEventListener('keydown', (event) => state.onAiTabKeydown(event as KeyboardEvent));
+
+    tabs[0].focus();
+    const arrowRight = new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      bubbles: true,
+      cancelable: true,
+    });
+    tabs[0].dispatchEvent(arrowRight);
+
+    expect(state.activeAiTab()).toBe('content');
+    expect(document.activeElement).toBe(tabs[1]);
+    expect(state.aiTabs.map((tab) => state.aiTabIndex(tab))).toEqual([-1, 0, -1, -1, -1]);
+
+    const end = new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true });
+    tabs[1].dispatchEvent(end);
+    expect(state.activeAiTab()).toBe('example');
+    expect(document.activeElement).toBe(tabs[4]);
+
+    const home = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true });
+    tabs[4].dispatchEvent(home);
+    expect(state.activeAiTab()).toBe('description');
+    expect(document.activeElement).toBe(tabs[0]);
+    tablist.remove();
+  });
 });

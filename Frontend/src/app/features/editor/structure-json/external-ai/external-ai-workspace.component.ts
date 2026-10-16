@@ -201,6 +201,9 @@ export class ExternalAiWorkspaceComponent {
     ) as HTMLElement | null;
     if (panel) panel.scrollTop = 0;
   }
+  protected aiTabIndex(tab: AiWorkspaceTab): 0 | -1 {
+    return this.activeAiTab() === tab ? 0 : -1;
+  }
   protected aiTabLabel(tab: AiWorkspaceTab): string {
     return this.i18n.t(
       (
@@ -232,6 +235,10 @@ export class ExternalAiWorkspaceComponent {
     if (next < 0) return;
     event.preventDefault();
     this.setAiTab(this.aiTabs[next]);
+    (event.currentTarget as HTMLElement)
+      .querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      .item(next)
+      ?.focus();
   }
   protected setAiDescription(value: string): void {
     this.aiDescription.set(value);

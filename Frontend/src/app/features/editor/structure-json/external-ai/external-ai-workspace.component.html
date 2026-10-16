@@ -137,6 +137,7 @@
           [id]="'structure-json-ai-tab-' + tab"
           [attr.aria-controls]="'structure-json-ai-panel-' + tab"
           [attr.aria-selected]="activeAiTab() === tab"
+          [tabIndex]="aiTabIndex(tab)"
           [class.active]="activeAiTab() === tab"
           (click)="setAiTab(tab)"
         >
