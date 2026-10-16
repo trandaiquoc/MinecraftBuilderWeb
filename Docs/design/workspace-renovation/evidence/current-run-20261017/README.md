@@ -74,13 +74,42 @@ document-level horizontal or vertical overflow. The Vietnamese header,
 toolbar, and status bar wrap onto additional rows to keep their labels in the
 viewport. The editor canvas, Quick Bar, and collapsed Blocks/Selection openers
 remain visible. This is a focused small-screen font sample, not a full
-four-theme/font matrix; the Settings Small/Large font-size options remain open.
+four-theme/font matrix. Large-font behavior is checked separately below;
+Small-font coverage remains open.
 
 | Font | English | Vietnamese |
 | --- | --- | --- |
 | Comfortaa | [workspace-font-narrow-comfortaa-en-390x520-20261017.png](workspace-font-narrow-comfortaa-en-390x520-20261017.png) | [workspace-font-narrow-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-comfortaa-vi-390x520-20261017.png) |
 | Chakra Petch | [workspace-font-narrow-chakra-petch-en-390x520-20261017.png](workspace-font-narrow-chakra-petch-en-390x520-20261017.png) | [workspace-font-narrow-chakra-petch-vi-390x520-20261017.png](workspace-font-narrow-chakra-petch-vi-390x520-20261017.png) |
 | Pangolin | [workspace-font-narrow-pangolin-en-390x520-20261017.png](workspace-font-narrow-pangolin-en-390x520-20261017.png) | [workspace-font-narrow-pangolin-vi-390x520-20261017.png](workspace-font-narrow-pangolin-vi-390x520-20261017.png) |
+
+## Large Workspace font at narrow and short viewports
+
+The large font setting was checked in the Minecraft theme with Vietnamese at
+390 x 520, 390 x 600, and 320 x 520 using the temporary two-block project.
+Before the layout change, the Camera
+controls ran off the right edge and the empty Quick Bar hint covered the
+responsive Blocks and Selection openers, even though the document itself did
+not report overflow. The Small-font capture is included as a comparison.
+
+At widths up to 560 px, Large-font Camera controls now wrap within the toolbar.
+When the viewport is at most 700 px high, the Workspace shell grows to its
+content height and the page scrolls vertically; the editor body keeps a
+12rem minimum height. At 390 x 520 the body measured 216 px, the editor canvas
+167 px, and the Quick Bar no longer intersected the drawer openers. At 320 x
+520 all Camera controls remained inside the viewport; scrolling to the bottom
+revealed the Quick Bar and status bar. There was no horizontal document
+overflow. At 701 px high the shell returned to the viewport-height layout with
+a 192 px editor canvas and no document overflow.
+
+| State | Browser capture |
+| --- | --- |
+| Small font, 390 x 520, before change | [workspace-font-size-small-minecraft-vi-390x520-20261017.png](workspace-font-size-small-minecraft-vi-390x520-20261017.png) |
+| Large font, 390 x 520, before change | [workspace-font-size-large-minecraft-vi-390x520-20261017.png](workspace-font-size-large-minecraft-vi-390x520-20261017.png) |
+| Large font, 390 x 520, after change | [workspace-font-size-large-minecraft-vi-390x520-after-20261017.png](workspace-font-size-large-minecraft-vi-390x520-after-20261017.png) |
+| Large font, 390 x 600 | [workspace-font-size-large-minecraft-vi-390x600-20261017.png](workspace-font-size-large-minecraft-vi-390x600-20261017.png) |
+| Large font, 320 x 520, page top | [workspace-font-size-large-minecraft-vi-320x520-20261017.png](workspace-font-size-large-minecraft-vi-320x520-20261017.png) |
+| Large font, 320 x 520, page scrolled | [workspace-font-size-large-minecraft-vi-320x520-scrolled-20261017.png](workspace-font-size-large-minecraft-vi-320x520-scrolled-20261017.png) |
 
 ## Mobile application menus
 

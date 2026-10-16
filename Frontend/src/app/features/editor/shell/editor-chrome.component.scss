@@ -504,6 +504,13 @@
   .tool-switch {
     min-width: 10.25rem;
   }
+
+  :host-context([data-font-size='large']) .camera-actions {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 
 @media (max-width: 380px) {
