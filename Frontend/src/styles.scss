@@ -936,6 +936,14 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
   }
+  app-editor-shell :where(*)::before,
+  app-editor-shell :where(*)::after,
+  .cdk-overlay-container :where(*)::before,
+  .cdk-overlay-container :where(*)::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
   .ui-progress.is-indeterminate .ui-progress__fill {
     animation: none;
     width: 100%;

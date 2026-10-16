@@ -2,15 +2,18 @@
 
 **Final result: blocked**
 
+The latest targeted interaction pass improves the toolbar's mode/tool selection and removes a 2 px Minecraft-only header layout shift. This does not close the end-to-end renovation: the outstanding P1 composition and untouched dialog/workflow findings below remain blockers.
+
 ## Evidence
 
 - Approved visual sources: `/tmp/laundromat-stitch-approved/stitch_block_laundromat_workspace_design_system/workspace_{minecraft_theme,raccoon_theme,light_theme,dark_theme}/screen.png` (each 1600 x 1280 px).
 - Full-view comparison: `/tmp/workspace-theme-qa-same-viewport.png` (all four source/implementation pairs in one image).
 - Implementation captures: `/tmp/workspace-renovation-{craft,raccoon,light,dark}-1600x1280.png` (each 1600 x 1280 CSS px, device scale factor 1).
 - Focused responsive captures: `/tmp/workspace-sidebar-tabs-1440-final.png`, `/tmp/workspace-sidebar-tabs-640-open.png`, `/tmp/json-import-{1440x900,780x437,640x520}.png`, `/tmp/ai-tabs-640.png`, and `/tmp/settings-appearance-vi-780x437.png`.
+- Latest same-state toolbar captures: `Docs/design/workspace-renovation/evidence/workspace-segmented-{craft,raccoon,light,dark}-20261016.png` (1600 x 1200 each).
 - The comparison sheet preserves aspect ratio and fits each 1600 x 1280 image into an 800 x 640 cell without cropping. Source and implementation therefore share viewport dimensions and scale before normalization.
 
-The four implementation captures use the same saved 16 x 16 x 16 project with zero placed blocks, camera, font (Chakra Petch, Normal), workspace background (Dark), locale (English), sidebar widths (180 px / 200 px), and viewport. Only the UI theme changes; the persisted theme was restored to `craft` after capture. The references show different sample content, including a simulated large structure and performance readouts. Those are not equivalent runtime states and were not copied; the editor screenshot shows the real canvas and current project.
+The earlier comparison captures use the same saved 16 x 16 x 16 project with zero placed blocks, camera, font (Chakra Petch, Normal), workspace background (Dark), locale (English), sidebar widths (180 px / 200 px), and viewport. Only the UI theme changes; the persisted theme was restored to `craft` after capture. These are historical comparison images; the newer dated captures listed above use a separate controlled state documented in `Docs/design/workspace-renovation/README.md`. The references show different sample content, including a simulated large structure and performance readouts. Those are not equivalent runtime states and were not copied; the editor screenshot shows the real canvas and current project.
 
 ## Findings
 
@@ -24,6 +27,9 @@ The four implementation captures use the same saved 16 x 16 x 16 project with ze
 - Import JSON was exercised in Chrome at 1440 x 900, 780 x 437, and 640 x 520. Header, main tabs, and footer stayed available; the source editor and validation content scrolled; long validation results and Import Mode remained reachable. The 640 px layout uses the outer import content as its scroll owner while preserving textarea scrolling.
 - Create with AI's five tabs were exercised with long content. At 640 x 520, active-panel scrollHeight/clientHeight were: Description 555/278, Available content 548/278, Content limits 1216/278, AI guidance 1917/278, JSON example 1679/278. Wheel/keyboard scrolling changed the active scroll position. At short/narrow viewports, the workspace host owns scrolling; ordinary viewports use the active panel. Prompt data was retained across tab changes.
 - A browser review found the Groups tab clipped at the persisted 180 px sidebar. The left tab row was changed to three equal columns with single-line truncation; Chrome verified all three tabs at 180 px and full labels in the 360 px responsive drawer. Post-fix captures are linked above.
+- The 3D/Y-Layer and Place/Select controls now render as two shared segmented tracks with one sliding selected surface per pair. Chrome verified one `aria-pressed="true"` item in each group, intermediate-to-final indicator transforms on actual clicks in all four themes, and equal selected/body foreground contrast values of 9.00:1 / 5.79:1 / 13.32:1 / 11.48:1 for Minecraft / Raccoon / Light / Dark.
+- Chrome measured the Workspace body top at y=113.656 px in Minecraft, Raccoon, Light, and Dark. Minecraft's bottom separator is now inset-painted rather than layout-affecting, preserving its visible chrome treatment without the former 2 px theme shift.
+- At 780 x 437 and 640 x 520, both segmented groups kept equal-width options without horizontal document overflow. Keyboard focus remained visible, and reduced-motion emulation reduced both indicator transitions to 0.001 seconds.
 
 ## Fidelity surfaces
 
@@ -37,7 +43,7 @@ The four implementation captures use the same saved 16 x 16 x 16 project with ze
 
 - Chrome CDP interaction produced no JavaScript exceptions, application console errors, or failed network requests during the checked Settings path.
 - Browser warnings: Angular `NG02960` reports that the unchanged official SVG logo's 1774 x 887 intrinsic raster is larger than its rendered size; Chromium also reports automatic software-WebGL fallback deprecation. The latter is a headless/browser diagnostic. Neither was changed in this UI pass.
-- Automated verification passed: full frontend tests (305 files, 1,890 passed, 7 files / 11 tests skipped), app/spec/worker TypeScript checks, production build, tool tests, encoding check, and Prettier for changed source files. Renderer benchmarks were not rerun because renderer, data, and rendering paths were unchanged.
+- Automated verification passed: full frontend tests (306 files, 1,897 passed, 7 files / 11 tests skipped), app/spec/worker TypeScript checks, production build (1.77 MB initial raw bundle; editor shell remains lazy-loaded), tool tests (2/2), encoding check, and Prettier for changed files. The four renderer/performance benchmark gates also passed (8/8 benchmark cases); renderer code was unchanged.
 
 ## Remaining work
 

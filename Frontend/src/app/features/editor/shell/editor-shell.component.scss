@@ -179,9 +179,9 @@
   min-width: 0;
   min-height: var(--control-md);
   padding: 0.42rem 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--workspace-sidebar-text) 12%, transparent);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--workspace-sidebar-text) 7%, transparent);
+  background: transparent;
   color: var(--workspace-sidebar-text);
   cursor: pointer;
   font: inherit;
@@ -194,10 +194,14 @@
 }
 
 .left-panel > .sidebar-tabs button {
-  min-height: 2.35rem;
-  padding-inline: 0.15rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.22rem;
+  min-height: 3rem;
+  padding: 0.3rem 0.15rem;
   font-size: 0.64rem;
-  line-height: 1;
+  line-height: 1.1;
   white-space: nowrap;
 }
 
@@ -210,13 +214,14 @@
 }
 
 .left-panel > .sidebar-tabs .sidebar-tab-icon {
-  display: none;
-  width: 1rem;
-  height: 1rem;
+  display: block;
+  width: 0.95rem;
+  height: 0.95rem;
   flex: 0 0 auto;
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
-@container left-sidebar (max-width: 245px) {
+@container left-sidebar (max-width: 218px) {
   .left-panel > .sidebar-tabs button {
     justify-content: center;
     min-height: 2.35rem;
@@ -232,9 +237,19 @@
   }
 }
 
-.sidebar-tabs button:hover:not(:disabled) {
+.sidebar-tabs button:hover:not(:disabled):not([aria-selected='true']) {
   background: color-mix(in srgb, var(--workspace-sidebar-text) 15%, transparent);
   color: var(--workspace-sidebar-text);
+}
+
+.sidebar-tabs button[aria-selected='true'] {
+  background: transparent;
+  color: var(--control-selected-text);
+  font-weight: 700;
+}
+
+.left-panel > .sidebar-tabs button[aria-selected='true'] .sidebar-tab-icon {
+  transform: translateY(-1px) scale(1.05);
 }
 
 .sidebar-tabs button:focus-visible {

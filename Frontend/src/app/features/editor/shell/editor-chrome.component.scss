@@ -122,48 +122,91 @@
 
 .mode-switch,
 .tool-switch {
-  padding: 0.15rem;
+  --segment-gap: 0.12rem;
+  --segment-inset: 0.16rem;
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: var(--segment-gap);
+  min-width: 0;
+  padding: var(--segment-inset);
+  border: 1px solid color-mix(in srgb, var(--workspace-toolbar-text) 16%, transparent);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--workspace-toolbar-text) 7%, var(--workspace-toolbar-bg));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--workspace-toolbar-text) 8%, transparent);
+}
+
+.mode-switch {
+  min-width: 12rem;
+}
+
+.tool-switch {
+  min-width: 10.9rem;
+}
+
+.mode-switch::before,
+.tool-switch::before {
+  position: absolute;
+  z-index: 0;
+  inset-block: var(--segment-inset);
+  left: var(--segment-inset);
+  right: auto;
+  width: calc((100% - 0.52rem) / 2);
+  border: 1px solid color-mix(in srgb, var(--button-selected-text) 26%, transparent);
+  border-radius: max(2px, calc(var(--radius-md) - 1px));
+  background: var(--button-selected-bg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--button-selected-text) 10%, transparent),
+    var(--shadow-control-raised);
+  content: '';
+  pointer-events: none;
+  transition:
+    transform var(--motion-duration-ui) var(--motion-easing-spring),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.mode-switch:has(> button:nth-child(2)[aria-pressed='true'])::before,
+.tool-switch:has(> button:nth-child(2)[aria-pressed='true'])::before {
+  transform: translateX(calc(100% + var(--segment-gap)));
 }
 
 .ui-button--segmented {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-width: 0;
   min-height: 2rem;
-  padding: 0.35rem 0.62rem;
-  background: transparent;
-  color: var(--workspace-toolbar-text);
-  box-shadow: none;
+  padding: 0.35rem 0.4rem;
   border: 1px solid transparent;
+  border-radius: max(2px, calc(var(--radius-md) - 1px));
+  background: transparent;
+  color: color-mix(in srgb, var(--workspace-toolbar-text) 68%, var(--workspace-toolbar-bg));
+  box-shadow: none;
   font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .ui-button--segmented:hover:not(:disabled):not([aria-pressed='true']) {
-  background: color-mix(in srgb, var(--workspace-toolbar-text) 12%, var(--workspace-toolbar-bg));
+  background: color-mix(in srgb, var(--workspace-toolbar-text) 9%, transparent);
+  color: var(--workspace-toolbar-text);
   box-shadow: none;
 }
 
-.ui-button--segmented.active,
 .ui-button--segmented[aria-pressed='true'] {
-  border-color: color-mix(in srgb, var(--button-selected-text) 35%, transparent);
-  background: var(--button-selected-bg);
   color: var(--button-selected-text);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--button-selected-text) 18%, transparent),
-    var(--shadow-control-raised);
+  background: transparent;
+  box-shadow: none;
   font-weight: 700;
   transform: none;
 }
-.ui-button--segmented.active:hover:not(:disabled),
 .ui-button--segmented[aria-pressed='true']:hover:not(:disabled) {
-  background: var(--button-selected-bg);
   color: var(--button-selected-text);
-  transform: translateY(-1px);
+  background: transparent;
 }
-.segment-check {
-  width: 0.78rem;
-  height: 0.78rem;
-  flex: 0 0 auto;
-  stroke-width: 3;
+
+.ui-button--segmented:focus-visible {
+  z-index: 2;
+  outline-offset: 1px;
 }
 
 .ui-button--toolbar {
@@ -291,8 +334,9 @@
 }
 
 :host-context([data-theme='craft']) .shell-header {
-  border-bottom: 2px solid var(--workspace-separator);
-  box-shadow: 0 2px 0 color-mix(in srgb, #1e3019 40%, transparent);
+  box-shadow:
+    inset 0 -2px 0 var(--workspace-separator),
+    0 2px 0 color-mix(in srgb, #1e3019 40%, transparent);
 }
 
 :host-context([data-theme='raccoon']) .menu-popover,
@@ -349,6 +393,14 @@
   .ui-button--segmented {
     padding-inline: 0.42rem;
     font-size: 0.72rem;
+  }
+
+  .mode-switch {
+    min-width: 11.4rem;
+  }
+
+  .tool-switch {
+    min-width: 10.25rem;
   }
 }
 

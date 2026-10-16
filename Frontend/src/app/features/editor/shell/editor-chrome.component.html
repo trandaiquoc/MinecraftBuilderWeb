@@ -437,70 +437,42 @@
   </div>
   @if (state().layout.editorToolbarVisible) {
     <div class="editor-toolbar-row" (keydown)="handleMenuKeydown($event)">
-      <nav class="toolbar-group mode-switch" [attr.aria-label]="i18n.t('editorNavigation')">
+      <div
+        class="toolbar-group mode-switch"
+        role="group"
+        [attr.aria-label]="i18n.t('editorNavigation')"
+      >
         <button
           type="button"
           class="ui-button ui-button--segmented"
-          [class.active]="state().mode === '3d'"
           [attr.aria-pressed]="state().mode === '3d'"
           (click)="emit({ type: 'set-mode', mode: '3d' })"
         >
-          <svg lucideCuboid aria-hidden="true"></svg>{{ i18n.t('mode3d') }}
-          @if (state().mode === '3d') {
-            <svg
-              class="segment-check workspace-selection-indicator"
-              lucideCheck
-              aria-hidden="true"
-            ></svg>
-          }</button
+          <svg lucideCuboid aria-hidden="true"></svg>{{ i18n.t('mode3d') }}</button
         ><button
           type="button"
           class="ui-button ui-button--segmented"
-          [class.active]="state().mode === 'y-layer'"
           [attr.aria-pressed]="state().mode === 'y-layer'"
           (click)="emit({ type: 'set-mode', mode: 'y-layer' })"
         >
           <svg lucideLayers aria-hidden="true"></svg>{{ i18n.t('modeYLayer') }}
-          @if (state().mode === 'y-layer') {
-            <svg
-              class="segment-check workspace-selection-indicator"
-              lucideCheck
-              aria-hidden="true"
-            ></svg>
-          }
         </button>
-      </nav>
+      </div>
       <div class="tool-switch" role="group" [attr.aria-label]="i18n.t('editorTool')">
         <button
           type="button"
           class="ui-button ui-button--segmented"
-          [class.active]="state().tool === 'place'"
           [attr.aria-pressed]="state().tool === 'place'"
           (click)="emit({ type: 'set-tool', tool: 'place' })"
         >
-          <svg lucideMousePointerClick aria-hidden="true"></svg>{{ i18n.t('toolPlace') }}
-          @if (state().tool === 'place') {
-            <svg
-              class="segment-check workspace-selection-indicator"
-              lucideCheck
-              aria-hidden="true"
-            ></svg>
-          }</button
+          <svg lucideMousePointerClick aria-hidden="true"></svg>{{ i18n.t('toolPlace') }}</button
         ><button
           type="button"
           class="ui-button ui-button--segmented"
-          [class.active]="state().tool === 'select'"
           [attr.aria-pressed]="state().tool === 'select'"
           (click)="emit({ type: 'set-tool', tool: 'select' })"
         >
           <svg lucideMousePointer2 aria-hidden="true"></svg>{{ i18n.t('toolSelect') }}
-          @if (state().tool === 'select') {
-            <svg
-              class="segment-check workspace-selection-indicator"
-              lucideCheck
-              aria-hidden="true"
-            ></svg>
-          }
         </button>
       </div>
       <div class="toolbar-group history-actions" [attr.aria-label]="i18n.t('editHistory')">

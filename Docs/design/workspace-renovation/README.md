@@ -1,6 +1,19 @@
 # Workspace Renovation Evidence
 
-The screenshots in `evidence/` were captured from the running Angular Workspace through Chrome CDP. The four theme captures use the same real 16 x 16 x 16 project, camera, one placed Stone block, active Stone placement, Comfortaa/Normal typography, and 260/230 px sidebar widths at 1600 x 900. They are actual Three.js output, not Stitch canvas artwork or mock data. The current capture set also includes the Workspace action-icon and selected-state pass.
+## Approved Workspace compositions
+
+These are the four approved Stitch Workspace frames, kept separate from the browser evidence below. They are visual references only; their mock canvas content, metrics, and unsupported controls are not application behavior.
+
+| Theme     | Approved source frame                                                           |
+| --------- | ------------------------------------------------------------------------------- |
+| Minecraft | [approved-workspace-minecraft.png](references/approved-workspace-minecraft.png) |
+| Raccoon   | [approved-workspace-raccoon.png](references/approved-workspace-raccoon.png)     |
+| Light     | [approved-workspace-light.png](references/approved-workspace-light.png)         |
+| Dark      | [approved-workspace-dark.png](references/approved-workspace-dark.png)           |
+
+The source frames are 1600 x 1280. The files in `evidence/` are real browser captures and must not be described as the Stitch artwork.
+
+The earlier screenshots in `evidence/` were captured from the running Angular Workspace through Chrome CDP. They are actual Three.js output, not Stitch canvas artwork or mock data. A newer, same-state set is listed below.
 
 | File                               | Theme               |
 | ---------------------------------- | ------------------- |
@@ -8,6 +21,24 @@ The screenshots in `evidence/` were captured from the running Angular Workspace 
 | `evidence/workspace-raccoon.png`   | Raccoon             |
 | `evidence/workspace-light.png`     | Light               |
 | `evidence/workspace-dark.png`      | Dark                |
+
+The latest navigation pass has a separate 1600 x 1200 set; all four captures use identical viewport dimensions and application state. The approved source frames are 1600 x 1280. The captures use the same 16 x 16 x 16 Java 1.21.1 project, single placed Stone block, camera, Comfortaa/Normal font, 230/230 px sidebars, English locale, and selected Blocks tab. They are browser output, not design references.
+
+| Theme     | Browser capture                                                                                     |
+| --------- | --------------------------------------------------------------------------------------------------- |
+| Minecraft | [workspace-renovation-minecraft-20261016.png](evidence/workspace-renovation-minecraft-20261016.png) |
+| Raccoon   | [workspace-renovation-raccoon-20261016.png](evidence/workspace-renovation-raccoon-20261016.png)     |
+| Light     | [workspace-renovation-light-20261016.png](evidence/workspace-renovation-light-20261016.png)         |
+| Dark      | [workspace-renovation-dark-20261016.png](evidence/workspace-renovation-dark-20261016.png)           |
+
+The segmented-control captures below show the current 3D Edit and Place choices selected in one real browser state per theme, at 1600 x 1200. They use the same editor project, 230/230 px panel widths, English locale, and Comfortaa/Normal font. The shell header and editor body both begin at y=113.656 px in all four captures, so Minecraft's separator no longer changes layout geometry.
+
+| Theme     | Browser capture                                                                               |
+| --------- | --------------------------------------------------------------------------------------------- |
+| Minecraft | [workspace-segmented-craft-20261016.png](evidence/workspace-segmented-craft-20261016.png)     |
+| Raccoon   | [workspace-segmented-raccoon-20261016.png](evidence/workspace-segmented-raccoon-20261016.png) |
+| Light     | [workspace-segmented-light-20261016.png](evidence/workspace-segmented-light-20261016.png)     |
+| Dark      | [workspace-segmented-dark-20261016.png](evidence/workspace-segmented-dark-20261016.png)       |
 
 The narrow-sidebar empty-state captures use the same new 16 x 16 x 16 project, empty structure, camera, 1600 x 900 browser viewport, Comfortaa/Normal typography, and 180/200 px sidebar widths. They verify the structure overview and narrow navigation treatment in every theme.
 
@@ -34,16 +65,22 @@ The responsive status footer was checked in the same live browser at 780 x 437 a
 
 ## Adapted interaction references
 
-The actual HTML/CSS/JavaScript was inspected in the Lucian Labs MIT source for [039 (Sliding pill tabs)](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/039-sliding-tabs-pill.html), [040 (Expanding side rail)](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/040-vertical-rail-expand.html), [008 (Copy to check)](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/008-copy-to-check.html), [075 (Upload progress panel)](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/075-upload-toast-progress.html), [038 (Context menu)](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/038-context-menu-origin.html), and [141 (Shortcut recorder)](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/141-shortcut-recorder.html). Their CSS transitions, state attributes, event handling, focus restoration, reduced-motion checks, and animation-frame progress loop were inspected; only patterns that fit an existing Workspace contract were carried forward:
+The catalog was searched by interaction category and its agent skill/source CLI was used to retrieve and inspect the actual MIT HTML/CSS/JavaScript, not just the preview or text prompt. Source reviewed: [039 Sliding Tabs](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/039-sliding-tabs-pill.html), [040 Expanding Side Rail](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/040-vertical-rail-expand.html), [008 Copy to Check](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/008-copy-to-check.html), [075 Upload Progress Panel](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/075-upload-toast-progress.html), [083 Indeterminate Progress Bar](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/083-indeterminate-bar.html), [101 Split Pane](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/101-split-pane.html), [072 Dismissible Inline Alert](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/072-inline-alert-dismiss.html), [038 Context Menu](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/038-context-menu-origin.html), and [141 Shortcut Recorder](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/141-shortcut-recorder.html). Their real transitions, easing, DOM events, keyboard behavior, state changes, reduced-motion behavior, and timers were inspected before deciding whether their interaction contract fits this app.
 
-- 039 informs the shared `aria-selected`-driven `.ui-tab-strip` indicator and its spring easing. Content and tab state remain owned by the existing feature signals.
+- 039 informs the shared `aria-selected`-driven `.ui-tab-strip` indicator and its spring easing. The left Blocks/Decorations/Groups tablist now uses the same visible icon+label treatment at its default width, preserves a compact icon rail only below the measured label-fit width, and has one roving keyboard tab stop. Content and tab state remain owned by the existing feature signals.
 - 040 informs the restrained panel transition treatment; the existing sidebar visibility and persisted resize owners remain unchanged.
 - 008 informs the Copy-to-Check feedback in External AI. The check appears only after the actual clipboard promise succeeds.
-- 075 was reviewed but its demo's simulated files, hard-coded timing and fabricated failures were not adopted. Existing import/download progress remains sourced from real operation state.
+- 075 and 083 were reviewed, but their demo upload records, timing, and simulated progress were not adopted. Existing import/download progress remains sourced from real operation state.
+- 101 was reviewed; the existing persisted sidebar resize session already owns split-pane pointer capture and keyboard resizing, so no duplicate splitter was added.
+- 072 was reviewed; no synthetic dismiss/delay behavior was added to status or validation messages.
 - 038 was reviewed but its cursor-positioned context menu was not added: Workspace menus are opened from existing triggers, and adding right-click/long-press semantics would create a new interaction contract.
 - 141 was reviewed against the existing Settings capture flow. Its key recording, modifier handling and Escape cancellation are already owned by the shortcut session, so no second recorder was introduced.
 
 Workspace action buttons keep their visible labels and use Lucide icons to reinforce the meaning of group creation, visibility, locking, selection membership, isolation, movement and deletion. Selection is not communicated by color alone: block, decoration, painting, group and toolbar choices expose their existing check marks and selected state; the check mark receives a short token-timed entry motion. Hover only changes the surface, keyboard focus keeps its visible outline, and disabled controls retain their actual disabled semantics. Reduced-motion preferences collapse the transition timing through the shared Workspace rule.
+
+In the 2026-10-16 Chrome pass, the left tab indicator was observed moving through intermediate transforms during its 180 ms spring transition. ArrowRight changed the actual selected tab and focus target; focus showed the visible outline, while hovering an unselected tab used its separate hover surface. English and Vietnamese labels were measured in-browser and fit without horizontal clipping. The Settings popover's 150 ms enter animation and check feedback were observed as running CSS animations. At 780 x 437 and 640 x 520, the responsive drawer opened with all tab labels and no document horizontal overflow.
+
+The 3D/Y-Layer and Place/Select pairs now share one track each. Their single selected surface slides between equal-width options, while the selected option's text weight and semantic foreground remain distinct from the muted idle option. Browser clicks in Minecraft, Raccoon, Light, and Dark updated exactly one `aria-pressed` option per group; sampled transforms moved through intermediate values before reaching the other segment. Selected fill/text contrast measured 9.00:1 (Minecraft), 5.79:1 (Raccoon), 13.32:1 (Light), and 11.48:1 (Dark). The reduced-motion rule continues to shorten the shared UI transition.
 
 Raccoon Block Library rows use one uniform base surface. There is no `nth-child(odd)`/`nth-child(even)` card color rule; selected cards still use the same semantic selected fill, border and check indicator as the other themes, while Raccoon's rounded geometry and inset/raised surfaces provide its softer treatment.
 

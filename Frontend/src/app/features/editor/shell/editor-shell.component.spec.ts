@@ -138,6 +138,12 @@ describe('editor shell movement/delete routing', () => {
     fixture.detectChanges();
 
     const root = fixture.nativeElement as HTMLElement;
+    const modeSwitch = root.querySelector<HTMLElement>('.mode-switch');
+    const toolSwitch = root.querySelector<HTMLElement>('.tool-switch');
+    expect(modeSwitch?.getAttribute('role')).toBe('group');
+    expect(toolSwitch?.getAttribute('role')).toBe('group');
+    expect(modeSwitch?.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
+    expect(toolSwitch?.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
     const fileMenu = root.querySelector<HTMLButtonElement>('.app-menu-trigger');
     fileMenu?.click();
     fixture.detectChanges();
@@ -156,6 +162,17 @@ describe('editor shell movement/delete routing', () => {
     root.querySelector<HTMLButtonElement>('.tool-switch button:nth-child(2)')?.click();
     expect(mode.mode()).toBe('y-layer');
     expect(tool.active()).toBe('select');
+    fixture.detectChanges();
+    expect(modeSwitch?.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
+    expect(modeSwitch?.querySelector('[aria-pressed="true"]')?.textContent).toContain(
+      TestBed.inject(I18nService).t('modeYLayer'),
+    );
+    expect(toolSwitch?.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
+    expect(toolSwitch?.querySelector('[aria-pressed="true"]')?.textContent).toContain(
+      TestBed.inject(I18nService).t('toolSelect'),
+    );
+    expect(modeSwitch?.querySelector('.segment-check')).toBeNull();
+    expect(toolSwitch?.querySelector('.segment-check')).toBeNull();
     fixture.destroy();
     mount.mockRestore();
   });
@@ -184,6 +201,50 @@ describe('editor shell movement/delete routing', () => {
     );
     expect(usageTab?.id).toBe('right-sidebar-tab-usage');
     expect(focusUsage).toHaveBeenCalledOnce();
+
+    fixture.destroy();
+    fixture.nativeElement.remove();
+    mount.mockRestore();
+  });
+
+  it('keeps workspace tabs labeled and uses one keyboard tab stop per tablist', () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    TestBed.inject(WorkspaceStateService).activate(project, undefined);
+    document.body.append(fixture.nativeElement);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const leftTabs = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('.left-panel > .sidebar-tabs [role="tab"]'),
+    );
+    expect(
+      leftTabs.map((tab) => tab.querySelector('.sidebar-tab-label')?.textContent?.trim()),
+    ).toEqual([
+      TestBed.inject(I18nService).t('blocksPanel'),
+      TestBed.inject(I18nService).t('decorationsPanel'),
+      TestBed.inject(I18nService).t('groupsPanel'),
+    ]);
+    expect(leftTabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1]);
+
+    const decorationsTab = root.querySelector<HTMLButtonElement>('#sidebar-tab-decorations');
+    if (!decorationsTab) throw new Error('Decorations tab is missing');
+    decorationsTab.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+    );
+    fixture.detectChanges();
+    expect(document.activeElement?.id).toBe('sidebar-tab-groups');
+    expect(leftTabs.map((tab) => tab.tabIndex)).toEqual([-1, -1, 0]);
+
+    const rightTabs = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('.right-sidebar-tabs [role="tab"]'),
+    );
+    expect(rightTabs.map((tab) => tab.tabIndex)).toEqual([0, -1]);
+    rightTabs[0].dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+    );
+    fixture.detectChanges();
+    expect(rightTabs.map((tab) => tab.tabIndex)).toEqual([-1, 0]);
 
     fixture.destroy();
     fixture.nativeElement.remove();
