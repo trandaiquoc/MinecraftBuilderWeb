@@ -1,0 +1,173 @@
+.groups-panel {
+  display: grid;
+  gap: 0.7rem;
+  font-family: var(--font-ui);
+}
+.group-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border);
+}
+.group-search-field {
+  position: relative;
+}
+.group-search-field input {
+  padding-right: 1.8rem;
+}
+.group-search-field .group-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 0.2rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  transform: translateY(-50%);
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.group-search-field .group-search-clear:hover:not(:disabled) {
+  color: var(--text);
+}
+.group-search-clear svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+.groups-panel input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.5rem;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: 0.74rem/1.25 var(--font-ui);
+  box-shadow: var(--shadow-control);
+}
+.groups-panel input:focus-visible {
+  border-color: var(--accent);
+}
+.group-item {
+  appearance: none;
+  display: grid;
+  gap: 0.2rem;
+  min-height: 2.5rem;
+  padding: 0.45rem;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-control);
+  cursor: pointer;
+  font: 0.78rem/1.2 var(--font-ui);
+  text-align: left;
+  transition:
+    background var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.group-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.group-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font: 0.72rem/1.25 var(--font-readable);
+}
+.group-item-meta svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 auto;
+}
+.group-lock-state.is-locked {
+  color: var(--warning);
+}
+.group-item:hover:not(.active) {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-control-raised);
+}
+.group-item:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: var(--shadow-control);
+}
+.group-item.active {
+  border-color: color-mix(in srgb, var(--control-selected-text) 42%, var(--control-selected));
+  background: var(--control-selected);
+  color: var(--control-selected-text);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--control-selected-text) 18%, transparent),
+    var(--shadow-control-raised);
+}
+.group-item:focus-visible {
+  outline: 2px solid var(--focus-color, var(--accent));
+  outline-offset: 2px;
+}
+.group-item.active .group-item-meta {
+  color: inherit;
+}
+.group-item.active .group-lock-state.is-locked {
+  color: color-mix(in srgb, var(--warning) 78%, var(--control-selected-text));
+}
+.group-item.isolated {
+  box-shadow:
+    inset 0 0 0 2px var(--warning),
+    var(--shadow-control);
+}
+.group-item.active.isolated {
+  box-shadow:
+    inset 0 0 0 2px var(--warning),
+    var(--shadow-control-raised);
+}
+.group-empty-state {
+  margin: 0.25rem 0;
+  padding: 0.7rem 0.45rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--workspace-sidebar-text);
+  font-size: 0.72rem;
+  text-align: center;
+}
+.active-group-controls {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
+  padding: 0.7rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.active-group-controls h3,
+.active-group-controls p {
+  margin: 0;
+}
+.active-group-controls h3 {
+  font-size: 0.8rem;
+}
+.active-group-controls p {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.group-actions,
+.destructive-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.destructive-actions {
+  margin-top: 0.1rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+}

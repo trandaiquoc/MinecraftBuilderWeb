@@ -1,0 +1,151 @@
+:host {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.group-move-panel {
+  position: absolute;
+  display: grid;
+  gap: 0.65rem;
+  width: min(19rem, calc(100% - 1rem));
+  max-height: calc(100% - 1rem);
+  padding: 0.8rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-dialog);
+  pointer-events: auto;
+}
+
+.group-move-panel.invalid {
+  border-color: color-mix(in srgb, var(--danger) 65%, var(--border));
+}
+
+.group-move-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-width: 0;
+  cursor: move;
+  touch-action: none;
+}
+
+.group-move-header > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.group-move-header strong {
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+
+.panel-eyebrow {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.move-offsets,
+.height-buttons,
+.move-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.move-offsets label,
+.move-step-label {
+  display: grid;
+  flex: 1 1 0;
+  gap: 0.25rem;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.group-move-panel input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-sm);
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.nudge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.nudge-grid button,
+.height-buttons button {
+  min-height: 2rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+.nudge-grid button:hover,
+.height-buttons button:hover {
+  background: var(--surface-hover);
+}
+
+.nudge-grid button:nth-child(1) {
+  grid-column: 2;
+}
+
+.nudge-grid button:nth-child(2) {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.nudge-grid button:nth-child(3) {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.nudge-grid button:nth-child(4) {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.nudge-grid button:nth-child(5) {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.move-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.74rem;
+}
+
+.move-actions {
+  justify-content: flex-end;
+  padding-top: 0.2rem;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 560px) {
+  .group-move-panel {
+    width: min(18rem, calc(100% - 1rem));
+  }
+}

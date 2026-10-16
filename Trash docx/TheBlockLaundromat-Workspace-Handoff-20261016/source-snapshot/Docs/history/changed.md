@@ -1,0 +1,2718 @@
+# MinecraftBuilder — Historical Decisions and Changes from the Original Requirements
+
+## Frontend dependency security update — 2026-10-14
+
+Frontend Angular runtime, CDK, CLI, build, and compiler packages were aligned
+to the stable 22.2.2 release line. This resolves the reported Angular Router,
+Angular CLI/MCP SDK, and Angular build/Piscina advisories; the lockfile also
+resolves `source-map-js` to a patched release. The supported Node.js ranges are
+`^22.22.3 || ^24.15.0 || >=26.0.0`, matching Angular 22.2.2. Angular CLI's MCP
+server dependency is development-only; the application does not enable SSR or
+use an MCP OAuth client.
+
+## Workspace V2 visual system and Structure JSON import scrolling — 2026-10-15
+
+The Workspace now follows the approved Minecraft, Raccoon, Light, and Dark
+visual treatments through the canonical V2 semantic palette. Components share
+the existing layout and behavior; the Project Screen and renderer are not
+rethemed. Settings Appearance separates Interface preferences from Workspace
+Background. On narrow screens, Structure JSON Import uses one outer content
+scroll region while its JSON textarea remains independently scrollable, keeping
+the dialog header, tabs, and import footer accessible.
+
+> Historical decision log. This file is retained for project history only and
+> is not a current implementation source of truth. Use the canonical documents
+> listed in `Docs/README.md` for current contracts, policies, and verification
+> boundaries.
+
+> Purpose: preserve decisions and implementation snapshots that changed or clarified the original requirements. Entries are historical evidence, not a current status report; use canonical documents in `Docs/README.md` and current source/tests for present behavior.
+
+## Workspace palette and Place / Select shortcut correction
+
+The Workspace header now keeps the semantic header background and foreground
+through the component's later layout rule, including the Raccoon charcoal
+header. The toolbar Settings popover no longer duplicates font selection;
+Appearance remains its owner. A remappable `tool-toggle` keyboard action uses
+the physical Backquote key by default, ignores repeated keydown events, and is
+available in both editor modes. Existing saved custom bindings remain intact.
+
+## Resident Y-layer presentation checkpoint
+
+Visibility-only transitions now have a separate direct presentation owner for
+fully resident, Y-partitioned static instance batches when no culling or other
+renderer-family dependency can change. That path updates batch visibility and
+normal/reference roles without constructing per-voxel projection deltas or
+rewriting instance matrices; selected/raycasted entries resolve lazily from the
+canonical spatial index. The direct owner contains no GPU resources and clears
+on project/provider scope changes.
+
+The path is intentionally fail-closed. Active interior culling, exposed-face
+rendering, hidden groups, isolation, incomplete residency, pending work, and
+surface/terrain/fluid/special representations use the existing cooperative
+projection/reconciliation path. Adjacency alone does not disable direct
+presentation when the current presentation has no culled representations. On
+the prepared 110,592-block static benchmark, Whole/All Below/current transitions
+now measured 1.1-2.3 ms versus the historical 450-740 ms, with zero projection
+voxel visits, matrix writes, or provider creations. This is Vitest/headless
+evidence only: it does not establish browser frame latency, GPU readiness, or
+direct support for other renderer families. The benchmark reports direct
+transitions, fallbacks, and projection voxel visits separately.
+>
+> Basis: current project discussions, manual UI testing, and Codex implementation reports up through Prompt 09.3 planning. This file is a change log, not a replacement for the requirements document.
+
+## Legend
+
+- `[x]` Already implemented or explicitly adopted.
+- `[~]` Partially implemented / adopted but still needs polish.
+- `[ ]` Decision exists, but the requirements document still needs to be updated.
+- `PENDING` means the original requirement still stands and has simply not been implemented yet.
+
+---
+
+# 1. Y-Layer concept changed significantly
+
+## Original direction
+
+The earlier requirement described Y-Layer mainly as a fixed-Y X/Z editing grid with:
+
+- Current Y
+- top-down X/Z grid
+- zoom/pan
+- layer visibility / ghosting
+- place/delete/select on Current Y
+
+This could be interpreted as a separate 2D editor.
+
+## Current decision
+
+[x] Y-Layer is now a **Three.js 3D viewport**, not a separate 2D canvas.
+
+[x] The user can still:
+
+- orbit / rotate the camera
+- pan
+- zoom
+
+[x] `Current Y` defines a horizontal **X/Z editing plane**.
+
+[x] Placement in Y-Layer is calculated from ray intersection with the editing plane, not from a supporting block.
+
+[x] A block may therefore be placed at `(x, CurrentY, z)` even when there is only air below it.
+
+[x] Reference layers are rendered in the same 3D scene and can be translucent.
+
+[x] Editing remains restricted to `Current Y` even when lower/other layers are visible.
+
+### Requirement update needed
+
+[ ] Replace any wording that presents Y-Layer as a separate 2D editor.
+
+Recommended requirement wording:
+
+> Y-Layer is a Three.js editing mode using the same structure and rendering foundation as 3D Edit. `Current Y` defines an X/Z editing plane. The camera may orbit, pan and zoom. Placement occurs on the Current-Y plane and does not require physical support beneath the target voxel.
+
+---
+
+# 2. Minecraft axis naming clarified
+
+[x] Minecraft coordinate convention is now explicitly:
+
+- `X` = horizontal axis
+- `Y` = vertical / height
+- `Z` = horizontal depth axis
+
+[x] Y-Layer is an **X/Z plane at Current Y**.
+
+[x] UI should not describe the second Y-Layer grid axis as Y.
+
+### Requirement update needed
+
+[ ] Add explicit axis terminology to avoid future X/Y vs X/Z confusion.
+
+---
+
+# 3. Grid size and project bounds became explicit UI requirements
+
+The original requirements had project bounds, but the viewport behavior was not explicit enough.
+
+## Current decision
+
+[x] Grid and editing bounds must derive directly from `ProjectDocument.size`.
+
+For a project:
+
+```text
+size.x = 20
+size.y = 10
+size.z = 30
+```
+
+Y-Layer at `Current Y = 5` means:
+
+```text
+X = 0..19
+Y = 5
+Z = 0..29
+```
+
+[x] Y-Layer grid size is exactly:
+
+```text
+size.x × size.z
+```
+
+[x] Valid build coordinates are:
+
+```text
+0 <= x < size.x
+0 <= y < size.y
+0 <= z < size.z
+```
+
+[x] Grid/bounds visualization must update if project size changes.
+
+[x] Out-of-bounds ghost/placement is Invalid and cannot be placed.
+
+[x] Arbitrary/infinite-looking grids should not imply that users can build outside project bounds.
+
+### Requirement update needed
+
+[ ] Add exact grid/bounds behavior to both 3D and Y-Layer requirements.
+
+---
+
+# 4. Explicit Place and Select tools were introduced
+
+## Earlier interaction direction
+
+Earlier controls primarily described:
+
+- LMB = place / active tool
+- Shift + LMB = delete
+- Alt + LMB = eyedropper
+- camera controls on RMB/MMB/wheel
+
+Selection existed as a feature, but the exact LMB conflict between placing and selecting was not resolved.
+
+## Current decision
+
+[x] Editor now has explicit tool state:
+
+- `Place`
+- `Select`
+
+[x] In Place tool:
+
+- LMB = place
+- Shift + LMB = delete
+- Alt + LMB = eyedropper
+
+[x] In Select tool:
+
+- LMB on a structure block = select
+- normal LMB does not place
+- clicking empty space may clear selection
+
+[x] Camera dragging must not trigger place/select/delete on pointer release.
+
+### Requirement update needed
+
+[ ] Document Place and Select as explicit editor tools.
+
+---
+
+# 5. Active Block and Selected Block are now separate concepts
+
+This distinction was not clear enough in the original UI requirement.
+
+## Active Block
+
+[x] Active Block means the block currently held for placement.
+
+It contains at least:
+
+- registry ID
+- current/default BlockState
+- support level when available
+
+It may come from:
+
+- Block Browser
+- Eyedropper / Pick Block
+
+## Selected Block
+
+[x] Selected Block means a block that already exists in the structure and is selected with the Select tool.
+
+It is used for:
+
+- Inspector
+- focus camera
+- later state editing / rotate / group / move operations
+
+[x] Selecting a structure block must **not** automatically change Active Block.
+
+[x] Eyedropper copies an existing block + BlockState into Active Block.
+
+### Requirement update needed
+
+[ ] Use the terms `Active Block` and `Selected Block` consistently throughout the requirements.
+
+[ ] Avoid using “selected block” to describe the currently active Block Browser item.
+
+---
+
+# 6. Box Selection has effectively been deferred
+
+## Original requirement
+
+The MVP requirement included:
+
+- Single Block selection
+- Box Selection
+
+## Current implementation direction
+
+[x] Single-block selection exists / is being polished.
+
+[~] Box Selection is intentionally excluded from the current interaction/UI cleanup passes.
+
+### Important scope decision
+
+[ ] Decide whether Box Selection is still mandatory for MVP.
+
+Current implementation behavior implies one of these must be documented:
+
+**Option A — keep original MVP scope**
+- Single Block + Box Selection remain MVP.
+- Box Selection is simply still pending.
+
+**Option B — reduce MVP scope**
+- MVP requires Single Block only.
+- Box Selection moves to post-MVP / advanced editing.
+
+This is one of the clearest current differences that must be reconciled in the requirements.
+
+---
+
+# 7. Camera behavior is more explicit than before
+
+The original requirement already recommended:
+
+- RMB drag rotate
+- MMB drag pan
+- wheel zoom
+- focus
+- fit structure
+- quick camera views
+
+The implementation/testing process has made these requirements more concrete.
+
+## Current decision
+
+[x] RMB drag = orbit / rotate.
+
+[x] MMB drag = pan.
+
+[x] Wheel = zoom.
+
+[x] Browser context menu may be disabled inside the viewport where needed for RMB interaction.
+
+[x] UI panel interaction must not leak into OrbitControls.
+
+[x] Camera target must not move merely because a user clicked the Block Browser or another UI panel.
+
+[x] One-click camera actions are implemented:
+
+- Fit Structure
+- Focus Selection
+- Reset Camera
+
+[~] Camera presets may include:
+
+- Perspective
+- Top
+- Front
+- Back
+- Left
+- Right
+
+### Requirement update needed
+
+[ ] Add explicit one-click camera toolbar actions.
+
+[ ] Define initial/reset target as the project center or another deterministic center.
+
+[ ] Define Focus Selection behavior using the selected voxel center.
+
+---
+
+# 8. Editor shell now behaves like a desktop editor
+
+This was not explicit in the original requirements.
+
+## Current decision
+
+[x] Editor route should occupy the application viewport (`100dvh`-style behavior).
+
+[x] The outer page should not scroll during normal editor operation.
+
+[x] Wheel over viewport should zoom, not scroll the document.
+
+[x] Block Browser and Inspector may scroll internally.
+
+[x] Y-Layer controls must not create unused gaps that shrink the viewport unnecessarily.
+
+[x] The center viewport should fill the remaining editor area.
+
+### Requirement update needed
+
+[ ] Add editor-layout and scroll ownership rules.
+
+---
+
+# 9. Ghost Preview requirements became stricter
+
+Ghost preview existed in the original requirement, but implementation testing exposed missing behavior.
+
+## Current decision
+
+[x] Ghost must update on pointer movement.
+
+[x] Ghost must be visibly distinct from placed blocks.
+
+[x] Ghost must not mutate structure data.
+
+[x] Ghost must not participate in raycast in a way that targets itself.
+
+[x] Ghost hides when:
+
+- pointer leaves viewport
+- no target exists
+- target is invalid, depending on final UX treatment
+
+[x] In Y-Layer:
+
+```text
+ghost.y === CurrentY
+```
+
+[x] Ghost should retain Active Block identity/state/rotation metadata available at that stage.
+
+### Requirement update needed
+
+[ ] Expand Ghost Preview acceptance criteria.
+
+---
+
+# 10. Validation status now has visible UX requirements
+
+The original requirement already defined:
+
+- Valid
+- Warning
+- Invalid
+- Unknown
+
+But it did not fully specify how users see these states.
+
+## Current decision
+
+[x] Status must be visible through ghost treatment and/or status UI.
+
+[x] `Invalid` blocks placement.
+
+[x] `Warning` and `Unknown` must not silently fail.
+
+[x] No fake Minecraft gameplay rule should be invented merely to demonstrate Warning/Unknown.
+
+[x] If no natural fixture triggers Warning/Unknown yet, unit tests are acceptable until real rules exist.
+
+### Requirement update needed
+
+[ ] Add visible UX/acceptance criteria for all four validation statuses.
+
+---
+
+# 11. Reference opacity is now an explicit Y-Layer control
+
+The requirement mentioned reference-layer opacity, but manual testing showed it needs stronger UI definition.
+
+## Current decision
+
+[x] Reference opacity should have:
+
+- clear label
+- visible slider
+- current percentage/value where practical
+
+[x] It should appear only where relevant to Y-Layer/reference layers.
+
+[x] Changes should update reference rendering immediately.
+
+### Requirement update needed
+
+[ ] Clarify visible control requirements rather than only storing an opacity setting.
+
+---
+
+# 11.1 Placement metadata and status source of truth
+
+[x] Active block selections retain their user-edited state while catalog/source
+replacement refreshes catalog-owned support metadata. A user no longer needs to
+reselect a block after vanilla or mod resources finish loading.
+
+[x] Known catalog content remains `resolved` even when placement behavior
+confidence is `unknown`; missing content and unknown placement semantics are
+separate diagnostics.
+
+[x] 3D Edit and Y-Layer placement previews use the active/project supplied by
+the viewport provider and expose one placement feedback state to the status UI.
+`Unknown` remains visible for genuinely unsupported placement semantics.
+
+---
+
+# 12. Block Browser currently uses a local fixture/catalog pipeline
+
+## Original product goal
+
+Block Browser must eventually support:
+
+- vanilla Minecraft blocks
+- modded blocks
+- search by display name / ID / namespace / mod
+- preview
+- Full / Partial / Fallback status
+
+## Current implementation
+
+[x] Search and Active Block behavior exist.
+
+[x] Current development catalog is still a representative local fixture, not a complete vanilla catalog.
+
+[x] Search remains local with no server search.
+
+[x] Normalized search fields are cached in memory.
+
+[x] No search-engine dependency was added.
+
+### This is NOT a requirement change
+
+`PENDING` Full vanilla Minecraft 1.21.1 catalog is still required.
+
+`PENDING` Real block preview/model/texture rendering is still required.
+
+Do not rewrite the requirements to imply that the small fixture is the intended final Block Library.
+
+---
+
+# 13. Vanilla asset-source policy has been added
+
+This was a major implementation/policy decision that should be reflected in technical requirements/documentation.
+
+## Current decision
+
+[x] Development assets are sourced from a local Minecraft Java 1.21.1 JAR.
+
+[x] On the current development machine, a usable Modrinth-managed JAR was verified.
+
+[x] Required paths were verified:
+
+```text
+assets/minecraft/blockstates/
+assets/minecraft/models/block/
+assets/minecraft/textures/block/
+assets/minecraft/lang/en_us.json
+```
+
+[x] Repository should not commit the full vanilla Minecraft asset tree.
+
+[x] Repository may contain:
+
+- extractor/parser code
+- documentation
+- small representative fixtures
+- normalized schemas/catalog test data
+
+[x] Full extracted asset caches remain local / gitignored.
+
+[x] Representative fixture set currently includes:
+
+- stone
+- stone_slab
+- oak_stairs
+- oak_fence
+- cobblestone_wall
+- glass_pane
+- oak_sign
+- oak_wall_sign
+- oak_door
+- oak_trapdoor
+- torch
+- wall_torch
+- dandelion
+- water
+
+[x] Water and signs are explicitly treated as special/partial rendering cases until their special behavior is supported.
+
+### Requirement/documentation update needed
+
+[ ] Reference `Docs/minecraft-assets.md` from the main requirements.
+
+[ ] Add the “local/reproducible asset source, do not bundle full vanilla assets” rule to technical requirements.
+
+---
+
+# 14. Three.js dependency and placeholder rendering are now concrete
+
+[x] Three.js has been introduced for the editor viewport.
+
+[x] Current rendering uses placeholder cube/fallback geometry.
+
+[x] Placeholder rendering is temporary and does not replace the later Minecraft model pipeline.
+
+[x] Renderer state remains separate from persistent project/domain data.
+
+### This is mostly an implementation detail
+
+No major product requirement rewrite is necessary, except that the technical stack can now list Three.js as actually installed rather than only planned.
+
+---
+
+# 15. Missing/fallback block preservation has been reinforced
+
+The original requirement already required this behavior.
+
+[x] Unknown/missing/modded unsupported blocks are not silently replaced with `minecraft:air`.
+
+[x] Active Block, project data, eyedropper and renderer fallback must preserve:
+
+- registry ID
+- BlockState
+- support/missing status
+
+### No requirement change
+
+This remains consistent with the original requirements and should stay unchanged.
+
+---
+
+# 16. Y-Layer visibility modes remain unchanged
+
+The following original modes are still part of the design:
+
+- Current only
+- Current + Previous
+- Current + Next
+- Previous + Current + Next
+- All below
+- Whole structure
+
+[x] `All below` is now explicitly understood as:
+
+> Show all structure layers below Current Y as references, while editing remains restricted to Current Y.
+
+### Requirement clarification
+
+[ ] Add this exact semantic to avoid interpreting lower layers as editable.
+
+---
+
+# 17. Selection persistence across modes is now explicit
+
+[x] Switching 3D Edit ↔ Y-Layer should preserve:
+
+- ProjectDocument
+- Active Block
+- Selected Block
+- Current Y
+- current editor tool
+
+[x] Mode switching should not unexpectedly reset the camera unless intentionally defined.
+
+### Requirement update needed
+
+[ ] Add state-preservation behavior to mode-switch acceptance criteria.
+
+---
+
+# 18. Inspector is becoming selection-driven
+
+The original requirement included Block Inspector for position and BlockState.
+
+## Current clarification
+
+[x] Inspector has two explicit read-only states.
+
+No selection:
+
+```text
+No block selected
+```
+
+Selected block:
+
+- registry ID
+- X/Y/Z
+- BlockState
+- support level where available
+
+[~] Current 09.3 direction treats this inspector as read-only unless state editing is intentionally implemented in a later requirement.
+
+### Potential requirement conflict
+
+The original requirement may imply direct BlockState editing from Inspector.
+
+[ ] Confirm whether BlockState editing is mandatory in MVP or can follow after read-only Inspector.
+
+---
+
+# 19. Toolbar now needs one-click actions
+
+This goes beyond merely having mouse/keyboard controls.
+
+## Current decision
+
+[x] Toolbar exposes working non-drag actions:
+
+- Place
+- Select
+- Fit Structure
+- Focus Selection
+- Reset Camera
+- Perspective
+- Top
+- Front
+- Back
+- Left
+- Right
+
+[x] Only working actions should be shown; no large set of disabled placeholder buttons.
+
+### Requirement update needed
+
+[ ] Add toolbar action requirements.
+
+---
+
+# 20. Build/test sandbox limitation is NOT a product requirement change
+
+Codex/Antigravity sandbox cannot reliably spawn child processes with piped stdio, producing `spawn EPERM`.
+
+External Windows terminal verification has shown:
+
+- build passes
+- tests pass
+
+This is a development-environment limitation only.
+
+### Do not add this to product requirements
+
+If desired, document it separately in developer setup/troubleshooting documentation.
+
+---
+
+# 21. Current test baseline has grown beyond the original scaffold
+
+Current reported status after the interaction cleanup:
+
+- TypeScript app check: PASS
+- TypeScript spec check: PASS
+- Angular build: PASS outside sandbox
+- tests: PASS, currently reported as 9 files / 25 tests before Prompt 09.3
+
+The exact test count will continue to change.
+
+### Do not hard-code test counts into requirements
+
+Requirements should specify required behavior and test categories, not a fixed test count.
+
+---
+
+# 22. Initial bundle warning exists but scope has not changed
+
+Current Angular initial bundle is reported around 850 kB raw, above the configured 500 kB warning budget, primarily after Three.js integration.
+
+[x] The budget has intentionally not been raised merely to silence the warning.
+
+### No requirement change yet
+
+Performance/code-splitting remains a later pass.
+
+Do not revise performance requirements until actual profiling and code-splitting decisions are made.
+
+---
+
+# 23. Original requirements that are still pending, not changed
+
+The following should **not** be removed merely because they are not implemented yet.
+
+## Block rendering
+
+`PENDING`
+
+- full Minecraft BlockState/model resolver
+- parent resolution
+- texture resolution
+- non-cube geometry
+- slab
+- stairs
+- fence
+- wall
+- pane/bars
+- signs
+- doors/trapdoors
+- torch
+- plants
+- neighbor-dependent visual behavior
+
+## Mod support
+
+`PENDING`
+
+- Mod JAR import
+- metadata/resource scanning
+- modded block IDs
+- Full/Partial/Fallback support
+- preserve unknown behavior
+- no Java bytecode execution
+
+## Editing
+
+`PENDING / scope decision required`
+
+- Box Selection
+- groups
+- isolate group
+- group show/hide/lock
+- inspector BlockState editing
+- rotate state behavior
+- undo/redo
+- import as one transaction
+
+## JSON
+
+`PENDING`
+
+- paste/file import
+- validate
+- preview
+- apply/cancel
+- Replace
+- Merge
+- Import as New Group
+- preserve unresolved block IDs
+
+## Export
+
+`PENDING`
+
+- Java Structure NBT export
+- palette/state preservation
+- modded IDs
+- block entities
+- golden NBT verification in Minecraft 1.21.1
+
+## Other MVP items
+
+`PENDING`
+
+- material usage summary if retained in MVP
+- autosave/recovery UI polish
+- larger-project performance profiling
+- final accessibility audit
+- final acceptance audit
+
+---
+
+# 24. Requirement changes that should be prioritized when revising the DOCX
+
+When updating the requirements document later, prioritize these edits first:
+
+- [ ] Rewrite Y-Layer as a 3D Three.js editing-plane mode, not a separate 2D grid editor.
+- [ ] Explicitly define Y-Layer as X/Z at Current Y.
+- [ ] Add placement-on-air behavior for Y-Layer.
+- [ ] Define project-size-driven grid/bounds.
+- [ ] Define explicit Place vs Select tools.
+- [ ] Separate Active Block from Selected Block terminology.
+- [ ] Decide whether Box Selection remains MVP.
+- [ ] Add one-click camera toolbar actions.
+- [ ] Add camera target/focus behavior.
+- [ ] Add desktop-editor scrolling/layout rules.
+- [ ] Expand Ghost Preview acceptance criteria.
+- [ ] Expand Validation status UX requirements.
+- [ ] Add visible Reference Opacity UX.
+- [ ] Add asset-source/reproducibility policy or reference `Docs/minecraft-assets.md`.
+- [ ] Clarify Inspector read-only vs BlockState-editing MVP scope.
+- [ ] Add mode-switch state preservation rules.
+
+---
+
+# 25. Suggested terminology for the revised requirements
+
+Use these terms consistently:
+
+```text
+3D Edit
+Y-Layer
+Current Y
+X/Z Editing Plane
+Active Block
+Selected Block
+Place Tool
+Select Tool
+Block Browser
+Inspector
+Ghost Preview
+Placement Target
+Project Bounds
+Reference Layer
+Support Level
+Validation Status
+```
+
+Avoid ambiguous terms such as:
+
+```text
+selected block
+```
+
+unless it clearly means a block already selected from the structure.
+
+For the block used for placement, always prefer:
+
+```text
+Active Block
+```
+
+---
+
+# 26. Status
+
+This file should be updated whenever:
+
+- a prompt intentionally changes product behavior;
+- manual testing causes a UX/control decision to change;
+- an MVP feature is explicitly moved out of MVP;
+- a technical constraint changes the product requirement;
+- a new terminology decision affects several parts of the requirements.
+
+Implementation details that do not change expected product behavior do not need to be recorded here.
+
+---
+
+# 27. Group membership and Active Group
+
+[x] A placed block may belong to multiple groups. Schema v2 persists this as
+`groupIds: string[]`; schema v1's optional `groupId` is migrated on open/export.
+
+[x] `Active Group` is independent from both `Active Block` and structure
+selection. It drives group controls, highlight, isolate, and numeric move preview.
+
+[x] A block is hidden when any of its groups is hidden, and structure mutation is
+blocked when any of its groups is locked.
+
+[x] Group moves preserve all memberships and apply atomically after bounds and
+external-collision validation. Preview, active-group selection, isolate, camera,
+and hover remain editor state rather than persisted structure mutations.
+
+---
+
+# 28. Verified behavior-rule scope
+
+[x] Neighbor and placement behavior is driven by explicit block catalog metadata,
+not registry-name matching. Unknown/modded blocks retain canonical ID/state and
+produce `Unknown` validation.
+
+[x] The current representative rules cover fence, glass-pane/iron-bars,
+stairs shape, wall-torch support, atomic door pairs, and atomic sunflower pairs.
+Removing verified support preserves dependent blocks and reports them Invalid;
+the editor does not silently destroy user data.
+
+[~] Cobblestone wall `none`/`low` connections are supported. Exact vanilla
+`tall` and post-visibility behavior remains Partial pending a trusted 1.21.1
+behavior fixture/source implementation.
+
+[ ] Bed head/foot placement remains deferred until facing-relative placement,
+occupied-state policy, and representative 1.21.1 fixtures are verified.
+
+---
+
+# 29. Logical multi-block integrity and history controls
+
+[x] Verified multi-block objects (Door and current double-height plant fixtures)
+use logical-object selection closure. Selecting either half, or box-selecting one
+half, includes every verified part.
+
+[x] Group membership is normalized by union across all logical parts. Group
+assignment, removal, highlight, isolate, lock validation, move, and delete cannot
+split a verified logical object.
+
+[x] Editor history is available through visible Undo/Redo toolbar controls and
+keyboard shortcuts: `Ctrl+Z` / `Meta+Z` for Undo, and `Ctrl+Y`, `Ctrl+Shift+Z`, or
+`Meta+Shift+Z` for Redo. Shortcuts do not intercept input, textarea, or
+contenteditable text editing.
+### Theme-aware viewport palette
+
+The 3D Edit and Y-Layer viewports consume the shared `ThemeService` state through
+`ThreeViewportEngine.applyTheme`. Light and dark palettes update the scene
+background, grids, bounds, block materials, selection/group highlights, ghost,
+and move-preview colors without replacing project, camera, or editor state.
+
+# 30. Unsupported dependent-block editor policy
+
+[x] Vanilla runtime removes unsupported Torch, Wall Torch, and Tall Plant where
+applicable. MinecraftBuilder MVP intentionally preserves existing structure data
+after its support is removed and marks the dependent block `Invalid`. New invalid
+placements remain blocked. This is an editor data-preservation policy, not vanilla
+runtime behavior.
+
+[x] Verified logical multi-block objects now include Door, Tall Plant/Sunflower,
+and Bed. Bed head/foot selection, groups, move, lock, delete, and history use the
+same logical-object resolver as the existing two-block families.
+
+# 31. Real vanilla JSON model renderer foundation
+
+[x] The editor can import a local Minecraft Java 1.21.1 JAR/ZIP through the File
+API, cache normalized assets in a separate versioned IndexedDB database, and
+build a blockstate-derived vanilla catalog without committing Mojang assets.
+
+[x] 3D Edit and Y-Layer resolve placed BlockState through the existing model
+resolver and render model elements, multipart parts, parent/texture inheritance,
+configured transforms, element rotations, explicit/default/reversed/rotated UV,
+and nearest-filtered PNG textures. Missing or unsupported resources keep the
+fallback cube and canonical project data.
+
+[~] Tint indices are preserved as renderer metadata but currently use neutral
+white instead of biome tint. Materials use a practical generic alpha/cutout path;
+Minecraft render-layer parity for translucent blocks is not complete.
+
+[~] Block Browser previews use cached resolved face textures rather than one
+WebGL renderer per row. The viewport currently rebuilds block scene objects on a
+project update; delta/instanced geometry optimization remains future work.
+
+# 32. Vanilla real-model fallback diagnostics and refresh fix
+
+[x] The active vanilla asset provider and visual provider now change together on
+JAR import or IndexedDB restore. A provider change invalidates resolver, decoded
+texture, thumbnail, ghost, and scene visual state; 3D Edit and Y-Layer rebuild
+from the same active resource generation without resetting editor state.
+
+[x] Renderer failures are no longer silently swallowed. Resolved model traces and
+visual results distinguish `real`, `partial`, and `fallback`, with structured
+missing-model, missing-texture, decode, geometry-build, and unknown-error reasons.
+Catalog entries declared Full are downgraded when the active bundle cannot
+resolve their representative default model/PNG.
+
+[x] Regression fixtures mirror the verified 1.21.1 Stone variant array and Stone
+Slab parent chain. Stone resolves to a textured full cube; bottom Stone Slab with
+the extra `waterlogged=false` property resolves to textured half-height geometry.
+Light/Dark palette changes preserve real texture maps, and asset-backed browser
+thumbnails are invalidated and repopulated after the active bundle changes.
+
+[x] Ghost validation outlines use resolved model bounds. A bottom Slab therefore
+uses a half-height outline instead of a full-voxel wireframe that could be
+mistaken for a fallback cube; unresolved visuals still use the voxel fallback.
+
+# 33. Vanilla asset coverage audit and support classification
+
+[x] Catalog definitions now expose Behavior Support independently from Visual
+Support. The Block Browser shows both values instead of presenting one ambiguous
+Full/Partial/Fallback badge. The old `support` value remains only as a temporary
+compatibility input for existing placement code during this audit checkpoint.
+
+[x] A viewport-independent, batched and cancellable audit scans all 1.21.1
+blockstate-derived entries through the production resolver and geometry path.
+Machine-readable JSON and a grouped Markdown summary include default-state
+provenance, variants/multipart, model parents, texture availability/decode,
+geometry bounds, thumbnails, representative failures, and separate behavior
+issues. The audit records findings only; it does not patch individual blocks or
+change placement behavior.
+
+# 34. Vanilla behavior metadata enrichment
+
+[x] Generated vanilla catalogs now merge asset/resource definitions with a
+separate `VanillaBehaviorRegistry`. Minecraft 1.21.1 block tags are retained
+from local JAR imports and classify verified Fence, Wall, Stairs, Door, Bed,
+Tall Flower, and Small Flower families without registry-name substring rules.
+Pane/Bars and Torch behavior remain explicit verified MVP metadata because the
+JAR has no equivalent family tag used by this implementation.
+
+[x] Visual support and behavior support remain independent. A real model may
+still have Unknown behavior, while a fallback visual may retain verified
+behavior. Legacy normalized caches without block tags keep the representative
+MVP behavior metadata; importing the JAR again enriches all supported tagged
+vanilla family members.
+
+[x] Direct Wall Torch placement now derives attachment facing from the clicked
+side. Representative simple flowers require verified solid floor support, so a
+Dandelion on a Bed is rejected instead of treating every occupied voxel as
+valid support. Chain remains Partial outside its verified vertical-axis case;
+Lantern now has explicit verified standing/hanging behavior.
+
+# 35. Lantern attachment and Block Browser name priority
+
+[x] Lantern behavior now supports verified vertical Chain attachment. A Lantern
+placed below a vertical `minecraft:chain` is stored as `hanging=true`; placement
+on a solid top support stores `hanging=false`. Missing support remains Invalid,
+and removing support preserves the block while reporting Invalid according to
+the editor data-preservation policy.
+
+[x] Block Browser rows and Active Block now prioritize the translated display
+name, followed by the canonical registry ID. Visual and behavior support remain
+compact accessible badges with tooltips, instead of occupying the primary name
+column.
+
+# 36. Authoritative vanilla registry and full coverage foundation
+
+[x] The vanilla catalog now uses a normalized Minecraft Java 1.21.1 data-generator
+`reports/blocks.json` as the authoritative source for registry IDs, property
+definitions, and default BlockStates. All 1060 authoritative entries have a
+known default; generation and runtime parsing reject malformed defaults instead
+of guessing. The previous 1062 resource-derived count included Item Frame and
+Glow Item Frame entity blockstate resources, which are not block registry entries.
+
+[x] Runtime definitions compose the authoritative registry, `en_us` display
+names, visual assets, and verified behavior metadata as independent inputs. The
+full audit now reports 919 Real, 1 Partial, and 140 Fallback visuals; 135 entries
+require a special renderer and 5 are intentionally invisible. The remaining
+texture failure is Heavy Core; special/no-element visuals are no longer reported
+as generic JSON-model success.
+
+[x] A Lantern targeting a vertical Chain now snaps its candidate and ghost to
+the voxel directly below the Chain. Normal validation still rejects occupied or
+out-of-bounds targets, while a successful snapped placement stores
+`hanging=true`; normal supported placement remains `hanging=false`.
+
+[x] The normalized vanilla asset cache is schema version 2. Compatible v1
+resource payloads migrate in place; unsupported/corrupt data falls back to the
+authoritative registry-only catalog and requests reimport without requiring
+DevTools cleanup.
+
+# 37. F5 viewport bootstrap and asset-cache restore regression
+
+[x] Direct `/editor` startup no longer depends on an in-memory project or vanilla
+asset provider to create the Three.js scene. A 16 x 16 bootstrap grid and bounds
+render immediately, a zero-sized initial layout receives a safe 1 x 1 backing
+buffer, and `ResizeObserver` applies the real canvas size and projection as soon
+as layout becomes available. The renderer remains demand-driven and every
+initialization/state transition requests a render.
+
+[x] The editor remembers only the active project ID in browser storage; project
+structure data remains in IndexedDB. F5 restores that project, or the newest
+persisted project when upgrading from a version without the pointer. Concurrent
+restore calls share one operation.
+
+[x] Asset cache v1 to v2 migration now preserves the compatible resource bundle
+instead of deleting JSON, PNG, language, and block-tag data. Restore validates
+core Stone resources before marking the provider Ready, activates one provider
+generation for catalog/resolver/textures/thumbnails/viewports, and exposes clear
+loading/no-assets/ready/import-required/cache-error states.
+
+[x] Chrome CDP regression verification covered direct `/editor` without assets,
+five repeated reloads, real Stone before/after F5, five cached-provider reloads,
+in-place v1 to v2 migration with unchanged resource counts, and Y-Layer canvas
+bootstrap. No browser exceptions were observed.
+
+# 38. Current project autosave and F5 persistence
+
+[x] Every `ProjectDocument` reference change observed while the editor is open is
+fed into the existing persistence/autosave pipeline. History operations cover
+place, delete, neighbor-derived changes, BlockState edits, rotation, groups,
+multi-block objects, and group moves; direct persistent Y-layer settings use the
+same workspace signal. The canonical project remains in IndexedDB, while
+`localStorage` contains only the active project ID.
+
+[x] Autosave is debounced and revision-aware. It writes a recovery snapshot,
+then the complete canonical document atomically through `ProjectStore.save`, and
+removes the recovery snapshot only after success. Saves are serialized: an edit
+created while an older revision is in flight remains dirty and is written next.
+A stale completion cannot mark a newer revision clean. Save failures retain both
+dirty state and the recovery snapshot and are surfaced as `Save error`.
+
+[x] Editor status now reports `Saving...`, `Saved`, or `Save error`. Editor
+teardown performs a best-effort flush, but the primary reload guarantee comes
+from the short autosave debounce rather than relying on asynchronous browser
+unload behavior.
+
+[x] Chrome CDP acceptance persisted Stone, Fence, an atomic Door pair, group
+metadata/membership, a group move, and rapid edits across hard reload. A delete
+followed by Undo was autosaved and survived the next reload. Switching from
+Project A to Project B restored B after F5, while reopening A retained its own
+edits. Undo/Redo stacks remain intentionally session-only; their resulting
+`ProjectDocument` state is persistent.
+
+# 39. Default vanilla assets and special visual foundation
+
+[x] Asset bundles now use a reusable vanilla/mod-compatible source contract.
+Startup tries a gitignored local default bundle, then IndexedDB, with JAR import
+as the File API fallback. The Block Browser is an expandable responsive grid
+showing thumbnail, display name, and source rather than technical badges.
+
+[x] Static special visual adapters now cover beds, containers, signs/hanging
+signs, banners, heads/skulls, and shulker boxes where generic models have no
+elements. They are visual-only Partial coverage; unsupported families keep their
+explicit audit diagnostics.
+
+# 40. Chain attachment, perspective thumbnails, and quick palette
+
+[x] Chain attachment candidates are now resolved by a pure placement helper:
+vertical Chain extends above/below based on hit half, while Lantern and Soul
+Lantern snap below with `hanging=true`. Normal bounds, occupancy, and rule
+validation remain authoritative.
+
+[x] Bed special visuals now request the verified per-color entity bed texture.
+The browser lazily upgrades cached texture icons to perspective previews through
+one shared offscreen renderer, with a safe texture fallback. A project-local
+Quick Block Bar pins stateful active blocks outside project-history mutations.
+
+# 41. Bed descriptor, transparent previews, and lighting refinement
+
+[x] Bed visuals no longer map the entire entity atlas over a generic block. A
+descriptor-driven vanilla Bed half creates distinct mattress, outward legs, and
+headboard geometry from `part`/`facing`, using the verified entity Bed texture
+resource when present. The descriptor registry is an extension point for future
+normalized mod beds.
+
+[x] Perspective previews retain transparent canvases, card/Quick Bar images do
+not add a colored thumbnail square, and world/thumbnail lighting now adds a
+neutral directional fill while preserving textured materials. Quick Bar slots
+are 50px with a distinct active state.
+
+# 42. Bed alignment, Wall Sign data, and WASD camera
+
+[x] Bed rendering now uses a descriptor-driven head/foot model with separate
+mattress, legs, headboard, facing rotation, and atlas regions for the verified
+vanilla entity texture. Custom namespaces can register another descriptor.
+
+[x] Verified vanilla wall signs use clicked-face facing and opposite support
+validation. Sign block entity data is persisted as typed front/back four-line
+data with color, glowing, waxed, and raw-data extension fields; text edits are
+history operations and survive the existing autosave/F5 path.
+
+[x] 3D and Y-Layer viewport engines support smooth camera-relative WASD motion
+with Shift acceleration. Text inputs, textareas, selects, and contenteditable
+elements are excluded, and camera movement never enters project history.
+
+# 43. Bed/Wall Sign visual correction and Quick Bar thumbnail restore
+
+[x] The Bed special visual uses the 1.21.1 renderer-layer body and leg
+dimensions/atlas origins for each head and foot half. It no longer creates a
+separate approximate headboard or repeats one large atlas crop over every Bed
+box. The descriptor remains the extension point for future normalized mod Beds.
+
+[x] Vanilla wall-sign blockstates resolve to a `builtin/entity` sign model with
+no JSON elements, so the block-entity visual remains responsible for its board.
+The board and text are now transformed together from the sign facing and pinned
+to the support-side local voxel face; this avoids a world-direction-specific
+offset and keeps the board flush with its support.
+
+[x] Sign editing is a single four-line textarea in the normal Right Inspector.
+Front/back data stays independent, advanced metadata is collapsed, and commits
+remain history/autosave operations. The editor provides a width warning only;
+it does not reject text using a guessed character-count limit.
+
+[x] Quick Bar persistence contains logical ID/state/slot data only. Thumbnail
+URLs are derived by the same provider as the Block Browser and keyed by asset
+generation, registry ID, canonical BlockState, and renderer version. Restored
+slots request their thumbnail again when an asset provider becomes ready.
+
+# 44. Camera input and hanging-sign interaction contract
+
+[x] The editor input contract is `Ctrl+LMB` Delete, `Alt+LMB` Pick, and normal
+LMB Place/Select. Shift is no longer an editor Delete modifier.
+
+[x] Camera movement uses physical keyboard codes: WASD is camera-relative on
+the horizontal plane, Space is world +Y, and either Shift key is world -Y.
+Shift is not a speed boost. Input state clears on window blur, hidden document,
+focus entering editable UI, pointer cancellation/lost capture, and viewport
+disposal so orbit plus movement cannot leave a stuck key state.
+
+[x] Wall Hanging Signs have a separate static connector hierarchy from Wall
+Signs while sharing one facing-root transform for board and text. The attachment
+snap helper supports verified hanging-sign candidates below a vertical Chain or
+another vanilla hanging sign; normal occupancy and bounds validation remain
+authoritative.
+
+## 44.1 Incremental connected-block and pending-picking correctness
+
+[x] A committed block remains pickable while its final visual is pending. DDA
+precise candidates now raycast the candidate's final, fallback, instanced,
+surface-face, or placeholder ownership without requiring a `renderedBlocks`
+entry; placeholder instance metadata remains the exact voxel owner.
+
+[x] Local mutation hints are bounded exact before/after deltas. They include
+derived wall, fence, stair, and other neighbor state changes, omit unchanged
+support positions, and remain safe to invert for undo/redo without a full
+ProjectDocument diff.
+
+[x] Ceiling hanging signs may chain from another verified hanging sign. This is
+distinct from a solid ceiling: the child remains `attached=false`, while
+solid-block and vertical-chain support semantics remain separate and verified.
+The contract is based on the existing Java 1.21.1 placement fixture and the
+mapped `CeilingHangingSignBlock` `ATTACHED`/`shouldTryToChainAnotherHangingSign`
+API surface, not registry-name inference.
+
+# 45. Versioned Bed visuals and thumbnail reliability
+
+[x] Special model rendering now consumes a renderer-independent ModelPart-style
+descriptor. Providers declare game edition/version, namespace, visual family,
+and priority. The verified Java 1.21.1 Bed provider is selected only for the
+matching asset version; an unverified future version does not claim exact Bed
+coverage. The provider uses the verified head/foot cuboids, pivots, rotations,
+64x64 texture atlas origins, and world transform without an extra foot offset.
+
+[x] The generic ModelPart cuboid UV routine derives six face regions from
+`uv(u,v)`, dimensions, texture size, and optional mirror. Three.js only builds
+descriptor geometry/material; it has no Bed/color/version knowledge.
+
+[x] Modifier actions now have precedence over normal tools: `Ctrl+LMB` deletes
+from both Place and Select modes, while `Alt+LMB` remains Pick. Existing editor
+mutation paths retain logical-object, group-lock, history, and autosave rules.
+
+[x] Block Browser and Quick Bar thumbnails request the same visual provider as
+the viewport, using authoritative default state. The browser no longer limits
+thumbnail requests to the first 160 results. Texture load failures are retryable
+and invalid/non-finite visual bounds fall back instead of being cached as a
+successful blank perspective image.
+
+# 46. ModelPart transform and selection deletion
+
+[x] Special ModelPart transforms now use explicit Java `rotationZYX(roll, yaw,
+pitch)` parity rather than Three.js's implicit default Euler order. The Bed
+1.21.1 fixture verifies every head/foot visual remains within its local voxel
+across all horizontal facings, without a Bed-specific positioning offset.
+
+[x] `Ctrl+A` / `Meta+A` selects all structure voxels through logical-object
+closure. `Delete` and `Backspace` delete the current selection atomically;
+locked members abort the entire mutation and native input editing remains
+unaffected.
+
+[x] Active Group controls distinguish `Delete Group` (metadata/unassignment)
+from `Delete group blocks` (destructive structure deletion). The latter asks
+for confirmation, keeps group metadata, expands logical-object closure, and is
+one undoable, lock-checked transaction.
+
+# 47. Java 1.21.1 Sign foundation
+
+[x] The special visual registry now has a versioned Java 1.21.1 Sign provider.
+It retains all four canonical registry forms as explicit placement contracts.
+Normal signs use the verified board/stick
+ModelPart dimensions and transform; hanging signs use verified board, plank,
+normal-chain, and zero-depth vertical-chain parts with state-driven visibility.
+
+[x] Verified sign support rules cover standing support below, wall-sign support
+behind, hanging-sign support above, and wall-hanging perpendicular support,
+including compatible wall-hanging neighbours. Unknown modded sign blocks are
+not assigned these vanilla behaviors.
+
+[x] Sign block entity data retains independent front/back four-line text, color,
+glow, waxed state, optional filtered messages, and raw extension data. Text edits
+remain a single undoable document mutation. The inspector has one active side
+with an `Edit other side` action; exact Java font metrics remain a documented
+future provider, with a conservative 90/60-pixel fallback warning today.
+
+## 47.1 Strict Sign placement contract
+
+[x] The four vanilla Sign registry blocks are now explicit editor placement
+entries. The editor does not auto-convert a selected standing Sign into a Wall
+Sign, or a selected Hanging Sign into a Wall Hanging Sign. Standing and Hanging
+Signs use sixteen-step rotation; both wall variants use cardinal facing only.
+
+[x] The editor world exposes a generic virtual solid floor directly below Y=0
+for rules that require support below. It enables standing Sign placement at Y=0
+without leaking to wall, hanging, or wall-hanging support checks.
+
+[x] Sign text uses a local draft while the textarea has focus and commits one
+history edit on blur or when switching side. The physical 3D face ray selects
+front versus back text; editable controls remain excluded from global editor
+and camera shortcuts.
+
+# 48. Group move window UX
+
+[x] Group movement is opened explicitly with `Show move` for the Active Group.
+The floating window can be dragged by its header, keeps a reachable header when
+clamped to the editor viewport, and does not enter project history.
+
+[x] Closing or hiding the move window cancels its unsaved offset while keeping
+the Active Group and memberships unchanged. Switching groups resets the preview
+offset; the last panel position is stored as a lightweight editor preference.
+
+# 49. Group search UI
+
+[x] The Groups tab now filters the local group list immediately by group name
+or locked/unlocked status. Clearing the query restores the full list without
+changing Active Group, selection, memberships, or project data.
+
+# 50. Item-centric vanilla palette
+
+[x] The normal Blocks browser is built from a checked-in Minecraft 1.21.1
+placeable-item manifest. Concrete standing/wall variants remain available in
+the raw registry and project data, while the browser and Quick Bar store the
+logical item identity and resolve the concrete block from placement context.
+
+[x] Bed, door, and two-block tall-plant previews render their complete logical
+object through the shared thumbnail renderer. Technical/runtime IDs are
+excluded from the normal building palette and a reusable export eligibility
+policy is provided. No NBT/structure exporter exists in this repository yet,
+so the policy is not wired to an exporter.
+
+# 51. Logical placement plans and Bed integrity
+
+[x] Bed placement derives its facing from the Minecraft player-yaw mapping and
+creates foot/head atomically. Bed facing edits and rotations move the head
+around the foot anchor as one history transaction, with bounds, collision, and
+lock checks before mutation.
+
+[x] The shared placement-plan API now feeds validation, logical ghost previews,
+and placement. Composite previews preserve final state and coordinates for
+beds, doors, and tall plants without mutating project data.
+
+# 52. Sign, wall banner, and wall torch completion
+
+[x] Sign text continues to use the persisted blockEntityData front/back model
+and history-aware inspector path. Wall signs now place their board support edge
+on the adjacent support face for all four facings; hanging signs keep one
+shared board/chain/text transform without an extra vertical offset.
+
+[x] Full vanilla catalog metadata now covers soul and redstone torch standing
+items plus their wall variants, and all vanilla wall banners receive explicit
+facing/support behavior. Wall banner visuals use a facing-aware support-plane
+anchor instead of the standing-banner geometry anchor.
+# 53. Sign text/data completion
+
+Sign text is stored as block-entity data with independent four-line front and
+back sides. The editor exposes canonical dye colors, glowing text, and waxed
+metadata without translating or inventing Minecraft state properties. Sign
+rendering keeps the model and text branches independent: normal text uses the
+1.21.1 logical scale `0.015625 * 0.6666667` and hanging text uses
+`0.015625 * 0.9`, with logical widths 90 and 60 pixels respectively.
+
+`toMinecraftSignBlockEntityNbt()` maps project data to `front_text`,
+`back_text`, `is_waxed`, and the correct `minecraft:sign` or
+`minecraft:hanging_sign` block-entity id. Literal lines are JSON-stringified
+text components; absent filtered messages are omitted.
+
+Contextual item placement now starts from the concrete BlockDefinition default
+state and copies only properties supported by that concrete variant. This
+prevents standing `rotation` leaking into wall sign states (and applies the
+same rule to other contextual item variants).
+
+# 54. Decorated Pot foundation
+
+[x] `minecraft:decorated_pot` now has explicit 1.21.1 placement metadata
+(`facing`, `waterlogged`, and `cracked`) and derives horizontal facing from the
+player yaw. New pots start uncracked and do not require floor support.
+
+[x] Decorated Pot rendering uses a dedicated ModelPart descriptor with separate
+base/back/left/right/front textures. Sherd data is named in project storage and
+serializes to Minecraft's canonical NBT order `back,left,right,front`; default
+brick sides omit the `sherds` key. Wobble and contained-item editing remain out
+of scope.
+
+# 55. Conduit foundation
+
+[x] `minecraft:conduit` remains a normal placeable palette item. Its
+authoritative catalog state contains only `waterlogged` with default `true`,
+while editor placement without verified fluid context writes `false`.
+
+[x] Conduit uses a dedicated inactive 1.21.1 special visual: the centered
+6x6x6-pixel shell and `entity/conduit/base` texture. Runtime activation, eye,
+wind, targeting, animation, and water-frame simulation are intentionally not
+authored or previewed.
+
+[x] Static Conduit NBT is represented by `{ id: "minecraft:conduit" }`; runtime
+fields and `waterlogged` are not block-entity data.
+
+# 56. Water and Lava foundation
+
+[x] Water and lava remain canonical structure blocks with `level` values
+`0..15`; the normal palette exposes them through Water Bucket and Lava Bucket
+logical items. Bucket placement creates level `0` without block-entity data,
+while raw imported levels are preserved.
+
+[x] The renderer uses a dedicated static fluid surface path with level-derived
+height, weighted corner slopes, world-context neighbor lookup, same-fluid face
+culling, static flow orientation, translucent water, and opaque lava. Fluid
+spreading, reactions, biome simulation, and waterlogging placement are outside
+the editor scope. Animated PNGs use a cached, nearest-filtered static frame
+view; no runtime fluid animation is run.
+
+## Decorations (schema v3)
+
+Projects now persist Painting, Item Frame, and Glow Item Frame entities in the
+separate `decorations` collection. They are not voxel blocks and carry a stable
+`instanceId`, attachment anchor/facing, painting variant or frame item data.
+Placement and deletion are history transactions; old v1/v2 projects migrate to
+an empty decorations collection. Structure-NBT-ready entity mapping preserves
+the distinct painting (`facing`, `variant`) and frame (`Facing`, `Item*`) keys.
+
+Decoration item selection now uses the authoritative Java 1.21.1 item registry
+report, while Painting variants and frame items use compact searchable dropdowns
+that load no thumbnails or models. Item model resources remain visual-only;
+registered items without a model are still selectable and preserved.
+
+# 57. Keyboard shortcut foundation
+
+Keyboard actions now use one normalized, version-tolerant binding map stored in
+UI preferences rather than ProjectDocument data. Defaults preserve continuous
+W/A/S/D/Space/Shift camera movement, Ctrl/Cmd history and selection shortcuts,
+Delete/Backspace deletion, and 1-9/0 Quick Bar selection. Settings > Shortcuts
+supports searchable capture, draft Apply/Save/Cancel semantics, restore
+defaults, and visible duplicate-binding conflicts. Form and contenteditable
+focus suppresses editor actions, while movement remains continuous and clears
+on blur/visibility loss/dispose.
+
+# 58. Keyboard and mouse input settings
+
+Settings > Shortcuts now has Keyboard and Mouse tabs backed by the same
+preferences model. Mouse gestures support Left/Right/Middle Click and Wheel
+Up/Down with Ctrl/Alt/Shift/Meta modifiers, exact-gesture conflict detection,
+live Apply/Cancel behavior, and default restoration. Place, select, delete,
+pick, orbit, pan, and wheel zoom use the configured bindings in both 3D and
+Y-Layer modes. Help > Controls & Shortcuts is a themed visual reference driven
+from the applied bindings instead of a hard-coded paragraph.
+
+# 59. Project package import and renderer resource optimization
+
+Project package import now exposes an observable state machine with localized
+saving, reading, parsing, validation, storage, activation, success, and error
+states. Large package bytes are transferred to a Web Worker for decode, parse,
+migration, and validation when the browser supports it; the direct parser
+remains the deterministic test/server fallback. The active project is not
+reset until validated data is stored.
+
+IndexedDB schema v2 keeps project summaries separate from full documents, so
+project lists no longer clone every structure. Create/save/delete update the
+document and summary stores atomically, and import collision checks use a key
+lookup instead of enumerating projects.
+
+The incremental renderer now shares immutable standard JSON face geometry by a
+complete geometry signature. Entries keep their own materials, while the
+provider owns and disposes shared geometry and textures. Decoration textures
+are scoped to the active provider generation and are disposed on replacement
+or engine teardown. Special visuals and world-dependent fluid geometry remain
+outside the generic geometry cache.
+
+# 60. Additive block capability metadata
+
+Block definitions produced by catalog normalization now expose an immutable,
+typed capability profile. Capabilities are orthogonal routing metadata (for
+example directional, attachment, neighbor-dependent, multi-block,
+block-entity, fluid, waterloggable, and render classification) and carry
+`verified` or `inferred` evidence. `BlockBehavior` remains the executable
+source for verified placement and neighbor rules.
+
+Capability derivation is centralized and conservative: a complete canonical
+`facing` state can add only an inferred directional profile; it does not prove
+attachment or support rules. A `half` property alone never creates a
+multi-block capability. Item-backed is added at the placeable-item boundary
+so the catalog does not depend on the item manifest. Capability profiles reject
+contradictory explicit metadata and are exposed in vanilla audit diagnostics.
+Decorations remain separate domain entities, and no provider composition or
+mod-JAR support is introduced by this phase.
+# 61. Composable content sources
+
+The asset foundation now gives each runtime content source a stable `sourceId`
+independent from its namespaces. A source may own multiple namespaces, while
+`CompositeAssetResourceProvider` routes namespaced JSON, binary, and texture
+resources directly to the registered owner. Namespace collisions are rejected;
+resource-pack override/load-order semantics remain out of scope.
+
+`BlockCatalog` and placeable items retain source ownership and can compose
+multiple contributions without rewriting project data when a source is removed.
+The current Vanilla bundle is explicitly typed as a vanilla bundle; local
+Fabric resource-only mod imports use a separate normalized external cache. The
+Decoration browser only advertises sources that declare decoration support.
+
+Project deletion is centralized in File > Delete Project. The operation drains
+autosave, atomically removes the project, summary, and recovery snapshot, clears
+the active session, and returns to the project screen. A failed delete leaves
+the current project active.
+
+Recent Projects also exposes a separate per-row delete action. It deletes by
+`ProjectSummary.id` without opening the full document first; deleting the
+remembered active project reuses the autosave-safe lifecycle and clears the
+remembered project pointer. Cancelled or failed deletion leaves the row intact.
+
+# 62. Pre-Prompt-13 correctness gate hardening
+
+Content source registration now rejects providers whose version differs from
+the currently selected active version (the default remains 1.21.1), and
+source-catalog diagnostics are rebuilt from current contributions instead of
+accumulating stale entries. Active blocks retain known `sourceId` metadata;
+Quick Bar activation refuses unavailable source entries without deleting the
+saved reference. Decoration source selection uses the canonical `vanilla` ID.
+
+Vanilla horizontal connection behavior remains intentionally Partial because
+the editor does not yet carry complete Java voxel-shape/sturdiness metadata for
+all solid neighbors; verified family connections still refresh as before.
+# Prompt 13 - local Fabric mod resources
+
+Local Fabric JAR imports are resource-only and never execute archive code. Imported sources use stable `mod:<fabric-id>` identities, may own multiple namespaces, and contribute candidates only from valid `assets/<namespace>/blockstates/*.json` resources. Imported resources are normalized into the external-mod IndexedDB store and use the existing composite provider, generic model resolver, catalog, and renderer-generation invalidation path. Runtime behavior and item identity remain unknown/inferred unless separately verified; removing a source preserves placed project data.
+
+# Multi-version vanilla compatibility foundation
+
+Vanilla 1.21.1 remains the verified behavior baseline, but it is no longer a
+global version gate. Other Vanilla resource bundles are evaluated against
+common state/resource contracts and can reuse generic behavior when the
+contract matches. Changed contracts are classified as needing a delta;
+unverified or mod-specific behavior remains Unknown and is never inferred from
+registry names alone.
+
+Catalog defaults now retain provenance (`compatible-common` or
+`resource-derived`) alongside the existing authoritative/fixture sources.
+Asset Manager exposes a versioned compatibility report and JSON export without
+placing diagnostics in ProjectDocument or the asset cache contract.
+
+Official downloads, manual Vanilla imports, and mod imports are protected
+operations. Browser unload and editor navigation warn while a non-resumable
+operation is active; cancelling navigation does not mutate project data.
+
+# Multi-version behavior and visual contract reuse
+
+Vanilla behavior enrichment now runs for every selected asset version. The
+registry validates the target state contract before reusing verified metadata;
+missing legacy state definitions are preserved rather than treated as a
+contradictory contract, while incompatible values remain `unknown` and are not
+overwritten. The common evaluator supplies contract-driven defaults for doors,
+stairs, buttons, connection families, double-height/paired objects, candles,
+fluids, chains, lanterns, and compatible six-face blocks. Candle behavior is
+state-contract based and does not classify candle-cake IDs by suffix.
+
+Connection state domains are normalized only when blockstate/model evidence
+identifies a fence or pane family. Boolean multipart connection subsets are
+completed with false defaults; wall domains retain `none|low|tall` and `up`.
+This keeps target-version evidence intact while allowing the existing rule
+engine to refresh derived neighbors.
+
+Special visuals are no longer disabled by a version string. Their adapters are
+inspected against the selected provider's required entity resources. Rendering
+keeps a known adapter for a partial diagnostic when a texture is missing, while
+compatibility reports classify the family as `missing-resource`.
+
+Placeable logical standing/wall entries are discovered from the active catalog
+when both concrete IDs exist. Vanilla pairs can use canonical suffix evidence;
+non-vanilla pairs require explicit compatible behavior metadata, so a suffix
+alone cannot grant mod placement semantics. Decoration item catalogs use the
+authoritative 1.21.1 item report when available and otherwise discover item
+models from the selected resource provider.
+
+# Current Vanilla item/catalog compatibility
+
+The Vanilla block catalog intentionally retains every target-version block,
+including potted, crop, upper/lower, and wall concrete forms. The user-facing
+PlaceableItem catalog is built separately from normalized target item evidence
+(`assets/<namespace>/items/*.json`, with a conservative legacy item-model
+adapter) plus verified logical placement rules. Item-backed direct entries are
+therefore not inferred from every blockstate.
+
+The normalized Vanilla cache schema is now `3` so bundles retain item
+definitions; stale bundles are rejected and rebuilt. Standing/wall canonical
+identity is derived from the final active PlaceableItem catalog, including
+suffixed torch families such as `<base>_torch` / `<base>_wall_torch`.
+
+Missing runtime properties in visual blockstate JSON are treated as unobserved
+evidence and may be completed from a compatible common contract. Explicitly
+incompatible values remain unsupported. Ordinary fully resolved JSON cubes can
+provide placement support without being assigned a `solid` behavior entry;
+connection, fluid, and attachment families remain non-supporting unless their
+own contract says otherwise.
+
+Default-state provenance distinguishes semantic resource defaults from a
+deterministic render fallback. Common behavior enrichment marks filled
+contracts as `compatible-common` without downgrading authoritative or verified
+states. Element `shade_direction_override` is consumed as a deterministic
+directional material-lighting approximation; it is not a full Minecraft light
+engine.
+
+## Generic target resource rendering
+
+Generic resource defaults are derived from selected blockstate domains even when
+common behavior compatibility is unknown. Modern texture-map entries may use
+`{ sprite, force_translucent }`; the resolver normalizes the sprite reference
+and carries the translucency hint into Three.js materials. Configured
+blockstate `z` rotation and element shade-direction metadata are retained in the
+shared resolver representation. Barrel geometry is diagnostic-only; a valid
+target JSON model takes precedence.
+
+## Final Vanilla domain boundary hardening
+
+Target item definitions are evidence that an item resource exists; they no
+longer manufacture a same-ID block placement candidate. A direct palette entry
+requires both target world-block evidence and item-backed classification, while
+logical standing/wall and multi-block entries remain explicit rules. Item Frame,
+Glow Item Frame, and Painting stay in Decorations and are excluded from the
+BlockCatalog/PlaceableItem route. Technical and internal concrete blocks remain
+resolvable in the world catalog but are not normal palette entries.
+
+The shared content classifier records conservative kind/provenance results for
+palette routing and asset-domain diagnostics and does not apply Vanilla name
+semantics to non-minecraft namespaces.
+
+Modern element rotations normalize Mojang's direct `rotation.x/y/z` values into
+an ordered internal representation; legacy `axis`/`angle` wins when both are
+present. Explicit `shade_direction_override` uses an unlit material plus a
+deterministic directional factor so the override is not re-shaded by Lambert
+face normals. This remains an editor approximation, not a lighting engine.
+
+## Final Vanilla source boundary cleanup
+
+`BlockCatalogSource.targetItems` is now a first-class, source-owned item
+catalog. `BlockLibraryService` passes it unchanged into `buildPlaceableItems`,
+so logical mappings such as `minecraft:water_bucket` -> `minecraft:water` do
+not require same-ID evidence on the world block. An inspected but empty/unknown
+item domain is conservative and does not expose every block as an inventory
+item. Legacy `models/item/<nested/path>.json` resources are normalized with the
+full namespaced path.
+
+Vanilla suffix rules are namespace-safe: `minecraft:potted_*`, crop states,
+and wall concrete variants may be classified as internal, while an
+`example:custom_crop` remains generic until trusted source metadata says
+otherwise. Palette eligibility and world-block serialization are separate
+policies; internal concrete blocks remain serializable even when hidden from
+the normal palette. Decorations remain in the Decoration persistence route.
+
+Default-state provenance marks a deterministic blockstate-branch choice as
+`resource-render-fallback`; `resource-derived` is reserved for a semantic
+resource default. Higher-confidence authoritative, fixture, and common
+provenance wins property-by-property during enrichment.
+
+The official Java 26.3 audit is checked in as
+`Docs/vanilla-asset-coverage-26.3.json` and `.md`. It reports 1,286 world
+block entries, 1,190 Real / 70 Partial / 26 Fallback visuals, 0 known palette
+leaks, and no `TEXTURE_NOT_FOUND` records. A clean official 1.21.1 client was
+also run through the same audit path as a regression check; its representative
+fence, pane, door, bed, glass, water, and lava entries resolved without
+palette leaks.
+
+## Final Vanilla runtime hotfix
+
+Fence connection contracts now complete boolean state domains even when a
+multipart resource only exposes `true` branches. Double-height placement
+normalizes the requested half to the semantic lower half before support
+validation, then creates the lower/upper pair atomically. This keeps the
+common Door and Tall Plant path independent of resource branch ordering.
+
+Modern 26.3 block faces may reference a texture variable without the legacy
+`#` prefix (for example `"texture": "all"`). The shared resolver now resolves
+bare keys through the existing texture map; it does not add an atlas or special
+renderer fallback. `minecraft:heavy_core` therefore resolves its real
+`minecraft:block/heavy_core` PNG and is no longer reported as missing texture.
+## Prompt 13A: shared Item/display foundation
+
+- `ItemStackData` is now shared by decorations and future item-host blocks; unknown components remain intact.
+- `ItemCatalog` aggregates normalized `targetItems` from active content sources independently from `BlockCatalog`. `DecorationItemCatalog` remains only as a compatibility facade.
+- Item Frame and Glow Item Frame use the shared `ItemStackPicker`; unavailable stored IDs remain visible without being erased.
+- Block capabilities now distinguish `inventory-storage`, `item-display`, and `item-storage-display`. Display capabilities require verified evidence and an explicit slot count.
+- The verified 26.3 Vanilla Shelf family uses the common three-slot `item-storage-display` capability. Name-only mod lookalikes do not receive it.
+- `StructureEditorService.setBlockItemSlot()` provides immutable, history-aware, lock-aware slot edits while preserving unknown block-entity fields and item components.
+- This change does not bump the project schema version; the new item-container data is additive and existing Item Frame data remains compatible.
+
+## Prompt 13B: extensible Fabric Mod resource engine
+
+- Mod metadata now passes through a loader adapter boundary. Fabric is supported; Forge, NeoForge, Quilt, and unknown archives are detected and reported as unsupported without executing code.
+- Fabric metadata is normalized independently from `fabric.mod.json`; `depends.minecraft` supports exact, wildcard, comparison, range, tilde, caret, string-array OR, and whitespace AND predicates. Missing or unevaluable Minecraft requirements remain `unknown` and blocked by default.
+- Mod inspection is side-effect free. `inspectModJar()` returns a disposable prepared import; activation/cache writes happen only through commit APIs. Progress is coarse-grained and no JAR code, mixin, entrypoint, nested library, or custom loader is executed.
+- Retained resources include modern/legacy item evidence, block/model/texture/lang resources, supported atlases, block/item/painting tags, and data-driven painting variants. Malformed optional JSON is skipped with structured diagnostics.
+- External sources contribute Blocks, Items, and Painting variants independently. Item-only resources flow through the shared ItemCatalog and do not enter the Block Browser.
+- Common Java behavior is reusable for external blocks only with trusted family tags plus a compatible state/resource contract. Mod names and suffixes do not grant Vanilla behavior or display capabilities.
+- Composite resources are exact-path based. Additive `minecraft:` paths are allowed; ordinary exact collisions block activation; additive tags merge deterministically; `replace:true` tags are reported as unsupported conflicts.
+- External cache schema is now version-independent from the active project version. Cached normalized content is reevaluated against the current Minecraft requirement when a project version changes.
+- Source removal removes Block/Item/Painting/resource contributions while preserving existing project IDs as unresolved data.
+- No Prompt 13C Asset Manager redesign, Forge implementation, runtime code execution, backend, or automatic Internet lookup was added.
+
+## Prompt 13B-F1: shared resource and content introspection
+
+Resource-location parsing is centralized in `core/content/resource-location.ts`.
+Bare model, texture, item, and painting references use the supported default
+namespace semantics; `#name` remains a distinct texture-variable form. The
+resolver, vanilla texture provider, composite provider, special visuals, and
+item evidence reader now share this boundary.
+
+`TagIndex` normalizes block, item, and painting-variant tags across active
+sources. It preserves raw contributions, source provenance, `replace` flags,
+optional/object values, recursive members, cycle diagnostics, and unresolved
+members. It is evidence only; it does not manufacture behavior. External
+common behavior no longer needs an ID/name heuristic when a strict source has
+an explicit family contract/tag evidence.
+
+`ContentIntrospectionEngine` produces optional normalized descriptors for block,
+item, and decoration roles. Block descriptors retain every statically observed
+property/value from variants and multipart predicates, compare resource-backed
+visual signatures without Cartesian enumeration, keep placement defaults
+separate from deterministic representative visual state, and expose a
+source-aware resource dependency graph plus structured missing/cycle/schema
+diagnostics. This is additive metadata and does not change project schema or
+asset-cache schema; F2 owns any UI exposure.
+
+## Prompt 13B-F2 Hotfix
+
+- External sources may provide verified runtime semantics through the versioned
+  `data/minecraftbuilder/semantic-manifest.json` (or equivalent
+  `assets/minecraftbuilder/semantic-manifest.json`) schema with
+  `schemaVersion: 1` and a `content` map. Malformed manifests are diagnostic
+  only; no runtime code is executed and static-only content remains incomplete.
+  Entries may declare `properties`, `defaultState`, verified `capabilities`,
+  `supportRequirements`, `supportContracts`, and a `specialVisual` descriptor
+  (`contractId`, namespaced `resources`, and `stateDependencies`). Verified
+  item-host display transforms may be supplied separately as
+  `itemHostVisual.slots`; slot count alone never implies a transform.
+- Effective content descriptors are retained on normalized BlockDefinitions.
+  Representative visual state is used only by palette previews; placement
+  continues to use canonical default state.
+- Painting `asset_id` values are normalized once to namespaced
+  `namespace:painting/<path>` resources and are used by browser and world
+  rendering. External sources are not substituted with the Minecraft
+  namespace.
+- Item thumbnails first use the world preview and then a data-driven Item
+  model texture fallback (legacy `models/item` and modern `items` references);
+  unsupported runtime Item renderers remain unresolved.
+- Block Browser thumbnail preparation follows the currently visible source and
+  search result set rather than the entire catalog.
+
+## Prompt 13B-F2 corrective pass
+
+- Representative previews keep canonical placement/connection/orientation
+  values (stairs straight, isolated connections, vertical chains); only a
+  non-derived visual progression may replace the baseline when it is strictly
+  more informative. Placement continues to use the canonical default state.
+- Painting picker source inputs are reactive and the active painting catalog is
+  maintained by one source-aware snapshot; switching sources cannot retain
+  stale Vanilla entries.
+- External sign semantics are admitted from standard block tags and an
+  unambiguous static entity-sign texture. Normalized sign descriptors retain
+  standing, wall, hanging, and wall-hanging variants. Name-only lookalikes
+  remain unresolved.
+- Generated item layers have a real inventory thumbnail path. Conditional or
+  runtime item selectors remain partial rather than receiving fabricated
+  visuals.
+- A read-only JVM class-file evidence boundary is present and fail-closed;
+  unsupported or ambiguous bytecode emits diagnostics and never executes code.
+
+The final F2 Sign hotfix merges standard Sign-family tag evidence into the
+common Java state contract even when external blockstates are model-only.
+Verified external Signs therefore receive canonical rotation/facing,
+waterlogged, and hanging attachment defaults before descriptor matching. The
+generic descriptor now reuses the shared Sign geometry, transforms, and
+front/back text branches for all four Sign variants; untagged name lookalikes
+remain generic content.
+
+The final F2 corrective pass separates Vanilla asset readiness from complete
+active-content restoration. Cached external Mods restore with per-source
+progress and a partial-ready state when stale entries are skipped; Vanilla
+remains usable. Sign and Hanging Sign placement consumes explicit normalized
+placement variants and verified behavior metadata, with only the authoritative
+Minecraft manifest/name fallback retained for Vanilla compatibility. Thumbnail
+generation and lookup now share one item-preview identity based on
+`previewState`; `defaultState` remains placement-only. Static Item block-model
+references use the shared model resolver, while generated Item layers keep
+their existing path.
+
+Structure JSON carries the supported painting, item-frame, and glow-item-frame
+decorations without exposing editor instance IDs, entity IDs, group membership,
+or raw metadata. Replace/merge/new-group apply decoration validation and group
+membership atomically with blocks. Group visibility, lock, deletion, and move
+previews therefore include grouped decorations as well.
+
+## Prompt 14F Missing Block reconciliation
+
+- `BlockLibraryService.catalogRevision` is a read-only signal that advances when
+  an active content source is replaced or removed.
+- Missing project blocks are reconciled automatically when a matching definition
+  becomes available or when a project is activated. Reconciliation materializes
+  only compatible stored state, preserves block identity/metadata, and does not
+  create a user history entry or change `metadata.updatedAt`.
+- Structure JSON validation and reconciliation share one pure BlockState
+  compatibility/materialization helper. Incompatible Missing blocks remain
+  unchanged; resolved blocks are never downgraded when a source is removed.
+- Reconciliation is cooperative for large Missing-block lists and discards stale
+  results when the active project or catalog changes. Painting catalog reads are
+  reactive so newly available variants refresh existing decoration visuals without
+  rewriting the project document.
+## Structure JSON and large selection cleanup
+
+Structure JSON now has one current decoration-aware contract (`StructureJson`) for export, examples, validation, and import planning. Replace imports always replace both blocks and decorations; Project Backup versioning remains independent. A legacy blocks-only payload is normalized at the import boundary only, and does not create a second editor semantic.
+
+Selection `all` is represented semantically instead of as a cloned coordinate array. Large selections use aggregate bounds visualization, while small selections reuse shared outline geometry/material. Bulk consumers query selection membership through `SelectionService` so Ctrl+A remains complete without allocating one Three.js resource per block.
+
+## Prompt 15.2 Core Structure NBT exporter
+
+The current tree documents the verified Minecraft Java 1.21.1 Structure
+Template contract and pins its DataVersion to 3955. A typed NBT model,
+canonical palette/state identity helpers, strict namespaced ResourceLocation
+validation, version/size/coordinate diagnostics, codec adapter, and core
+exporter live under `core/persistence/minecraft-structure`. Missing local
+assets preserve their registry ID/state and are never converted to air.
+
+The immutable Minecraft-generated golden fixture
+`Frontend/src/app/core/persistence/minecraft-structure/fixtures/golden_1_21_1.nbt`
+is 1296 bytes with SHA-256
+`fe1e881588eda3d8d262917e2aef7b01d25f0dee5c2a352466b7afaf1c4d49fe`.
+It is a Java 1.21.1 Structure Block SAVE with Include Entities ON, dimensions
+5 × 4 × 5, and manual reload PASS. Independent decoding confirms gzip, an
+unnamed root Compound, DataVersion 3955, 14 palette entries, 100 explicit
+block entries, complete coordinate coverage, and 83 explicit
+`minecraft:air` entries. Manual Air-over-Stone verification PASS confirms that
+saved Air clears pre-existing target Stone.
+
+Sparse/Air semantics are therefore VERIFIED for this Structure Block form.
+`nbtify@2.2.0` is approved and integrated behind the codec port. Golden
+semantic tests decode the actual fixture and verify native tag types plus a
+typed round-trip. The core exporter materializes every empty ProjectDocument
+voxel as Air, sorts palette state identity deterministically, traverses voxels
+in Y → Z → X order, preserves missing/modded IDs, and fails explicitly for
+unsupported block entities/decorations. Export UI, full block-entity/entity
+mapping, ZIP packaging, and download actions remain deferred to later phases.
+
+Prompt 15.2 does not claim 512³ is safe: explicit-Air output requires careful
+memory, main-thread, gzip, and streaming/chunking design. The existing 512-axis
+product policy remains unchanged.
+
+## Prompt 15.2.1 exporter correctness patch
+
+The core 15.2 exporter now rejects every block with `blockEntityData` using an
+`unsupported-block-entity` diagnostic. This includes semantic Sign and
+Decorated Pot data, unknown data, and raw data; none can be silently omitted
+before 15.3 block-entity mapping is implemented. Generated and explicit
+`minecraft:air` use the same canonical `structureStateIdentity` and therefore
+share one palette entry. Palette properties are emitted canonically sorted.
+
+An exporter-generated smoke file is committed at
+`Frontend/src/app/core/persistence/minecraft-structure/fixtures/exporter_smoke_1_21_1.nbt`.
+It is intentionally not a golden fixture. Automated production-codec decode
+checks pass; manual Minecraft 1.21.1 Structure Block loading is not yet
+verified.
+
+## Prompt 15.3 semantic block entities and top-level entities
+
+Structure NBT export now has a capability-aware semantic boundary. Verified
+Sign/Hanging Sign and Decorated Pot data become typed `blocks[].nbt`; invalid
+colors, malformed text, invalid sherd ResourceLocations, and non-empty raw
+payloads fail explicitly. The exporter does not use the editor's lossy
+unknown-color or unknown-sherd display fallbacks.
+
+Painting, Item Frame, and Glow Item Frame decorations become typed top-level
+StructureTemplate entities with deterministic ordering, verified facing/position
+fields, and typed item stacks where the current domain can represent them.
+Unknown painting dimensions, mismatched entity kinds, invalid item data, and
+unsupported components fail explicitly. Conduit remains unsupported because
+the current ProjectDocument does not provide a verified persisted payload. The
+generic item-container model was subsequently extended for verified
+`inventory-storage` Chest, Barrel, and Hopper mappings in Prompt 15.4.2; no
+data is guessed or silently dropped.
+
+Golden regression coverage now checks actual Chest, Sign/Hanging Sign,
+Painting, and Glow Item Frame native tag shapes from `golden_1_21_1.nbt`.
+The exporter-generated
+`exporter_be_entity_smoke_1_21_1.nbt` fixture is self-decoded through the
+production codec and is explicitly **NOT A GOLDEN**. The previous
+`exporter_smoke_1_21_1.nbt` has manual Minecraft Structure Block verification
+PASS (user report). UI export/download, ZIP/datapack packaging, and arbitrary
+raw-NBT preservation remain deferred.
+
+## Prompt 15.3.1 Structure Block guide alignment
+
+The editor Structure Block guide now uses the verified workflow convention
+Relative Position `0 1 0`: guide voxel `{min.x,min.y-1,min.z}`. The old
+diagonal `{min.x-1,min.y,min.z-1}` helper offset was removed. Both 3D and
+Y-Layer use the shared helper. This is renderer-guide positioning only;
+exporter/NBT semantics are unchanged. The 15.3 exporter smoke remains
+manually verified in Minecraft Java 1.21.1: PASS (user report).
+
+## Prompt 15.4 Structure NBT packaging checkpoint
+
+Added a non-UI standalone Structure NBT packaging model and datapack entry
+plan around the current production exporter. Standalone metadata uses
+`generated/<namespace>/structures/<path>.nbt`; datapack metadata uses the
+Java 1.21+ singular path `data/<namespace>/structure/<path>.nbt` and
+deterministic `pack.mcmeta` with `pack_format` 48. Namespace, structure path,
+and archive filename validation are separate and reject traversal without
+silently rewriting submitted values. Export defaults cache namespace, archive
+name, and description through UI preferences while structure paths are
+derived per current project.
+
+The archive-writer port and safe datapack entry plan remain library-neutral;
+the final export UI remains deferred to Prompt 15.5. The existing exporter
+remains the only NBT serializer, so unsupported raw NBT still fails explicitly.
+
+## Prompt 15.4.1 fflate datapack ZIP integration
+
+Approved dependency `fflate@0.8.3` is installed exactly and integrated through
+`FflateZipArchiveWriter`. The adapter uses fflate's callback-based `zip()` API,
+keeps binary data as `Uint8Array`, and applies per-entry compression: the
+already-gzipped Structure NBT entry uses ZIP STORE (`level: 0`), while
+`pack.mcmeta` uses DEFLATE (`level: 6`). A fixed 1980 DOS-compatible timestamp
+makes generated archives reproducible. No Node-only or DOM download code was
+added, and Prompt 15.5 export UI/File-menu wiring remains disabled.
+
+The production ZIP tree is exactly `pack.mcmeta` plus
+`data/<namespace>/structure/<path>.nbt` (singular `structure`, no outer root,
+`generated`, or plural `structures`). `prepareStructureExport()` runs the
+exporter once and shares the exact NBT byte buffer between standalone and ZIP
+outputs. Writer-boundary validation rejects traversal/absolute/drive/control
+paths and duplicate names. Archive-name validation additionally rejects
+leading/trailing whitespace, whitespace-only names, trailing dots, and Windows
+reserved stems without silently trimming input.
+
+The committed fixture
+`exporter_datapack_smoke_1_21_1.zip` is **EXPORTER/PACKAGER-GENERATED — NOT A
+GOLDEN**. It is 1853 bytes with SHA-256
+`420e4462c46d22f3ca71cc9870d856310e06855807f03d03c519f733cb47b661`; its NBT
+entry is 1448 bytes with SHA-256
+`db755a1c655ce46bcc906b18ed30bc3ee099b7844d81c9e3fab5ad92412ede83`.
+The artifact has pack format 48, DataVersion 3955, dimensions 10x4x8, 320
+blocks (274 Air), six block entities (sign, decorated pot, hanging sign,
+chest, barrel, hopper),
+and painting/item-frame/glow-item-frame entities. A permanent test reads this
+committed ZIP and decodes it with the production NBT codec. Manual Minecraft
+Java 1.21.1 datapack verification is **PASS** (user report).
+
+## Prompt 15.4.2 hanging entity survival and block entity completeness
+
+The exporter now validates hanging decorations against the whole
+ProjectDocument before producing any NBT. A support index is built once from
+resolved non-Air project voxels (unknown/missing blocks do not qualify as
+verified support). Normal Item Frames and Glow Item Frames require the exact
+support voxel behind the anchor for every horizontal facing. Paintings require
+the complete catalog-sized backing footprint, so a missing support block makes
+the entire export fail with `invalid-decoration`. Fixed frames retain the
+verified Java survival exception and may export without a support voxel. Export
+never silently prunes or repairs an invalid decoration.
+
+Decorated Pots now optionally preserve their stored item using the verified
+`item` ItemStack compound, without changing sherd order or all-brick omission.
+Verified `inventory-storage` mappings are block-specific: Chest and Barrel
+have 27 slots, Hopper has 5 slots and writes `TransferCooldown: 0`. Furnace is
+explicitly UNSUPPORTED because the current semantic model cannot preserve its
+burn/cook timers and recipe-use data losslessly. Slot numbers are native Byte,
+item IDs are String, counts are Int, and unsupported components, unknown raw
+fields, invalid IDs/counts, duplicate slots, and out-of-range slots fail
+explicitly. Capability profiles expose the verified slot count for all four
+vanilla IDs, even though Furnace export remains unsupported.
+
+The new semantic fields are optional and require no project schema bump.
+Persistence round-trip coverage keeps Chest inventory and Decorated Pot item
+data. The smoke project includes a support wall, Painting, Item Frame, Glow
+Item Frame, Sign, Hanging Sign, Decorated Pot item, Chest, Barrel, and Hopper;
+both committed artifacts were regenerated through the production exporter and
+`FflateZipArchiveWriter`.
+
+The current NBT smoke is 1448 bytes with SHA-256
+`db755a1c655ce46bcc906b18ed30bc3ee099b7844d81c9e3fab5ad92412ede83`.
+The ZIP is 1853 bytes with SHA-256
+`420e4462c46d22f3ca71cc9870d856310e06855807f03d03c519f733cb47b661`; its
+embedded NBT has the same 1448-byte SHA-256. Both are
+**EXPORTER/PACKAGER-GENERATED - NOT A GOLDEN**. Manual Minecraft attachment
+survival verification is **PASS** (user report).
+
+The Java 1.21.1 sources used for this pass are the mappings for
+[DecoratedPotBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/DecoratedPotBlockEntity.html),
+[ChestBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/ChestBlockEntity.html),
+[BarrelBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/BarrelBlockEntity.html),
+[HopperBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/HopperBlockEntity.html),
+and [AbstractFurnaceBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.html),
+plus Yarn's [ItemFrameEntity](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.3/net/minecraft/entity/decoration/ItemFrameEntity.html)
+and [BlockAttachedEntity](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.3/net/minecraft/entity/decoration/BlockAttachedEntity.html)
+references for `fixed`, `attachedBlockPos`, and `canStayAttached`, together with
+the [deobfuscated 1.21.1 ItemFrameEntity source](https://raw.githubusercontent.com/Soumeh/1.21.1-Deobfuscated/main/minecraft/src/net/minecraft/entity/decoration/ItemFrameEntity.java)
+for the exact fixed/support survival check.
+
+## Prompt 15.4.3 block entity editor UI
+
+Added compact inventory editors for verified Chest and Barrel (27 slots each)
+and Hopper (5 slots), with one shared item picker for the selected slot,
+positive-integer count editing, clear actions, and history-aware undo/redo.
+Furnace inventory remains explicitly unavailable and is never initialized as a
+generic editable container. Added Decorated Pot side sherd and stored-item
+editing using the verified sherd list. Known-field edits preserve item
+components and imported raw data; unsupported raw/components remain exporter
+diagnostics. Manual UI verification: **PASS** (user report).
+
+## Prompt 15.5 final Structure NBT export UI
+
+File > Export Structure NBT now opens a dedicated dialog with exactly two
+outputs: Structure NBT (`.nbt`) and Datapack ZIP (`.zip`), defaulting to ZIP.
+The dialog talks only to `MinecraftStructureExportService`; codec, exporter,
+and fflate details remain below that application boundary. Browser download
+uses a separate Blob/object-URL/temporary-anchor service and is not part of the
+core package plan.
+
+Standalone guidance targets
+`<world>/generated/<namespace>/structures/<path>.nbt` (plural `structures`).
+ZIP guidance targets `<world>/datapacks/<archive>.zip`, keeps the archive
+zipped, and uses `/reload` plus Structure Block LOAD with the displayed
+ResourceLocation. The exact production ZIP entries remain
+`pack.mcmeta` and `data/<namespace>/structure/<path>.nbt` (singular
+`structure`), with pack format 48 and one exporter run per selected download.
+
+The dialog reuses namespace, path, archive, version, size, and semantic export
+diagnostics, shows diagnostic paths, blocks duplicate downloads while busy, and
+does not auto-install or split structures. Namespace/archive/description cache
+is written only after successful export; structure path remains project-derived.
+No arbitrary Minecraft length limit is added. Standalone mode ignores invalid
+ZIP-only fields. Sizes through 48 blocks per axis are vanilla-compatible,
+49..512 require Huge Structure Blocks guidance, and larger sizes are rejected.
+The existing smoke ZIP/NBT hashes remain unchanged. FINAL UI MANUAL MINECRAFT
+VERIFICATION: PENDING.
+
+## POST-15 Structure JSON vNext and external-AI helper
+
+Structure JSON now uses the canonical unversioned top-level contract with
+`format`, `minecraftVersion`, `blocks`, and `decorations`; only legacy
+`formatVersion: 2` input is accepted and normalized during migration. Verified
+semantic block entities are represented as `container`, `decorated-pot`, and
+`sign` unions. Unsupported block-entity data is warned about in the export
+dialog rather than presented as lossless; Project Backup remains the full
+fidelity path. JSON import validates host compatibility, slot bounds, and item
+stack limits without changing the project schema version.
+
+Item max-stack evidence is propagated from the local
+`vanilla-item-registry-1.21.1.json` source into catalog entries and the shared
+item-stack validator. Known counts above the authoritative limit are rejected;
+unknown mod items are allowed only at count 1; counts are never clamped.
+Structure JSON may retain item components, while NBT export emits an explicit
+unsupported diagnostic when components cannot be mapped losslessly.
+
+The Structure JSON Import dialog now provides **Import JSON** and **Create with
+AI** tabs. The latter is a pure local prompt builder with dynamic active
+version/source, imported mod metadata, and exact external block/item/painting
+IDs. It does not fetch, clone, execute, or call an AI service. Export keeps a
+single Structure JSON tab; Example/AI reference tabs are intentionally import
+workflow concerns. Existing exporter artifacts remain unchanged: ZIP SHA-256
+`420e4462c46d22f3ca71cc9870d856310e06855807f03d03c519f733cb47b661` and NBT
+SHA-256 `db755a1c655ce46bcc906b18ed30bc3ee099b7844d81c9e3fab5ad92412ede83`.
+
+## POST-15 workflow UI and modal policy
+
+Structure NBT export now groups structure identity, package metadata, compatibility,
+and install guidance into a responsive workflow. ResourceLocations can be copied,
+the download action names the selected artifact, and compatibility messaging is
+kept separate from file size. The export bytes, validation, cache, and HSB rules
+are unchanged.
+
+Create with AI keeps the existing local prompt semantics while presenting a
+description-first workspace with local content, canonical guidance, and JSON
+example tabs. Guidance is generated from the same canonical sections used by the
+copy-ready prompt; no AI service or network call was added.
+
+Actual modal dialogs no longer close from a backdrop click. Escape, explicit close
+controls, cancel actions, and existing dirty/busy guards remain responsible for
+closing. Searchable dropdowns, themed selects, and the Asset Manager Help popover
+remain non-modal and retain outside-click dismissal.
+
+## POST-15 Round 2 workflow polish
+
+Create with AI now keeps the full prompt and JSON example readable in a
+description-first workspace. The outer workspace scrolls independently from
+the code, prompt, and exact-ID viewers, and the prompt remains generated from
+the canonical instruction sections without changing its semantics.
+
+Structure export now presents ResourceLocations, filenames, destinations, and
+commands as live semantic segments. The standalone and datapack workflows use
+the same concise step-based install flow, while compatibility information stays
+separate from installation instructions. Copy actions still use the raw
+canonical values.
+
+The UI preference default font is Geist. Craft selects its visual chrome but
+does not force Minecraft-style typography; Minecraft-style remains an explicit
+user preference and survives theme changes. Invalid or missing font preferences
+fall back to Geist.
+
+## External AI prompt configuration
+
+Create with AI now separates viewing tabs from prompt inclusion. The user
+description is always copied last; AI guidance defaults on, available imported
+content defaults on only when external content exists, and the compact JSON
+example is opt-in. Imported Blocks, Items, and Decorations are selected per
+source/mod, with Blocks and available Decorations on by default and Items off.
+The prompt summary reflects the selected source categories and the copy
+preview uses the same final assembled string as the clipboard action.
+
+The canonical external guidance is concise, localized to the active English or
+Vietnamese UI locale, and self-contained: it states the current top-level
+Structure JSON contract, requires explicit voxel geometry with meaningful
+three-dimensional depth, preserves spatial intent and intentional air gaps,
+explains the supported 512-block-per-axis maximum and the Vanilla 48-block
+loading threshold, and validates IDs, coordinates, states, decorations, and
+item counts. It prefers a downloadable `.json` file and uses one JSON Markdown
+code block as the fallback without surrounding prose. When
+an external AI has web/search access it is asked to research relevant
+Minecraft techniques and reliable subject references without copying a single
+build or treating online research as authorization for unlisted mod IDs. The
+app itself performs no network or AI request.
+
+## POST-15 AI workspace and export UX follow-up
+
+Create with AI now uses a dedicated read-only code viewer for the canonical
+JSON example and generated prompt. The viewer keeps raw copy strings intact,
+adds aligned line numbers and line counts, and owns its own vertical and
+horizontal scrolling without applying code styling to the human description
+textarea.
+
+Imported content in the external-AI context is associated with the exact
+content source ID. Blocks, items, and supported decorations can be selected
+independently for each imported mod; selected item max-stack evidence and
+painting decoration kinds remain source-specific and deterministically sorted.
+Vanilla content is not dumped into this selector. Guidance also recommends
+saplings with growth clearance for ordinary scenery trees, while preserving
+the custom/mature tree exception.
+
+Structure export keeps NBT and ZIP generation unchanged. Standalone NBT no
+longer renders an empty package section, and installation guidance is now a
+full-width vertical flow with readable wrapping and raw copy actions.
+
+External-AI Content limits now live in a dedicated tab with Blocks, Items, and
+Decorations selectors plus a deterministic read-only ID-list JSON preview.
+The selected limits remain persisted locally, but inclusion in copied prompts
+is explicitly opt-in and independent from guidance or available-content toggles.
+Project Backup import/export actions were removed from the File menu;
+normal project persistence, autosave/recovery, Structure JSON, and NBT workflows
+remain available.
+
+## Large viewport performance foundation
+
+The 3D and Y-Layer viewport now coalesce hover raycasts to animation frames and
+cancel hover work while OrbitControls is actively orbiting or panning. Click,
+placement, deletion, picking, and selection hit tests remain synchronous.
+
+Rendering may conservatively omit only normal-role voxels whose six visible
+neighbors are explicitly classified as opaque full cubes. Reference, missing,
+unknown, hidden, and unsupported visuals never occlude one another; omitted
+voxels remain in the ProjectDocument and can return to the render projection
+when a dirty voxel or neighbor changes. Hydration queues use head-index dequeue
+without changing their generation or ownership guards. Renderer diagnostics
+expose hover and interior-culling counters, and the status bar reports project
+dimensions as X/Y/Z values.
+
+## Large viewport performance pass 2
+
+OrbitControls changes and keyboard camera movement now request at most one
+camera render per display frame. The viewport temporarily uses a lower device
+pixel ratio while the camera is active, restores the static ratio after the
+interaction grace period, and keeps camera state unchanged during the quality
+transition.
+
+Large-project hydration pauses while the camera is moving and resumes through a
+single scheduled wake-up. Idle hydration keeps async visual work capped at six
+concurrent jobs, uses a small time budget, partitions normal/reference/missing
+work in linear time, reuses block signatures and placeholder matrices, and
+bulk-updates placeholder instance batches where possible. These are render
+projection optimizations only; the ProjectDocument remains the source of truth.
+
+Interior culling now requires provider-backed evidence for a complete opaque
+full cube. Glass, water, slabs, stairs, special visuals, missing/fallback
+blocks, and unknown mod content are not treated as positive occlusion evidence
+without that proof. Renderer diagnostics now expose camera coalescing,
+interactive resolution, hydration pause, render CPU time, draw-call, triangle,
+instance-batch, and renderable-block metrics.
+
+## Large viewport performance pass 3
+
+Compatible reusable block template parts are now merged after their local
+transforms and before instance signature generation. Opaque parts are grouped
+only when their material and BufferGeometry attribute semantics match; UVs,
+normals, positions, and renderer-used custom attributes are preserved. This
+reduces InstancedMesh/draw-call fragmentation inside the existing chunk batches
+without adding world meshing or changing the chunk size, culling, picking, or
+ProjectDocument.
+
+Merged geometry and cloned reusable materials have explicit renderer ownership
+and are released with the reusable template cache. Project Diagnostics exposes
+the raw, merged, and eliminated template-part counters alongside the existing
+draw-call, triangle, batch, hydration, and CPU submission metrics.
+
+## Large viewport performance pass 4
+
+3D Edit can opt into an exposed-face fast path for confirmed normal,
+resolved, opaque full-cube blocks. The six ordinary model faces are extracted
+from the existing resolved visual, canonicalized into reusable face templates,
+and submitted through chunk-local InstancedMesh batches. Each instance keeps
+the original face transform and voxel ownership, so ray picking continues to
+resolve both the voxel and the hit face. A direct neighbor hides a face only
+when that neighbor is independently confirmed as the safe opaque-full-cube
+class; transparent, partial, unknown, missing, reference, and special visuals
+never act as occluders.
+
+Y-Layer does not enable this path. Project data, chunk size, placement rules,
+and the existing whole-block interior culling remain unchanged. Diagnostics
+report fast-path block count, exposed face instances, neighbor faces culled,
+surface-face batches, and surface-face InstancedMesh count.
+
+## Large viewport performance pass 5
+
+3D Edit now maintains a runtime-only `Map`-backed voxel index for spatial
+lookups. The index is rebuilt only when the project block snapshot changes and
+is never persisted; `ProjectDocument` remains authoritative. Placement preview
+uses the same rule preparation/support/neighbor helpers as commit without
+cloning the complete project, while commit remains the authoritative mutation
+path. Y-Layer keeps its existing placement and validation path.
+
+Confirmed normal, visible, opaque full-cube unit blocks use a conservative
+Amanatides-Woo voxel traversal for 3D picking. Partial, special, missing,
+unknown, hidden, and modded fallback visuals continue through precise scene
+raycasting, and decorations retain distance-based ownership. Ghost model keys
+use relative planned geometry/state and provider generation, so moving a ghost
+reuses its visual. Structural reconciliation, visible selection filtering, and
+project bounds are cached separately from overlay updates. Runtime diagnostics
+expose index, DDA, preview, ghost, reconcile, and hover-scan counters.
+
+## External AI grounding guidance
+
+The Create with AI prompt now treats grounding and contextual support as the
+default for ordinary architecture and scenery. It normalizes ordinary local
+structures to `minX = 0`, `minY = 0`, and `minZ = 0`, translates basements and
+other deep geometry upward instead of using negative coordinates, and requires
+a final audit for accidental floating, tree grounding, and known attachment
+support. Explicitly requested floating designs and their intentional Air gaps
+remain valid and are never repaired with invented pillars or scaffolding. This
+is prompt guidance only; it does not add material budgets or editor-wide
+coordinate validation.
+
+## Structure JSON app-side validation
+
+The existing Structure JSON validation preview now also checks the enabled
+External AI Content Limits for canonical placeable block IDs, supported item
+stack locations, and painting variants. These violations and verified missing
+block support are import blockers. Support checks reuse the read-only
+BlockRuleEngine path and a single import voxel lookup; unknown behavior is not
+guessed. Positive origin offsets, clearly floating structures, and conservative
+sapling grounding checks are warnings only, so intentional structures are not
+mutated or translated during validation.
+
+## Validation severity and editor coordinate invariant
+
+Structure JSON validation UI now uses one centralized severity map: blocking
+diagnostics use red error treatment across summaries, issue cards, decoration
+diagnostics, duplicates, and import blockers; missing content that remains
+importable and origin/floating/tree diagnostics use yellow warning treatment.
+Editor mutations enforce non-negative integer block positions and decoration
+anchors at the shared history boundary. Placement and group translation still
+validate full planned footprints before commit, so rejected bulk operations do
+not create partial state or history entries.
+
+## Renderer performance subsystem modularization
+
+The existing renderer performance behavior is now organized behind dedicated
+renderer-only modules without changing the ProjectDocument or editor state
+architecture. Demand render scheduling, interactive pixel-ratio restoration,
+camera interaction state, and hydration pump scheduling live under
+`renderer/scheduling`. Placeholder occupancy batches, reusable instance batch
+ownership, exposed-face batch ownership, and instance-template compilation live
+under `renderer/batching`. ThreeViewportEngine remains the coordinator and keeps
+the existing public API, diagnostics, visual roles, swap-back ownership, and
+hydration behavior. Worker meshing, greedy meshing, and other new render
+algorithms remain deferred to later performance prompts.
+
+## Compiled terrain chunk surfaces
+
+Normal 3D viewport blocks that pass the existing positive opaque full-cube
+proof now use render-only 16x16x16 terrain chunks. Exposed faces are compiled
+into BufferGeometry buckets using the existing resolved face templates and
+strict material compatibility keys. Interior and cross-chunk neighbors are
+culled through a dedicated occupancy map. SurfaceFaceBatchRenderer remains the
+conservative fallback for signatures that cannot be compiled safely; fluids,
+transparent, reference, special, and unknown content remain on legacy paths.
+Terrain-eligible voxels remain in the hydration set even when the legacy
+interior-culling diagnostic identifies them as enclosed; the compiled mesher
+performs the authoritative six-neighbor surface cull.
+Project coordinates and DDA picking are unchanged.
+
+## Terrain texture atlas with strict parity fallback
+
+Compiled opaque terrain now has an internal `terrainAtlasMode` switch. The
+engine uses atlas mode by default, while `ChunkSurfaceRenderer` tests can run
+the exact strict material baseline with `terrainAtlasMode: 'off'`. Atlas pages
+are owned by the terrain renderer, use append-only shelves with one-pixel edge
+extrusion, and never mutate provider textures. Source pixels are normalized to
+top-row-first data and atlas pages use `flipY = true`; a source texture with
+`flipY = false` is vertically normalized before insertion so its UV semantics
+remain unchanged. Any unsupported material, pixel extraction failure, or
+incompatible transform returns the face to the existing strict material bucket
+instead of dropping the face. Provider/renderer clears dispose atlas pages and
+compiled atlas state together, so a new provider generation cannot reuse old
+sprites. This remains render-only and is not a project or UI preference.
+
+The atlas UV contract keeps page pixels top-row-first and keeps `flipY = true`
+on the page `DataTexture`, while `TerrainAtlasSprite.minV/maxV` now represent
+the final GPU-space bounds (`1 - CPU-bottom` through `1 - CPU-top`). Runtime
+source V is interpolated from `maxV` down to `minV`, which is algebraically
+`1 - (oldMinV + sourceV * oldRange)`. This is a V-only correction; CPU
+normalization, gutter copying, U coordinates, and
+texture update ownership are unchanged. The supplied real-browser probe showed
+that mirroring only the atlas V values restored source/current framebuffer
+parity, while the CPU bytes and upload buffer were already identical.
+
+Atlas compatibility returns a stable diagnostic reason. Production
+`TerrainTextureAtlas` now accepts safe `FrontSide` and `DoubleSide` materials;
+`BackSide` and all other unsupported semantics still use the strict fallback.
+`side` remains in the material semantics key, so FrontSide and DoubleSide are
+never merged into one bucket. The explicit probe option remains available for
+diagnostic callers.
+`terrain-atlas-gpu-probe.ts` can compare source and atlas draw calls through
+`WebGLRenderTarget.readRenderTargetPixels`, including alpha/bounds/checksum and
+WebGL error evidence, without being invoked by normal editing.
+
+The development-only `__minecraftBuilderDiagnostics.runTerrainAtlasProbe()`
+hook now runs that existing probe against the currently active
+`VanillaBlockVisualProvider` after the mounted 3D renderer is ready. It starts
+with `minecraft:stone`, extracts a real provider face and image-backed texture,
+builds a probe-only atlas with the explicit `DoubleSide` allowance, and returns
+JSON-friendly texture/material metadata, extraction route, CPU pixel summaries,
+atlas sprite/UV evidence, and GPU framebuffer evidence. Temporary cloned
+geometry/materials and probe atlas resources are disposed; provider-owned
+visuals, textures, caches, renderer state, and project data are left untouched.
+The hook is explicit and never runs during normal hydration. The supplied
+real-browser capture is the evidence for the V correction; the hook remains a
+manual regression tool for future provider/texture changes.
+
+The browser probe now renders the same atlas page through current UVs,
+constant sprite-center UVs, mirrored-center V, mirrored-current V, a cloned
+`alphaTest=0` material, and an untextured geometry control. It also reports
+page-byte probes, page-buffer/source identity, DataTexture upload properties,
+texture version before/after the sequence, and the one explicit
+`needsUpdate` refresh result. Diagnosis is intentionally conservative:
+`parity`, `current-uv`, `vertical-orientation`, `atlas-upload-or-material`, or
+`inconclusive`; synthetic tests do not claim GPU correctness. `parity` is only
+reported when the current variant is visible and the measured framebuffer
+matches the source (or the probe's explicit parity result is true).
+
+The installed Three.js 0.186 source was checked as part of this diagnostic:
+`DataTexture` defaults to `flipY = false` and `unpackAlignment = 1`, while
+`WebGLTextures` applies the texture's configured `flipY` through
+`UNPACK_FLIP_Y_WEBGL` for upload. The probe therefore reports the atlas page's
+actual configured values and does not assume that an image-backed `Texture`
+and a `DataTexture` share defaults.
+
+## Thumbnail generation lifecycle
+
+Block-browser thumbnails now use one explicit provider-generation transition.
+Generation advances before the provider/catalog replacement is observable to
+thumbnail effects; queued work is invalidated only at that transition, and
+the thumbnail epoch then re-emits the current visibility priority so visible
+tiles requeue against the new generation. Each request captures generation,
+epoch, provider identity, and item identity; stale asynchronous results are
+discarded. Fallback URLs remain visible while enhanced previews load, transient
+enhancement failures may retry on a later visible request, and explicitly
+unsupported previews remain unavailable without retry loops. Search/filter
+changes do not discard the shared queue unnecessarily.
+
+## Incremental terrain ownership commits
+
+Incremental terrain mutations now use an explicit prepare/commit boundary.
+ChunkSurfaceRenderer reports key-scoped physical ownership after each bounded
+chunk rebuild; exposed voxels must emit a face, while fully occluded voxels may
+be represented logically without a mesh. ThreeViewportEngine keeps its
+placeholder/fallback and pending hydration state until that physical result is
+confirmed, and only then assigns `terrainChunkKey` and removes the placeholder.
+Failed keys remain recoverable and a mixed batch commits successful keys without
+blanket removal. Hover and later render frames do not participate in ownership
+commits.
+
+## Interactive hydration and camera scheduling
+
+Viewport hydration progress is now scoped to the visible logical voxel and
+decoration identities for the current generation. Terrain completion advances
+one entry for every represented voxel, including fully occluded ownership, so
+reusable signatures and chunk mesh counts are never presented as block totals.
+Stale generations and retries cannot increment the current generation twice.
+
+Camera interaction no longer pauses hydration completely. Orbit, pan, and WASD
+use a conservative bounded interactive hydration budget; idle periods use the
+normal budget. Camera invalidations share the existing demand-render scheduler,
+so control changes, movement, hydration commits, and overlays coalesce into one
+scene render per pending frame. Wheel distance changes are exponential and
+delta-mode aware (pixel, line, and page), while preserving configured zoom
+direction, sensitivity, and distance limits.
+
+## Camera interaction stabilization
+
+Hydration progress remains monotonic within one render generation. Completion
+is no longer converted back to a zero-valued progress snapshot after a short
+timer; an intentional project/provider generation reset is the boundary that
+clears progress. Camera-only orbit, pan, WASD, and wheel input therefore cannot
+lower the logical completed count.
+
+Horizontal WASD movement uses a continuous camera-distance scale: base speed
+is multiplied by `clamp(cameraTargetDistance / 16, 0.35, 2.5)`. Vertical
+movement remains controlled by its separate preference. Temporary interactive
+pixel-ratio changes are presentation-only and do not change camera pose.
+
+## Off-main-thread terrain meshing
+
+Terrain chunk surface compilation now has a Three.js-free numeric core and a
+versioned worker DTO. Browsers with `Worker` support use a bounded pool of up
+to four workers; each job contains only chunk entries, precompiled numeric face
+templates, and an 18^3 occupancy halo. Positions, normals, and UV buffers are
+transferred back to the main thread, where existing atlas materials and Three.js
+ownership remain authoritative. Environments without workers use the same core
+synchronously as a deterministic fallback.
+
+Worker results carry job, hydration/provider generation, and chunk revision
+identity. Stale results are discarded, the old chunk stays visible until its
+replacement is committed, and one-chunk commits are scheduled in a bounded
+main-thread queue. Worker, round-trip, commit-queue, byte, fallback, and stale
+result evidence is exposed through the existing renderer diagnostics.
+
+`PLACEMENT STATUS WAS NOT CHANGED.` `CAMERA STABLE-DPR WAS NOT CHANGED.`
+`HYDRATION FAIRNESS WAS NOT CHANGED.` `GREEDY MESHING WAS NOT IMPLEMENTED.`
+`Y-LAYER OPTIMIZATION WAS NOT IMPLEMENTED.`
+
+## Far-view render-region batching
+
+Static reusable instance and exposed-face presentation batches now share a
+32-block `RenderRegionPolicy`. Each region remains spatially bounded for
+frustum culling, while batches segment at the existing capacity instead of
+falling back to standalone objects. Region, batch, material, geometry,
+standalone, terrain, and transparency counts are available through
+`performanceEvidence()` and the opt-in viewport trace render sample. Terrain
+ownership remains chunk-local and its worker/commit pipeline is unchanged.
+
+The 110,592-voxel (`48^3`) steady-state fixture is opt-in through
+`RENDERER_BENCHMARK=1`; it is intentionally excluded from the normal fast test
+run. No visual LOD or greedy meshing was added.
+
+## Generic chunked fluid rendering
+
+Fluid world visuals now resolve through a registry-backed `FluidRenderResolver`
+contract. Vanilla water and lava are adapters; the chunk mesh core only uses
+descriptor-provided connectivity, material, texture, level, flow, and render
+layer semantics. `FluidChunkRenderer` owns 16x16x16 spatial buckets, logical
+voxel ownership, local dirty rebuilds, shared material caching, and fluid
+diagnostics. The existing standalone provider path remains available for
+single-block previews and fallback behavior.
+
+Fluid chunk records are kept separate from opaque terrain ownership. Shared
+faces are culled by resolver connectivity identity, including chunk boundaries,
+and flow-angle UVs remain per-face. The viewport trace exposes fluid logical
+voxels, chunk meshes, face counts, material buckets, rebuilds, render-layer
+counts, and fallback counts. Fluid lifecycle is coordinated by
+`FluidRenderCoordinator`: detected, pending, committed, fallback, and orphaned
+keys are generation-aware, and hydration completes only after a committed
+chunk/fallback representation. Provider handoffs keep old committed chunks and
+provider leases alive until the replacement commits atomically; stale A->B->C
+builds cannot replace the current generation. Provider refresh skips claimed
+fluid voxels, so they cannot return as standalone provider objects. No
+water-only chunk renderer, greedy meshing, LOD, camera change, placement change,
+hydration fairness change, or Y-layer fluid implementation was added.
+
+## Revision-safe recovery and editor leave
+
+Project persistence records now carry an optional persistence token. Autosave
+writes the recovery snapshot before the canonical project and treats recovery
+cleanup as a separate warning after the canonical save is safe. Older records
+without tokens remain recovery-pending instead of being silently discarded.
+Startup keeps the workspace inactive while a recovery decision is pending;
+Restore writes the recovery document to the main record before cleanup, while
+Discard deletes the recovery record before continuing with the saved project.
+Internal editor navigation is guarded by one deduplicated leave decision that
+flushes unsafe revisions, preserves the protected asset-operation warning, and
+offers Stay or Leave anyway when persistence fails. `beforeunload` is attached
+only while the latest revision is genuinely unsafe to lose.
+
+Development recovery testing is available without production UI through the
+dev-only `window.__mbRecoveryDiagnostics` hook:
+`await __mbRecoveryDiagnostics.stageFromCurrentProject()` stages the active
+document, `await __mbRecoveryDiagnostics.clear(projectId)` removes a snapshot,
+and `await __mbRecoveryDiagnostics.inspect(projectId)` reads its record.
+
+The editor status bar reports the exact `ProjectDocument.blocks.length` count
+and the current viewport coordinate. Hover coordinates come from the existing
+3D/Y-Layer hit callback, with owner-aware handoff and project-ID checks so a
+retained inactive viewport cannot publish or clear another mode's status.
+
+## Final performance audit trace
+
+Development 3D viewport sessions arm the existing bounded `ViewportRuntimeTrace`
+before the first mount/update. The trace remains observational and is exposed at
+`window.__minecraftBuilderDiagnostics.viewportTrace`; calling `start()` resets a
+focused run, `mark('PHASE')` creates a named boundary, and `stopAndDownload()`
+exports one JSON evidence package. Each named segment now includes numeric
+renderer counter `before`, `after`, and `counterDeltas` snapshots alongside the
+existing hydration, camera, render, responsiveness, and long-task summaries.
+The 110,592-block fixture remains opt-in; a browser run against the real
+approximately 108k project is required before claiming real-runtime PASS.
+
+## Generic two-part logical objects
+
+Vertical `double-height` objects and facing-relative `paired-horizontal`
+objects now share the pure `LogicalPlacementMetadata` contract. Catalog
+normalization exposes that metadata to placeable items, while previews,
+placement planning, rule-engine commits, logical closure, and state edits use
+the same expansion and identity semantics. Presentation recipes such as
+`bed`, `door`, and `tall-plant` remain labels at the item boundary only;
+unknown or malformed imported pairs are not repaired implicitly.
+
+## Logical placement fix-forward regressions
+
+Bed special visuals keep the adapter root identity-transformed; vanilla local
+placement and facing transforms now live on a child branch so direct and static
+compiled templates have identical bounds. External blocks with the complete,
+exact door state schema (`facing`, `half`, `hinge`, `open`, `powered`) are now
+accepted as strong structural evidence without requiring a tag or name token.
+Incomplete or conflicting schemas remain fail-closed.
+
+## Y-Layer visual preload and retained terrain templates
+
+Once project hydration reaches a terminal ready/warning state, each retained
+viewport schedules cooperative preparation of reusable visual resources for
+all occupied layers, independent of saved editor mode, current Y, group
+visibility, or visibility mode. Active viewport work retains priority; the
+inactive viewport scene is still prepared separately without constructing a
+second WebGL renderer. The preloader follows the selected representation path:
+compiled static-instance templates for normal block rendering and terrain
+surface templates when exposed-face rendering is enabled. Switching Y does
+not recreate an unchanged visual when its provider supplies a reusable key and
+the visual is accepted by that representation path. Existing in-flight
+terrain template resolution is shared with the terrain workflow.
+
+Preload evidence is deliberately distinct from representation and GPU
+presentation readiness. Its terminal state is `templates-ready` only when
+every occupied layer has reusable template coverage; the evidence separately
+reports `representationState: viewport-lazy` and
+`gpuPresentationState: viewport-dependent`. It does not claim that a layer
+has rendered memberships or has been presented by the GPU. GPU presentation
+readiness requires a mounted renderer and a successful frame and is not
+available for a retained inactive viewport. The cooperative preloader reports
+`partial` if non-reusable, failed, or over-budget resources prevent complete
+reusable-template coverage;
+its acceptance threshold is 4,096 variants and an estimated 64 MiB of newly
+prepared geometry. This is not a hard aggregate memory ceiling: reusable
+templates are owned by the existing engine caches, active scene records may
+retain templates, and provider model/texture and GPU allocations are separate.
+No generalized cache eviction policy is introduced here; caches are released
+with engine disposal. Provider/project generation and representation-scope
+changes cancel stale work, and resource equivalence remains governed by the
+provider reusable-key contract.
+
+## Y-Layer block representation residency follow-up
+
+Projection contraction hides reusable instance, exposed-surface, and
+standalone object representations while retaining their canonical entries.
+Expansion restores the same physical memberships, and runtime hydration
+evidence separates visible `renderedBlockCount` from `residentBlockCount`.
+Retention is permitted only while the canonical voxel still exists with the
+same render signature; deletion or changed content follows normal disposal.
+
+Terrain and fluid chunk renderers additionally retain exact prior projection
+variants in bounded GPU-resident caches (96 MiB terrain, 48 MiB fluids). Terrain
+keys include the full chunk occupancy halo, block states, roles, template
+identity, and provider generation; fluid keys include the fluid records, role,
+provider contract, and canonical world visual revision. A hit reattaches the
+same meshes/geometries and restores ownership without remeshing. Mutations,
+provider changes, or resource-budget eviction prevent stale/unbounded reuse.
+At that checkpoint, only previously presented projection variants could be
+restored; first visits remained cold and required compilation. The later static
+residency follow-up below changes this for reusable static-instance blocks only.
+
+Normal/reference-only Y-layer transitions now retarget existing standalone
+materials, static instance memberships, exposed-face memberships, and terrain
+records without invalidating the provider visual signature. Terrain may still
+compile or restore a role-specific chunk mesh; fluids retain role-specific
+chunk variants and may compile a cold role variant on first use. Presentation
+role is therefore separated from provider/model hydration, not from every
+renderer-family geometry bucket.
+
+## Static Y-layer residency and batch presentation follow-up
+
+For the non-exposed-face static-instance path, reusable templates are followed by
+cooperative physical representation prewarm across occupied layers. The queue is
+bounded to 192 outstanding jobs, yields after 96 candidate voxels, keeps active
+projection work ahead of prewarm, and is invalidated with project/provider
+hydration generations. `yLayerRepresentationPrewarmEvidence()` reports physical
+representation coverage separately; its GPU presentation state remains
+`viewport-dependent` and is never inferred from template or instance insertion.
+Blocks without a compiled reusable static template remain partial.
+
+Static instance and exposed-surface batches are partitioned by Y only while a
+Y-layer presentation is active. Visibility changes update layer mesh visibility
+and layer role/material state rather than rewriting member matrices. Matrix
+writes remain necessary for initial membership insertion and ordinary 3D
+membership edits. Exposed-face, terrain-chunk, fluid, and non-reusable special
+visual prewarming are not covered by this static residency path; their previous
+cache/readiness limitations remain in force.
+
+Static representation prewarm suppresses per-voxel diagnostics/cache-stat
+sampling and render invalidations, then publishes those side effects once when
+preparation finishes. Repeated preparation of the same project/provider scope
+is deduplicated until project/provider/hydration invalidation. Representation
+evidence enters `preparing` before template preparation begins; 3D-only and
+exposed-face paths remain explicitly `partial`. Projection role retargets defer
+render invalidation to the end of a cooperative projection slice. Projection
+planning and bookkeeping still visit affected voxels, and first presentation
+still requires renderer/GPU work; this does not claim constant-time visibility
+transitions or GPU readiness.
+
+Local browser benchmark note (110,592-block synthetic fixture, headless Chrome
+with SwiftShader, not a hardware GPU): after suppressing per-block prewarm side
+effects, static prewarm changed from 17.39 s / 14.92 s accumulated long-task
+time to 3.33 s / 0 ms observed long-task time. Whole Structure changed from
+about 7.40 s to 3.77 s (3.46 s observed long-task time remains); All Below was
+about 2.11 s. Warm single-layer switches measured 108–157 ms with zero provider
+hydrations and zero member-matrix writes. Whole/All Below still process 52,992
+and 55,296 changed voxel records respectively. The renderer reported 391 draw
+calls at Whole Structure and Chrome JS heap peaked near 264 MB used / 319 MB
+allocated during this run. SwiftShader context counters do not provide GPU byte
+residency, and this does not verify production hardware performance or the
+terrain/fluid/special renderer families.
+
+## Block-loading finalization and status follow-up
+
+Block-loading finalization distinguishes pending accounting from runnable
+queues. Its idle watchdog reconciles committed block ownership against the
+instance, surface, terrain, fluid, standalone-object, and fallback owners, then
+requeues only visible unresolved entries under the current hydration and
+projection revisions. Direct Y-layer readiness is also checked against these
+physical memberships instead of inferring readiness from representation-store
+size. The full ownership scan is watchdog-only; it does not run on viewport
+frames or ordinary visibility transitions.
+
+Fluid sync rejections and successful syncs that omit requested voxel ownership
+now end as rendering failures instead of retaining an orphan pending count.
+The editor status bar presents one indeterminate loading bar for active asset,
+structure, and block-asset work, without exposing numeric progress. Terminal
+missing/render failures remain warnings and do not become a false ready state.
+This change does not claim GPU presentation readiness or remove the documented
+renderer-family/Y-layer limitations above.
+
+## Renderer resource ownership consolidation
+
+Terrain logical records, chunk indexing, occupancy, and dirty dependency keys
+are owned by `TerrainChunkLogicalStore`. Reusable surface templates, compiled
+template data, template identity, atlas lifetime, and source geometry/material
+disposal are owned by `TerrainTemplateResourceOwner`. `TerrainChunkWorkOwner`
+owns chunk revisions, worker scheduling, stale-result validation, and job
+terminal state. `TerrainChunkResultCommitOwner` converts accepted worker output
+to Three.js geometry, installs it through `TerrainChunkResidencyOwner`, and
+publishes hydration settlement. The residency owner remains the sole owner of
+attached/retained chunk meshes and bounded resident variants. Worker-backed
+dirty chunks now check retained variants before serializing a new mesh job.
+
+Fluid records and chunk indexes are owned by `FluidChunkRecordStore`;
+`FluidChunkBuildOwner` owns provider epochs, serialized builds, signatures, and
+stale-result rejection; `FluidChunkResidencyOwner` owns mesh/material creation,
+presentation, bounded variants, and disposal. The pure fluid record signature
+has one implementation. `FluidRenderCoordinator` remains the viewport-facing
+owner of fluid claims, hydration terminal sets, and provider leases.
+
+`BlockRepresentationCommitOwner` is the only production writer of the
+viewport representation ledger. It decides and publishes representation
+transitions; `BlockRepresentationResourceOwner` releases physical memberships
+and GPU resources without changing the ledger. Viewport orchestration and
+terrain workflow hold read-only ledger contracts and issue typed commit
+operations. Renderer owners perform their own disposal; the viewport no longer
+walks the block scene and disposes resources a second time.
+
+Regression coverage exercises terrain template identity/disposal, resident
+variant reuse in worker mode, worker cancellation/settlement, fluid record and
+residency lifecycle, stale provider work, and representation commit ownership.
+These tests establish CPU-side ownership and resource lifecycle contracts; they
+do not establish browser GPU residency, hardware-GPU frame timing, or complete
+mixed-family 110K performance acceptance.
+
+Worker resident-variant restores publish the same accepted/partial terminal
+notification as worker-built terrain, so canonical membership, fallback
+placeholders, and hydration completion stay synchronized without remeshing.
+Synchronous restores return their terminal result to the caller and do not
+also emit the asynchronous notification. Cache-hit results report no rebuilt
+chunks because retained geometry is reattached rather than compiled.

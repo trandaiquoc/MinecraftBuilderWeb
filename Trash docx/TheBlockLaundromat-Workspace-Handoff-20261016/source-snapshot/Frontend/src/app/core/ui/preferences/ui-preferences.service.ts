@@ -1,0 +1,586 @@
+import { Injectable, computed, signal } from '@angular/core';
+import {
+  DEFAULT_KEYBINDINGS,
+  KeyboardAction,
+  normalizeBindings,
+} from '../../editor/input/keyboard-bindings';
+import {
+  DEFAULT_MOUSE_BINDINGS,
+  MouseAction,
+  normalizeMouseBindings,
+} from '../../editor/input/mouse-bindings';
+import {
+  DEFAULT_EXTERNAL_AI_CONTENT_LIMITS,
+  ExternalAiContentLimits,
+  normalizeExternalAiContentLimits,
+} from '../../persistence/structure-json/external-ai/external-ai-content-limits';
+import { DEFAULT_STRUCTURE_EXPORT_NAMESPACE } from '../../persistence/minecraft-structure/export/structure-export-contracts';
+import {
+  DEFAULT_REALITY_BACKGROUND,
+  EditorBackgroundMode,
+  RealityBackgroundPreferences,
+  isEditorBackgroundMode,
+  isRealityGroundPreset,
+  isRealitySkyPreset,
+} from '../../editor/appearance/editor-background-contract';
+
+export type UiLocale = 'en' | 'vi';
+export type ThemePreset = 'dark' | 'light' | 'craft' | 'raccoon' | 'custom';
+export type BaseTheme = 'dark' | 'light';
+export type UiFont = 'comfortaa' | 'chakra-petch' | 'pangolin';
+export type UiFontSize = 'small' | 'normal' | 'large';
+export type PersistedEditorMode = '3d' | 'y-layer';
+
+export interface StructureExportPreferences {
+  readonly namespace: string;
+  readonly archiveName: string;
+  readonly description: string;
+}
+
+export interface UiPreferences {
+  readonly version: 1;
+  readonly locale: UiLocale;
+  readonly autoUseHugeStructureBlocks: boolean;
+  readonly showStructureBlockGuide: boolean;
+  readonly structureExport: StructureExportPreferences;
+  readonly editorMode: PersistedEditorMode;
+  readonly appearance: {
+    readonly preset: ThemePreset;
+    readonly base: BaseTheme;
+    readonly font: UiFont;
+    readonly fontSize: UiFontSize;
+    readonly editorBackground: EditorBackgroundMode;
+    readonly reality: RealityBackgroundPreferences;
+  };
+  readonly accessibility: {
+    readonly blockBrightness: number;
+  };
+  readonly controls: {
+    readonly orbitSensitivity: number;
+    readonly panSensitivity: number;
+    readonly zoomSensitivity: number;
+    readonly cameraMoveSpeed: number;
+    readonly verticalMoveSpeed: number;
+    readonly clickDragThreshold: number;
+  };
+  readonly shortcuts: Readonly<Record<KeyboardAction, string>>;
+  readonly mouseBindings: Readonly<Record<MouseAction, string>>;
+  readonly externalAiContentLimits: ExternalAiContentLimits;
+  readonly externalAiContentLimitsEnabled: boolean;
+  readonly layout: {
+    readonly editorToolbarVisible: boolean;
+    readonly leftSidebarVisible: boolean;
+    readonly rightSidebarVisible: boolean;
+    readonly quickBarVisible: boolean;
+    readonly statusBarVisible: boolean;
+    readonly leftSidebarWidth: number;
+    readonly rightSidebarWidth: number;
+    readonly groupMovePanelX?: number;
+    readonly groupMovePanelY?: number;
+  };
+}
+
+export const UI_PREFERENCES_KEY = 'the-block-laundromat.ui-preferences';
+export const LEGACY_UI_PREFERENCES_KEY = 'minecraft-builder.ui-preferences';
+export const LEGACY_LAYOUT_KEY = 'minecraft-builder.editor-layout';
+const defaults: UiPreferences = {
+  version: 1,
+  locale: 'en',
+  autoUseHugeStructureBlocks: false,
+  showStructureBlockGuide: true,
+  structureExport: {
+    namespace: DEFAULT_STRUCTURE_EXPORT_NAMESPACE,
+    archiveName: '',
+    description: '',
+  },
+  editorMode: '3d',
+  appearance: {
+    preset: 'craft',
+    base: 'dark',
+    font: 'comfortaa',
+    fontSize: 'normal',
+    editorBackground: 'dark',
+    reality: DEFAULT_REALITY_BACKGROUND,
+  },
+  accessibility: { blockBrightness: 3 },
+  controls: {
+    orbitSensitivity: 1,
+    panSensitivity: 1,
+    zoomSensitivity: 2,
+    cameraMoveSpeed: 15,
+    verticalMoveSpeed: 9,
+    clickDragThreshold: 5,
+  },
+  shortcuts: DEFAULT_KEYBINDINGS,
+  mouseBindings: DEFAULT_MOUSE_BINDINGS,
+  externalAiContentLimits: DEFAULT_EXTERNAL_AI_CONTENT_LIMITS,
+  externalAiContentLimitsEnabled: false,
+  layout: {
+    editorToolbarVisible: true,
+    leftSidebarVisible: true,
+    rightSidebarVisible: true,
+    quickBarVisible: true,
+    statusBarVisible: true,
+    leftSidebarWidth: 260,
+    rightSidebarWidth: 230,
+  },
+};
+
+@Injectable({ providedIn: 'root' })
+export class UiPreferencesService {
+  private readonly preferencesState = signal<UiPreferences>(this.read());
+  readonly preferences = this.preferencesState.asReadonly();
+  private readonly accessibilityPreview = signal<
+    Partial<UiPreferences['accessibility']> | undefined
+  >(undefined);
+  readonly effectivePreferences = computed<UiPreferences>(() => {
+    const current = this.preferences();
+    const preview = this.accessibilityPreview();
+    return preview
+      ? { ...current, accessibility: { ...current.accessibility, ...preview } }
+      : current;
+  });
+
+  previewAccessibility(patch: Partial<UiPreferences['accessibility']>): void {
+    this.accessibilityPreview.update((current) => ({
+      ...current,
+      ...patch,
+      ...(patch.blockBrightness === undefined
+        ? {}
+        : { blockBrightness: normalizeBlockBrightness(patch.blockBrightness) }),
+    }));
+  }
+
+  clearAccessibilityPreview(): void {
+    this.accessibilityPreview.set(undefined);
+  }
+
+  update(patch: Partial<UiPreferences>): void {
+    const current = this.preferences();
+    const accessibility = patch.accessibility
+      ? {
+          ...current.accessibility,
+          ...patch.accessibility,
+          blockBrightness: normalizeBlockBrightness(
+            patch.accessibility.blockBrightness ?? current.accessibility.blockBrightness,
+          ),
+        }
+      : current.accessibility;
+    this.commit({ ...current, ...patch, accessibility, version: 1 });
+  }
+
+  setLocale(locale: UiLocale): void {
+    this.commit({ ...this.preferences(), locale });
+  }
+
+  setAppearance(patch: Partial<UiPreferences['appearance']>): void {
+    this.commit({
+      ...this.preferences(),
+      appearance: { ...this.preferences().appearance, ...patch },
+    });
+  }
+
+  setControls(patch: Partial<UiPreferences['controls']>): void {
+    this.commit({ ...this.preferences(), controls: { ...this.preferences().controls, ...patch } });
+  }
+
+  setAccessibility(patch: Partial<UiPreferences['accessibility']>): void {
+    const current = this.preferences();
+    this.commit({
+      ...current,
+      accessibility: {
+        ...current.accessibility,
+        ...patch,
+        blockBrightness: normalizeBlockBrightness(
+          patch.blockBrightness ?? current.accessibility.blockBrightness,
+        ),
+      },
+    });
+  }
+
+  setStructureExport(patch: Partial<StructureExportPreferences>): void {
+    this.commit({
+      ...this.preferences(),
+      structureExport: { ...this.preferences().structureExport, ...patch },
+    });
+  }
+
+  setExternalAiContentLimits(limits: ExternalAiContentLimits): void {
+    this.commit({
+      ...this.preferences(),
+      externalAiContentLimits: normalizeExternalAiContentLimits(limits),
+    });
+  }
+
+  resetExternalAiContentLimits(): void {
+    this.commit({
+      ...this.preferences(),
+      externalAiContentLimits: DEFAULT_EXTERNAL_AI_CONTENT_LIMITS,
+    });
+  }
+
+  setExternalAiContentLimitsEnabled(enabled: boolean): void {
+    this.commit({ ...this.preferences(), externalAiContentLimitsEnabled: enabled });
+  }
+
+  setLayout(patch: Partial<UiPreferences['layout']>): void {
+    this.commit({ ...this.preferences(), layout: { ...this.preferences().layout, ...patch } });
+  }
+
+  reset(): void {
+    this.commit(defaults);
+  }
+
+  defaultPreferences(): UiPreferences {
+    return clonePreferences(defaults);
+  }
+
+  private commit(value: UiPreferences): void {
+    this.preferencesState.set(value);
+    try {
+      localStorage.setItem(UI_PREFERENCES_KEY, JSON.stringify(value));
+    } catch {
+      /* Browser storage is optional. */
+    }
+  }
+
+  private read(): UiPreferences {
+    const storage = browserStorage();
+    if (!storage) return defaults;
+    try {
+      const raw = storage.getItem(UI_PREFERENCES_KEY);
+      if (raw !== null) {
+        try {
+          const normalized = normalize(JSON.parse(raw));
+          try {
+            storage.setItem(UI_PREFERENCES_KEY, JSON.stringify(normalized));
+          } catch {
+            /* Keep canonical preferences usable when normalization cannot persist. */
+          }
+          return normalized;
+        } catch {
+          return readLegacyPreferences(storage) ?? defaults;
+        }
+      }
+      const legacyPreferences = storage.getItem(LEGACY_UI_PREFERENCES_KEY);
+      const legacyLayout = storage.getItem(LEGACY_LAYOUT_KEY);
+      const migrated = legacyPreferences
+        ? normalize(JSON.parse(legacyPreferences))
+        : {
+            ...defaults,
+            layout: legacyLayout ? normalizeLayout(JSON.parse(legacyLayout)) : defaults.layout,
+          };
+      const serialized = JSON.stringify(migrated);
+      storage.setItem(UI_PREFERENCES_KEY, serialized);
+      if (storage.getItem(UI_PREFERENCES_KEY) === serialized) return migrated;
+      return migrated;
+    } catch {
+      return readLegacyPreferences(storage) ?? defaults;
+    }
+  }
+}
+
+function browserStorage(): Storage | undefined {
+  try {
+    return typeof localStorage === 'undefined' ? undefined : localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function readLegacyPreferences(storage: Pick<Storage, 'getItem'>): UiPreferences | undefined {
+  try {
+    const legacyPreferences = storage.getItem(LEGACY_UI_PREFERENCES_KEY);
+    if (legacyPreferences) return normalize(JSON.parse(legacyPreferences));
+    const legacyLayout = storage.getItem(LEGACY_LAYOUT_KEY);
+    return legacyLayout
+      ? { ...defaults, layout: normalizeLayout(JSON.parse(legacyLayout)) }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalize(value: unknown): UiPreferences {
+  if (!value || typeof value !== 'object') return defaults;
+  const candidate = value as Partial<UiPreferences>;
+  const appearance =
+    candidate.appearance && typeof candidate.appearance === 'object' ? candidate.appearance : {};
+  const controls =
+    candidate.controls && typeof candidate.controls === 'object' ? candidate.controls : {};
+  const shortcuts = normalizeBindings(candidate.shortcuts);
+  const mouseBindings = normalizeMouseBindings(candidate.mouseBindings);
+  const layout = candidate.layout && typeof candidate.layout === 'object' ? candidate.layout : {};
+  const hasContentLimits = Object.prototype.hasOwnProperty.call(
+    candidate,
+    'externalAiContentLimits',
+  );
+  const hasLegacyMaterialRules = Object.prototype.hasOwnProperty.call(
+    candidate,
+    'externalAiMaterialRules',
+  );
+  const contentLimitsValue = hasContentLimits
+    ? (candidate as { readonly externalAiContentLimits?: unknown }).externalAiContentLimits
+    : hasLegacyMaterialRules
+      ? (candidate as { readonly externalAiMaterialRules?: unknown }).externalAiMaterialRules
+      : undefined;
+  const legacyContentLimitsEnabled =
+    typeof (candidate as { readonly externalAiMaterialPolicyEnabled?: unknown })
+      .externalAiMaterialPolicyEnabled === 'boolean'
+      ? (candidate as { readonly externalAiMaterialPolicyEnabled: boolean })
+          .externalAiMaterialPolicyEnabled
+      : undefined;
+  delete (candidate as Record<string, unknown>)['externalAiMaterialRules'];
+  delete (candidate as Record<string, unknown>)['externalAiMaterialPolicyEnabled'];
+  return {
+    ...defaults,
+    ...candidate,
+    locale: isLocale(candidate.locale) ? candidate.locale : defaults.locale,
+    autoUseHugeStructureBlocks:
+      typeof candidate.autoUseHugeStructureBlocks === 'boolean'
+        ? candidate.autoUseHugeStructureBlocks
+        : defaults.autoUseHugeStructureBlocks,
+    showStructureBlockGuide:
+      typeof candidate.showStructureBlockGuide === 'boolean'
+        ? candidate.showStructureBlockGuide
+        : defaults.showStructureBlockGuide,
+    structureExport: normalizeStructureExport(candidate.structureExport),
+    editorMode: isEditorMode(candidate.editorMode) ? candidate.editorMode : defaults.editorMode,
+    appearance: {
+      preset: isPreset((appearance as Partial<UiPreferences['appearance']>).preset)
+        ? (appearance as Partial<UiPreferences['appearance']>).preset!
+        : defaults.appearance.preset,
+      base: isBase((appearance as Partial<UiPreferences['appearance']>).base)
+        ? (appearance as Partial<UiPreferences['appearance']>).base!
+        : defaults.appearance.base,
+      font: normalizeFont((appearance as Partial<UiPreferences['appearance']>).font),
+      fontSize: isFontSize((appearance as Partial<UiPreferences['appearance']>).fontSize)
+        ? (appearance as Partial<UiPreferences['appearance']>).fontSize!
+        : defaults.appearance.fontSize,
+      editorBackground: isEditorBackgroundMode(
+        (appearance as Partial<UiPreferences['appearance']>).editorBackground,
+      )
+        ? (appearance as Partial<UiPreferences['appearance']>).editorBackground!
+        : defaults.appearance.editorBackground,
+      reality: normalizeRealityBackground(
+        (appearance as Partial<UiPreferences['appearance']>).reality,
+      ),
+    },
+    accessibility: {
+      blockBrightness: normalizeBlockBrightness(
+        (candidate.accessibility as Partial<UiPreferences['accessibility']> | undefined)
+          ?.blockBrightness,
+      ),
+    },
+    controls: {
+      orbitSensitivity: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).orbitSensitivity,
+        0.1,
+        3,
+        defaults.controls.orbitSensitivity,
+      ),
+      panSensitivity: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).panSensitivity,
+        0.1,
+        3,
+        defaults.controls.panSensitivity,
+      ),
+      zoomSensitivity: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).zoomSensitivity,
+        0.1,
+        3,
+        defaults.controls.zoomSensitivity,
+      ),
+      cameraMoveSpeed: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).cameraMoveSpeed,
+        1,
+        30,
+        defaults.controls.cameraMoveSpeed,
+      ),
+      verticalMoveSpeed: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).verticalMoveSpeed,
+        1,
+        30,
+        defaults.controls.verticalMoveSpeed,
+      ),
+      clickDragThreshold: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).clickDragThreshold,
+        1,
+        20,
+        defaults.controls.clickDragThreshold,
+      ),
+    },
+    shortcuts,
+    mouseBindings,
+    externalAiContentLimits:
+      contentLimitsValue === undefined
+        ? DEFAULT_EXTERNAL_AI_CONTENT_LIMITS
+        : normalizeExternalAiContentLimits(contentLimitsValue),
+    externalAiContentLimitsEnabled:
+      typeof (candidate as { readonly externalAiContentLimitsEnabled?: unknown })
+        .externalAiContentLimitsEnabled === 'boolean'
+        ? (candidate as { readonly externalAiContentLimitsEnabled: boolean })
+            .externalAiContentLimitsEnabled
+        : legacyContentLimitsEnabled !== undefined
+          ? legacyContentLimitsEnabled
+          : defaults.externalAiContentLimitsEnabled,
+    layout: {
+      ...defaults.layout,
+      ...layout,
+      leftSidebarWidth: numberInRange(
+        (layout as Partial<UiPreferences['layout']>).leftSidebarWidth,
+        180,
+        520,
+        defaults.layout.leftSidebarWidth,
+      ),
+      rightSidebarWidth: numberInRange(
+        (layout as Partial<UiPreferences['layout']>).rightSidebarWidth,
+        200,
+        520,
+        defaults.layout.rightSidebarWidth,
+      ),
+    },
+    version: 1,
+  };
+}
+
+function numberInRange(value: unknown, min: number, max: number, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, value))
+    : fallback;
+}
+
+export function normalizeBlockBrightness(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value))
+    return defaults.accessibility.blockBrightness;
+  return Math.min(10, Math.max(0, Math.round(value)));
+}
+
+export function blockBrightnessStopPercent(value: number, max = 10): number {
+  if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) return 0;
+  return Math.min(100, Math.max(0, (value / max) * 100));
+}
+
+function isLocale(value: unknown): value is UiLocale {
+  return value === 'en' || value === 'vi';
+}
+function isPreset(value: unknown): value is ThemePreset {
+  return (
+    value === 'dark' ||
+    value === 'light' ||
+    value === 'craft' ||
+    value === 'raccoon' ||
+    value === 'custom'
+  );
+}
+function isBase(value: unknown): value is BaseTheme {
+  return value === 'dark' || value === 'light';
+}
+
+function normalizeRealityBackground(value: unknown): RealityBackgroundPreferences {
+  if (!value || typeof value !== 'object') return { ...DEFAULT_REALITY_BACKGROUND };
+  const candidate = value as Partial<RealityBackgroundPreferences>;
+  return {
+    groundPreset: isRealityGroundPreset(candidate.groundPreset)
+      ? candidate.groundPreset
+      : DEFAULT_REALITY_BACKGROUND.groundPreset,
+    skyPreset: isRealitySkyPreset(candidate.skyPreset)
+      ? candidate.skyPreset
+      : DEFAULT_REALITY_BACKGROUND.skyPreset,
+  };
+}
+function normalizeFont(value: unknown): UiFont {
+  if (value === 'geist') return 'comfortaa';
+  if (value === 'minecraft-style') return 'chakra-petch';
+  return value === 'comfortaa' || value === 'chakra-petch' || value === 'pangolin'
+    ? value
+    : defaults.appearance.font;
+}
+function isFontSize(value: unknown): value is UiFontSize {
+  return value === 'small' || value === 'normal' || value === 'large';
+}
+function isEditorMode(value: unknown): value is PersistedEditorMode {
+  return value === '3d' || value === 'y-layer';
+}
+
+function normalizeLayout(value: unknown): UiPreferences['layout'] {
+  if (!value || typeof value !== 'object') return defaults.layout;
+  const candidate = value as Partial<UiPreferences['layout']>;
+  return {
+    editorToolbarVisible:
+      typeof candidate.editorToolbarVisible === 'boolean'
+        ? candidate.editorToolbarVisible
+        : defaults.layout.editorToolbarVisible,
+    leftSidebarVisible:
+      typeof candidate.leftSidebarVisible === 'boolean'
+        ? candidate.leftSidebarVisible
+        : defaults.layout.leftSidebarVisible,
+    rightSidebarVisible:
+      typeof candidate.rightSidebarVisible === 'boolean'
+        ? candidate.rightSidebarVisible
+        : defaults.layout.rightSidebarVisible,
+    quickBarVisible:
+      typeof candidate.quickBarVisible === 'boolean'
+        ? candidate.quickBarVisible
+        : defaults.layout.quickBarVisible,
+    statusBarVisible:
+      typeof candidate.statusBarVisible === 'boolean'
+        ? candidate.statusBarVisible
+        : defaults.layout.statusBarVisible,
+    leftSidebarWidth: numberInRange(
+      candidate.leftSidebarWidth,
+      180,
+      520,
+      defaults.layout.leftSidebarWidth,
+    ),
+    rightSidebarWidth: numberInRange(
+      candidate.rightSidebarWidth,
+      200,
+      520,
+      defaults.layout.rightSidebarWidth,
+    ),
+    ...(typeof candidate.groupMovePanelX === 'number' && Number.isFinite(candidate.groupMovePanelX)
+      ? { groupMovePanelX: candidate.groupMovePanelX }
+      : {}),
+    ...(typeof candidate.groupMovePanelY === 'number' && Number.isFinite(candidate.groupMovePanelY)
+      ? { groupMovePanelY: candidate.groupMovePanelY }
+      : {}),
+  };
+}
+
+function normalizeStructureExport(value: unknown): StructureExportPreferences {
+  if (!value || typeof value !== 'object') return defaults.structureExport;
+  const candidate = value as Partial<StructureExportPreferences>;
+  return {
+    namespace:
+      typeof candidate.namespace === 'string'
+        ? candidate.namespace
+        : defaults.structureExport.namespace,
+    archiveName:
+      typeof candidate.archiveName === 'string'
+        ? candidate.archiveName
+        : defaults.structureExport.archiveName,
+    description:
+      typeof candidate.description === 'string'
+        ? candidate.description
+        : defaults.structureExport.description,
+  };
+}
+
+function clonePreferences(value: UiPreferences): UiPreferences {
+  return {
+    ...value,
+    appearance: { ...value.appearance, reality: { ...value.appearance.reality } },
+    structureExport: { ...value.structureExport },
+    accessibility: { ...value.accessibility },
+    controls: { ...value.controls },
+    shortcuts: { ...value.shortcuts },
+    mouseBindings: { ...value.mouseBindings },
+    externalAiContentLimits: {
+      blocks: [...value.externalAiContentLimits.blocks],
+      items: [...value.externalAiContentLimits.items],
+      decorations: [...value.externalAiContentLimits.decorations],
+    },
+    layout: { ...value.layout },
+  };
+}
