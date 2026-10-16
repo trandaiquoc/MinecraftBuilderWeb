@@ -280,8 +280,23 @@
   background: var(--workspace-primary);
   color: var(--workspace-text-on-primary);
 }
-.muted {
+.block-empty-state {
+  display: grid;
+  flex: 1 1 0;
+  align-content: center;
+  justify-items: center;
+  gap: 0.65rem;
+  min-height: 6rem;
+  padding: 0.9rem 0.55rem;
+  border: 1px dashed var(--workspace-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
   color: var(--workspace-sidebar-text);
+  text-align: center;
+}
+.block-empty-state p {
+  max-width: 18rem;
+  margin: 0;
   font-size: 0.75rem;
 }
 .block-item.active .block-copy small {

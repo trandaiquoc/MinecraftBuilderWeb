@@ -3,6 +3,7 @@ import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
 import { ContentSourceRegistry } from '../../../core/assets/content-source/content-source-registry';
+import { I18nService } from '../../../core/ui/localization/i18n.service';
 import type {
   ContentRestoreState,
   VanillaAssetStatus,
@@ -113,5 +114,32 @@ describe('BlockBrowserComponent bootstrap presentation', () => {
     expect(fixture.nativeElement.querySelector('#block-search')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('.active-block')).toBeNull();
     expect(fixture.nativeElement.querySelector('.search-active-row')).toBeNull();
+  });
+
+  it('offers a clear-search action for empty results and returns focus to search', async () => {
+    await TestBed.configureTestingModule({ imports: [BlockBrowserComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(BlockBrowserComponent);
+    const component = fixture.componentInstance;
+    const search = fixture.nativeElement.querySelector('#block-search') as HTMLInputElement | null;
+    if (!search) throw new Error('Block search is missing');
+    document.body.append(fixture.nativeElement);
+
+    component['library'].setQuery('zzzzzz-no-such-block');
+    fixture.detectChanges();
+
+    const emptyState = fixture.nativeElement.querySelector(
+      '.block-empty-state',
+    ) as HTMLElement | null;
+    const clearButton = emptyState?.querySelector('button') as HTMLButtonElement | null;
+    expect(emptyState?.getAttribute('role')).toBe('status');
+    expect(clearButton?.textContent?.trim()).toBe(TestBed.inject(I18nService).t('clearSearch'));
+    clearButton?.click();
+    fixture.detectChanges();
+
+    expect(component['library'].query()).toBe('');
+    expect(document.activeElement).toBe(search);
+    expect(fixture.nativeElement.querySelector('.block-empty-state')).toBeNull();
+    fixture.destroy();
+    fixture.nativeElement.remove();
   });
 });

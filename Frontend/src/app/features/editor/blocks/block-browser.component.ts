@@ -107,6 +107,7 @@ export class BlockBrowserComponent {
     return groupBlockItemsIntoRows(this.results(), this.columnCount());
   });
   private readonly catalogGridHost = viewChild<ElementRef<HTMLElement>>('catalogGridHost');
+  private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   private readonly catalogViewport = viewChild<CdkVirtualScrollViewport>('catalogViewport');
   private readonly viewportSizing = effect((onCleanup) => {
     const host = this.catalogGridHost()?.nativeElement;
@@ -128,6 +129,10 @@ export class BlockBrowserComponent {
   });
   protected search(event: Event): void {
     this.library.setQuery((event.target as HTMLInputElement).value);
+  }
+  protected clearSearch(): void {
+    this.library.setQuery('');
+    this.searchInput()?.nativeElement.focus();
   }
   protected openAssetManager(): void {
     this.assetManagerRequested.emit();

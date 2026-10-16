@@ -10,6 +10,7 @@
   <div class="search-field">
     <label class="search-label" for="block-search">{{ i18n.t('blockSearch') }}</label
     ><input
+      #searchInput
       id="block-search"
       type="search"
       [value]="library.query()"
@@ -103,6 +104,17 @@
       </cdk-virtual-scroll-viewport>
     </div>
   } @else {
-    <p class="muted">{{ i18n.t('noBlockResults') }}</p>
+    <div class="block-empty-state" role="status">
+      <p>{{ i18n.t('noBlockResults') }}</p>
+      @if (library.query().trim()) {
+        <button
+          type="button"
+          class="ui-button ui-button--secondary ui-button--sm"
+          (click)="clearSearch()"
+        >
+          {{ i18n.t('clearSearch') }}
+        </button>
+      }
+    </div>
   }
 </section>

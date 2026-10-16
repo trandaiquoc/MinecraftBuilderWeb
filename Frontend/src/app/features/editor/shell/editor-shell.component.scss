@@ -339,6 +339,7 @@
   .editor-body {
     grid-template-columns: minmax(0, 1fr) !important;
     grid-template-rows: auto minmax(0, 1fr);
+    z-index: 30;
   }
 
   .sidebar-resize-handle {
@@ -347,7 +348,7 @@
 
   .panel.left-panel,
   .panel.right-panel {
-    position: absolute;
+    position: fixed;
     z-index: 12;
     top: 0;
     bottom: 0;
@@ -355,6 +356,8 @@
     box-sizing: border-box;
     width: min(360px, calc(100vw - 2.5rem));
     max-width: calc(100vw - 2.5rem);
+    max-height: 100dvh;
+    overflow: auto;
     box-shadow: var(--shadow-dialog);
     transition:
       transform var(--motion-duration-ui) var(--motion-easing-emphasized),
@@ -393,7 +396,7 @@
   }
 
   .drawer-backdrop {
-    position: absolute;
+    position: fixed;
     z-index: 10;
     inset: 0;
     display: block;
