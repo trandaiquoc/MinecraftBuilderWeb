@@ -103,6 +103,12 @@ export class EditorChromeComponent {
     this.action.emit(action);
   }
 
+  focusSettingsTrigger(): void {
+    this.host.nativeElement
+      .querySelector<HTMLButtonElement>('.settings-entry > .app-menu-trigger')
+      ?.focus();
+  }
+
   protected beginSegmentDrag(control: SegmentControl, event: PointerEvent): void {
     if (event.button !== 0 || !event.isPrimary) return;
     const track = event.currentTarget;

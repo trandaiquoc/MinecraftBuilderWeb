@@ -128,6 +128,35 @@ describe('editor shell movement/delete routing', () => {
     fixture.destroy();
   });
 
+  it('returns focus to the Settings menu trigger after closing the dialog', async () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    await workspace.restore(TestBed.inject(PROJECT_STORE), undefined);
+    workspace.activate(project, undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const settingsTrigger = root.querySelector<HTMLButtonElement>(
+      '.settings-entry > .app-menu-trigger',
+    );
+    settingsTrigger?.click();
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('.settings-popover [role="menuitem"]')?.click();
+    fixture.detectChanges();
+
+    expect(root.querySelector('app-settings-dialog')).not.toBeNull();
+    root.querySelector<HTMLButtonElement>('.settings-dialog-footer button')?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(root.querySelector('app-settings-dialog')).toBeNull();
+    expect(document.activeElement).toBe(settingsTrigger);
+
+    fixture.destroy();
+    mount.mockRestore();
+  });
+
   it('routes chrome menu and toolbar interactions through the existing editor services', () => {
     const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
     const fixture = TestBed.createComponent(EditorShellComponent);
