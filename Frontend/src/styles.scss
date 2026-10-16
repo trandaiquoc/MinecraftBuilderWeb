@@ -900,15 +900,15 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  app-editor-shell :where(*),
+  app-root :where(*),
   .cdk-overlay-container :where(*) {
     scroll-behavior: auto !important;
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
   }
-  app-editor-shell :where(*)::before,
-  app-editor-shell :where(*)::after,
+  app-root :where(*)::before,
+  app-root :where(*)::after,
   .cdk-overlay-container :where(*)::before,
   .cdk-overlay-container :where(*)::after {
     animation-duration: 1ms !important;

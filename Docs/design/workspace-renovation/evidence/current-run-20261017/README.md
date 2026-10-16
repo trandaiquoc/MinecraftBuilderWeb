@@ -77,6 +77,29 @@ actions staying focusable without activation, and Camera focus return. Other
 menu contents and screen-reader output were not exhaustively tested in this
 pass.
 
+## Reduced motion across Projects and Workspace
+
+The initial reduced-motion rule covered `app-editor-shell` and CDK overlays,
+but not the Projects route. With Chrome emulating
+`prefers-reduced-motion: reduce`, project rows still reported a 120 ms CSS
+transition. The shared rule now covers descendants of `app-root` as well as
+CDK overlays. After the change, project-row transitions and animations report
+1 ms; the Workspace menu enter animation also drops from 150 ms to 1 ms and
+its trigger transitions drop from 120 ms to 1 ms. The indeterminate progress
+animation is also explicitly disabled by the reduced-motion stylesheet.
+
+| State | Screenshot |
+| --- | --- |
+| Projects page with default motion preference | [workspace-project-list-motion-default-before-dark-en-1600x900-20261017.png](workspace-project-list-motion-default-before-dark-en-1600x900-20261017.png) |
+| Projects page under reduced motion before the fix | [workspace-project-list-motion-reduced-before-dark-en-1600x900-20261017.png](workspace-project-list-motion-reduced-before-dark-en-1600x900-20261017.png) |
+| Projects page under reduced motion after the fix | [workspace-project-list-motion-reduced-after-dark-en-1600x900-20261017.png](workspace-project-list-motion-reduced-after-dark-en-1600x900-20261017.png) |
+| Workspace menu under the default preference | [workspace-menu-motion-default-open-dark-en-1600x900-20261017.png](workspace-menu-motion-default-open-dark-en-1600x900-20261017.png) |
+| Workspace menu under reduced motion | [workspace-menu-motion-reduced-open-dark-en-1600x900-20261017.png](workspace-menu-motion-reduced-open-dark-en-1600x900-20261017.png) |
+
+Computed styles were read while Chrome emulated each preference. The screenshot
+captures show the settled states; they do not by themselves show animation
+timing. A full pass over every animated state and locale remains open.
+
 ## Settings
 
 The Settings window was opened from the real Workspace. General is the initial
@@ -588,7 +611,7 @@ verified initial Vanilla focus, Arrow/Home/End behavior, the 390 x 520 Mods
 state without horizontal overflow, and Escape focus return to Tools. Workspace
 acceptance remains in progress. Remaining checks cover trusted mod/JAR
 fixtures, Asset Manager load and failure recovery, External AI, Diagnostics warning/error cases, all locales
-and fonts, focus return for other dialogs, and reduced-motion behavior. The non-empty
+and fonts, focus return for other dialogs, and remaining reduced-motion states. The non-empty
 Structure JSON browser round trip is recorded above. Both non-empty NBT
 export modes were decoded in this pass; manual loading in Minecraft remains
 pending. The repository's independent Java 1.21.1 NBT fixture is covered by
@@ -606,4 +629,12 @@ focused specs (28 tests total), production build, Frontend encoding check,
 Prettier, and `git diff --check`. Chrome checked menu entry and item movement,
 wraparound, Home/End, Tab dismissal, Escape focus return for Help and Camera,
 disabled action focus and non-activation, and the Diagnostics/About dialog
-focus paths. All 141 PNG links in this archive resolve to files in this folder.
+focus paths.
+
+The reduced-motion follow-up passed the production build, Frontend encoding
+check, and Prettier. Chrome verified that the Projects route's row transition
+changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
+animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
+to 1 ms. This covers representative Projects and Workspace elements; the full
+animated-state and locale matrix remains open. All 146 PNG links in this archive
+resolve to files in this folder.
