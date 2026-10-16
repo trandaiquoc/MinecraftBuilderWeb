@@ -75,7 +75,7 @@ Quick Bar and mobile drawer openers. Comfortaa/Vietnamese wraps the Camera
 actions and grows the page vertically, keeping a 149 px canvas visible; the
 other states fit within the viewport. A separate 320×520 Comfortaa/Vietnamese
 capture confirms the Camera controls stay inside the narrower page. Large-font
-behavior is checked below; the Small font-size setting remains open.
+behavior is checked below; the Small-size Comfortaa matrix follows.
 
 | Theme | Font | English | Vietnamese |
 | --- | --- | --- | --- |
@@ -142,6 +142,21 @@ zero overlap between the Quick Bar and drawer openers.
 | Large font, Light, Vietnamese, 390 x 520 | [workspace-font-size-large-light-vi-390x520-20261017.png](workspace-font-size-large-light-vi-390x520-20261017.png) |
 | Large font, Raccoon, English, 390 x 520 | [workspace-font-size-large-raccoon-en-390x520-20261017.png](workspace-font-size-large-raccoon-en-390x520-20261017.png) |
 | Large font, Raccoon, Vietnamese, 390 x 520 | [workspace-font-size-large-raccoon-vi-390x520-20261017.png](workspace-font-size-large-raccoon-vi-390x520-20261017.png) |
+
+## Small Workspace font at narrow viewports
+
+The Small font-size setting with Comfortaa was checked at 390×520 in all four
+themes and both locales. All eight states had no document overflow, every
+Camera button remained inside the viewport, and the Quick Bar did not overlap
+the drawer openers. The editor canvas ranged from 243 to 283 px. Small-size
+checks with Chakra Petch and Pangolin remain open.
+
+| Theme | English | Vietnamese |
+| --- | --- | --- |
+| Minecraft | [workspace-font-size-small-craft-en-390x520-20261017.png](workspace-font-size-small-craft-en-390x520-20261017.png) | [workspace-font-size-small-craft-vi-390x520-20261017.png](workspace-font-size-small-craft-vi-390x520-20261017.png) |
+| Dark | [workspace-font-size-small-dark-en-390x520-20261017.png](workspace-font-size-small-dark-en-390x520-20261017.png) | [workspace-font-size-small-dark-vi-390x520-20261017.png](workspace-font-size-small-dark-vi-390x520-20261017.png) |
+| Light | [workspace-font-size-small-light-en-390x520-20261017.png](workspace-font-size-small-light-en-390x520-20261017.png) | [workspace-font-size-small-light-vi-390x520-20261017.png](workspace-font-size-small-light-vi-390x520-20261017.png) |
+| Raccoon | [workspace-font-size-small-raccoon-en-390x520-20261017.png](workspace-font-size-small-raccoon-en-390x520-20261017.png) | [workspace-font-size-small-raccoon-vi-390x520-20261017.png](workspace-font-size-small-raccoon-vi-390x520-20261017.png) |
 
 ## Mobile application menus
 
