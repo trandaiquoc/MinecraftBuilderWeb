@@ -31,6 +31,7 @@ import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { SettingsDialogSession } from './settings-dialog-session';
 
 type SettingsSection = 'general' | 'appearance' | 'controls' | 'shortcuts' | 'accessibility';
+type AppearanceTab = 'interface' | 'workspace-background';
 
 @Component({
   selector: 'app-settings-dialog',
@@ -52,7 +53,7 @@ export class SettingsDialogComponent implements OnDestroy {
   private readonly preferences = inject(UiPreferencesService);
   readonly closed = output<void>();
   protected readonly section = signal<SettingsSection>('general');
-  protected readonly appearanceTab = signal<'interface' | 'workspace-background'>('interface');
+  protected readonly appearanceTab = signal<AppearanceTab>('interface');
   protected readonly shortcutSearch = signal('');
   protected readonly mouseSearch = signal('');
   protected readonly shortcutTab = signal<'keyboard' | 'mouse'>('keyboard');
@@ -157,6 +158,31 @@ export class SettingsDialogComponent implements OnDestroy {
   protected setSection(section: SettingsSection, button?: HTMLButtonElement): void {
     this.section.set(section);
     button?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  protected appearanceTabIndex(tab: AppearanceTab): 0 | -1 {
+    return this.appearanceTab() === tab ? 0 : -1;
+  }
+  protected handleAppearanceTabKeydown(event: KeyboardEvent, currentTab: AppearanceTab): void {
+    const tabs: readonly AppearanceTab[] = ['interface', 'workspace-background'];
+    const currentIndex = tabs.indexOf(currentTab);
+    const nextIndex =
+      event.key === 'ArrowRight'
+        ? (currentIndex + 1) % tabs.length
+        : event.key === 'ArrowLeft'
+          ? (currentIndex - 1 + tabs.length) % tabs.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? tabs.length - 1
+              : -1;
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    this.appearanceTab.set(tabs[nextIndex]);
+    (event.currentTarget as HTMLElement)
+      .closest('[role="tablist"]')
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      .item(nextIndex)
+      ?.focus();
   }
   protected setLocale(locale: UiLocale): void {
     this.session.setLocale(locale);

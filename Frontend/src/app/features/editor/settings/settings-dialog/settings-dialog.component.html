@@ -94,9 +94,11 @@
                 type="button"
                 role="tab"
                 id="appearance-interface-tab"
+                [tabIndex]="appearanceTabIndex('interface')"
                 aria-controls="appearance-interface-panel"
                 [attr.aria-selected]="appearanceTab() === 'interface'"
                 [class.active]="appearanceTab() === 'interface'"
+                (keydown)="handleAppearanceTabKeydown($event, 'interface')"
                 (click)="appearanceTab.set('interface')"
               >
                 {{ i18n.t('appearanceInterface') }}
@@ -105,9 +107,11 @@
                 type="button"
                 role="tab"
                 id="appearance-workspace-background-tab"
+                [tabIndex]="appearanceTabIndex('workspace-background')"
                 aria-controls="appearance-workspace-background-panel"
                 [attr.aria-selected]="appearanceTab() === 'workspace-background'"
                 [class.active]="appearanceTab() === 'workspace-background'"
+                (keydown)="handleAppearanceTabKeydown($event, 'workspace-background')"
                 (click)="appearanceTab.set('workspace-background')"
               >
                 {{ i18n.t('workspaceBackgroundTab') }}

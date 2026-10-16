@@ -39,6 +39,12 @@ browser pass and the earlier captures catalogued in
 | Animation and reduced motion                                      | Existing shared transitions use semantic state; this pass adds no animation                                | No layout motion regression identified in the current changes                                                               | Full reduced-motion browser pass remains open                                                                                 | Low                        | Recheck every changed transition under `prefers-reduced-motion` before Workspace acceptance                                           |
 | Renderer, large structures, project data                          | Existing 110,592-block browser evidence is recorded                                                        | No renderer, persistence, or domain behavior changed in this pass                                                           | Not applicable to current source edits                                                                                        | Low                        | Earlier renderer evidence in [README](README.md); rerun benchmark only if renderer code changes                                       |
 
+## Latest acceptance update
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Settings Appearance inner tabs | Verified one tab stop, ArrowLeft/Right wrapping, Home/End, Tab into the selected panel, and visible focus across all four themes and both locales | [Appearance tab captures and browser notes](evidence/current-run-20261017/README.md#settings-appearance-tab-keyboard-navigation) |
+
 ## Current code changes under review
 
 - Settings opens with its General section as the initial focus target, avoiding
@@ -52,6 +58,9 @@ browser pass and the earlier captures catalogued in
   smoothed render interval as including idle time.
 - Asset Manager starts on its selected Vanilla tab and supports roving keyboard
   focus across the Vanilla and Mods panels.
+- Settings Appearance tabs keep only the selected tab in the Tab sequence,
+  support ArrowLeft/Right with wrapping and Home/End, and let Tab continue into
+  the active panel. Focus was checked in all four themes and both locales.
 - Decorations and Groups sidebar tabs use Arrow/Home/End roving focus; mobile
   labels remain clear of tooltips, and Manage sources no longer expands the
   Decorations panel's horizontal scroll range.

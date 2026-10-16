@@ -69,6 +69,37 @@ At 390×520 the Settings dialog stays inside the viewport and keeps its footer
 visible. Tab moved focus from General to Accessibility; Enter selected it and
 scrolled the active item into view. The document did not overflow horizontally.
 
+## Settings Appearance tab keyboard navigation
+
+The two Appearance tabs previously both stayed in the page Tab sequence, and
+ArrowRight left focus on Interface. They now use one selected-tab stop; Left and
+Right wrap between tabs, Home and End select the first and last tabs, and Tab
+continues to the selected panel's first control. The browser check covered the
+four themes and both locales. Focus indicators remained visible and translated
+labels fit. The theme and locale were restored to Dark and English afterward.
+
+| State | Screenshot |
+| --- | --- |
+| Before: Appearance tabs | [workspace-settings-appearance-tabs-before-dark-en-1600x900-20261017.png](workspace-settings-appearance-tabs-before-dark-en-1600x900-20261017.png) |
+| Before: ArrowRight left focus on Interface | [workspace-settings-appearance-tab-arrow-right-before-dark-en-1600x900-20261017.png](workspace-settings-appearance-tab-arrow-right-before-dark-en-1600x900-20261017.png) |
+| After: ArrowRight selects Workspace Background | [workspace-settings-appearance-background-arrow-dark-en-1600x900-20261017.png](workspace-settings-appearance-background-arrow-dark-en-1600x900-20261017.png) |
+| After: ArrowLeft selects Interface | [workspace-settings-appearance-interface-arrow-dark-en-1600x900-20261017.png](workspace-settings-appearance-interface-arrow-dark-en-1600x900-20261017.png) |
+| Tab continues to Editor background, skipping the inactive tab | [workspace-settings-appearance-tab-tabstop-dark-en-1600x900-20261017.png](workspace-settings-appearance-tab-tabstop-dark-en-1600x900-20261017.png) |
+
+The focused Workspace Background tab was also captured in every theme and
+locale combination:
+
+| Theme | English | Vietnamese |
+| --- | --- | --- |
+| Light | [Light / English](workspace-settings-appearance-background-arrow-light-en-1600x900-20261017.png) | [Light / Vietnamese](workspace-settings-appearance-background-arrow-light-vi-1600x900-20261017.png) |
+| Dark | [Dark / English](workspace-settings-appearance-background-arrow-dark-en-1600x900-20261017.png) | [Dark / Vietnamese](workspace-settings-appearance-background-arrow-dark-vi-1600x900-20261017.png) |
+| Minecraft | [Minecraft / English](workspace-settings-appearance-background-arrow-craft-en-1600x900-20261017.png) | [Minecraft / Vietnamese](workspace-settings-appearance-background-arrow-craft-vi-1600x900-20261017.png) |
+| Raccoon | [Raccoon / English](workspace-settings-appearance-background-arrow-raccoon-en-1600x900-20261017.png) | [Raccoon / Vietnamese](workspace-settings-appearance-background-arrow-raccoon-vi-1600x900-20261017.png) |
+
+The focused component spec covers one tab stop, ArrowLeft/Right wrapping, Home,
+End, focus movement, selected state, and panel switching. Chrome also verified
+Tab leaving the tablist for the active panel.
+
 ## Block Browser search recovery and mobile drawer
 
 The empty search state is a bordered, centered panel announced as a polite
@@ -443,6 +474,9 @@ locale were restored to Dark/English after the matrix.
   scroll areas. Behavior coverage remains separate from placement validity.
 - Asset Manager starts focus on Vanilla; Arrow/Home/End navigate between its
   Vanilla and Mods tabs with one tab stop.
+- Settings Appearance tabs use one tab stop and support ArrowLeft/Right, Home,
+  and End; Tab continues into the active panel. Focus was checked in all four
+  themes and both locales.
 - Themed selects announce the active listbox option and keep popup options out
   of the page Tab sequence. Escape closes a select popup without closing its
   owning Settings dialog; Tab closes it and continues to the next control.
@@ -474,3 +508,10 @@ Structure JSON browser round trip is recorded above. Both non-empty NBT
 export modes were decoded in this pass; manual loading in Minecraft remains
 pending. The repository's independent Java 1.21.1 NBT fixture is covered by
 codec contract tests. NBT import is not exposed in the Workspace File menu.
+
+The latest Settings Appearance tab follow-up passed its focused component spec
+(5 tests), production build, encoding check, Prettier check, and
+`git diff --check`. Chrome verified arrow wrapping, Home/End, and Tab
+progression; the focus ring and tab state were checked in all four themes and
+both English and Vietnamese. The saved Dark/English preference was restored
+afterward.
