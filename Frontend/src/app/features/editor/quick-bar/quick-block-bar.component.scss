@@ -16,17 +16,20 @@
 }
 .slots {
   display: flex;
+  flex-wrap: nowrap;
   gap: 0.35rem;
-  max-width: min(660px, calc(100vw - 3rem));
-  overflow-x: auto;
+  width: max-content;
+  max-width: calc(100vw - 3rem);
+  overflow: hidden;
 }
 .slot {
   position: relative;
   display: grid;
   place-items: center;
-  width: 50px;
+  width: clamp(42px, 5vw, 50px);
+  min-width: 42px;
   height: 50px;
-  flex: 0 0 50px;
+  flex: 0 0 clamp(42px, 5vw, 50px);
   box-sizing: border-box;
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
@@ -89,6 +92,10 @@
   position: absolute;
   top: 0;
   right: 2px;
+  display: grid;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
   border: 0;
   padding: 0;
   background: transparent;
@@ -96,9 +103,6 @@
   font: inherit;
   line-height: 1;
   cursor: pointer;
-}
-.slot.active .slot-remove {
-  color: var(--danger);
 }
 .slot-remove:focus-visible {
   outline: 2px solid var(--accent);
@@ -109,6 +113,8 @@
   outline-offset: -2px;
 }
 .collapse {
+  display: grid;
+  place-items: center;
   min-width: 30px;
   min-height: 30px;
   border: 0;
@@ -121,30 +127,6 @@
 .empty {
   padding: 0 0.4rem;
   color: var(--text-muted);
-  white-space: nowrap;
-}
-.slot-remove {
-  display: grid;
-  place-items: center;
-  width: 1.2rem;
-  height: 1.2rem;
-}
-.collapse {
-  display: grid;
-  place-items: center;
-}
-.slots {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 0.35rem;
-  width: max-content;
-  max-width: calc(100vw - 3rem);
-  overflow: hidden;
-}
-.slot {
-  width: clamp(42px, 5vw, 50px);
-  min-width: 42px;
-  flex: 0 0 clamp(42px, 5vw, 50px);
 }
 .slot-select {
   position: relative;
@@ -167,10 +149,5 @@
 @media (max-width: 620px) {
   .slots {
     gap: 0.25rem;
-  }
-  .slot {
-    width: 42px;
-    min-width: 42px;
-    flex-basis: 42px;
   }
 }

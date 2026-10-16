@@ -59,7 +59,23 @@ The Craft header pattern now uses larger, spaced pixel clusters, and the grass-t
 | Craft, 640 x 520                 | [workspace-grass-refresh-craft-640x520-20261016.png](evidence/workspace-grass-refresh-craft-640x520-20261016.png) |
 | Craft, 390 x 520                 | [workspace-grass-refresh-craft-390x520-20261016.png](evidence/workspace-grass-refresh-craft-390x520-20261016.png) |
 
-The 390 px check measured document `clientWidth` and `scrollWidth` at 390 px. The existing Quick Bar hint text is clipped at the right edge in this narrow capture; the decorative theme change does not alter that layout.
+The 390 px capture in this grass-refresh set predates the Quick Bar wrapping fix below. It records a clipped English empty-state hint while the document itself stayed within the viewport.
+
+### Quick Bar empty-state hint at narrow widths
+
+The empty-state hint previously kept `white-space: nowrap` inside a width-constrained slot row with hidden overflow. At 390 px, Chrome measured the hint at 374.3 px inside a 310.8 px slot row, which cut off the final words without creating document overflow. Normal text wrapping now keeps the full localized instruction visible. The duplicate `.slots`, `.slot`, `.collapse`, and `.slot-remove` style declarations were consolidated while preserving their effective dimensions, spacing, and overflow behavior. At 390 px, English and Vietnamese hints measure 310.8 x 37.3 px; at 320 px, the Vietnamese hint measures 240.8 x 37.3 px. In both cases hint `scrollWidth` equals `clientWidth`, and document `scrollWidth` equals the viewport width. At 1600 px, the English hint remains a single 374.3 x 18.7 px line. Browser clicks collapsed and restored the bar, leaving its state expanded afterward.
+
+The four-theme English captures use the same live 79-block, 16 x 16 x 16 project at 390 x 520. The Vietnamese Craft and Dark captures use that same project at 390 x 520 and 320 x 520, respectively. The before capture is byte-identical to the previously recorded Craft mobile capture.
+
+| Theme / locale / state             | Browser capture                                                                                                         |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Before: Craft, English             | [workspace-grass-refresh-craft-390x520-20261016.png](evidence/workspace-grass-refresh-craft-390x520-20261016.png)       |
+| After: Craft, English              | [quick-bar-empty-state-craft-en-390x520-20261016.png](evidence/quick-bar-empty-state-craft-en-390x520-20261016.png)     |
+| After: Craft, Vietnamese           | [quick-bar-empty-state-craft-vi-390x520-20261016.png](evidence/quick-bar-empty-state-craft-vi-390x520-20261016.png)     |
+| After: Light, English              | [quick-bar-empty-state-light-en-390x520-20261016.png](evidence/quick-bar-empty-state-light-en-390x520-20261016.png)     |
+| After: Raccoon, English            | [quick-bar-empty-state-raccoon-en-390x520-20261016.png](evidence/quick-bar-empty-state-raccoon-en-390x520-20261016.png) |
+| After: Dark, English               | [quick-bar-empty-state-dark-en-390x520-20261016.png](evidence/quick-bar-empty-state-dark-en-390x520-20261016.png)       |
+| After: Dark, Vietnamese, 320 x 520 | [quick-bar-empty-state-dark-vi-320x520-20261016.png](evidence/quick-bar-empty-state-dark-vi-320x520-20261016.png)       |
 
 The toolbar-switcher captures show the 3D Edit and Place choices selected in one shared track per control, at 1600 x 1200. Each pair has one sliding selected surface; the unselected option remains subdued in the same track. They use the same editor project, panel widths, English locale, and Comfortaa/Normal font.
 
