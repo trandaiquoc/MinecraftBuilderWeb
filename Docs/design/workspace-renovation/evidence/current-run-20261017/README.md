@@ -66,6 +66,22 @@ font variations are covered by separate checks or remain open below.
 | Raccoon | [workspace-shell-compact-raccoon-en-780x437-20261017.png](workspace-shell-compact-raccoon-en-780x437-20261017.png) | [workspace-shell-compact-raccoon-vi-780x437-20261017.png](workspace-shell-compact-raccoon-vi-780x437-20261017.png) |
 | Dark | [workspace-shell-compact-dark-en-780x437-20261017.png](workspace-shell-compact-dark-en-780x437-20261017.png) | [workspace-shell-compact-dark-vi-780x437-20261017.png](workspace-shell-compact-dark-vi-780x437-20261017.png) |
 
+## Narrow Workspace font sample
+
+The Minecraft theme was checked at 390×520 in English and Vietnamese with
+Comfortaa, Chakra Petch, and Pangolin. Each font loaded, and Chrome reported no
+document-level horizontal or vertical overflow. The Vietnamese header,
+toolbar, and status bar wrap onto additional rows to keep their labels in the
+viewport. The editor canvas, Quick Bar, and collapsed Blocks/Selection openers
+remain visible. This is a focused small-screen font sample, not a full
+four-theme/font matrix; the Settings Small/Large font-size options remain open.
+
+| Font | English | Vietnamese |
+| --- | --- | --- |
+| Comfortaa | [workspace-font-narrow-comfortaa-en-390x520-20261017.png](workspace-font-narrow-comfortaa-en-390x520-20261017.png) | [workspace-font-narrow-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-comfortaa-vi-390x520-20261017.png) |
+| Chakra Petch | [workspace-font-narrow-chakra-petch-en-390x520-20261017.png](workspace-font-narrow-chakra-petch-en-390x520-20261017.png) | [workspace-font-narrow-chakra-petch-vi-390x520-20261017.png](workspace-font-narrow-chakra-petch-vi-390x520-20261017.png) |
+| Pangolin | [workspace-font-narrow-pangolin-en-390x520-20261017.png](workspace-font-narrow-pangolin-en-390x520-20261017.png) | [workspace-font-narrow-pangolin-vi-390x520-20261017.png](workspace-font-narrow-pangolin-vi-390x520-20261017.png) |
+
 ## Mobile application menus
 
 The File menu aligns inside the viewport at 390 px in English and Vietnamese.
@@ -700,6 +716,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 185 distinct PNG captures
-in this archive are linked to files in this folder (186 link occurrences, with
+animated-state and locale matrix remains open. All 191 distinct PNG captures
+in this archive are linked to files in this folder (192 link occurrences, with
 no missing targets).
