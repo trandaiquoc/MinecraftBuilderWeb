@@ -331,6 +331,33 @@ y=323 to 365. Native Tab traversal from Create with AI also reaches the
 selected Available content tab with the same visible focus and scroll position.
 The screenshots record both paths and the persistent dialog footer.
 
+## File export dialog close and focus return
+
+This current-run check followed the File menu into both export dialogs. The
+dialogs showed the isolated two-block project; no download was started.
+
+1. Open File and inspect the available export actions.
+2. Open Structure JSON export and confirm the dialog identifies the project
+   and its two blocks.
+3. Press Escape. The dialog closes and keyboard focus returns visibly to File.
+4. Open Minecraft Structure (NBT) export and inspect its format choices,
+   fields, internal scrolling, and fixed footer.
+5. Press Escape. The dialog closes and focus again returns visibly to File.
+
+| Step | Screenshot |
+| --- | --- |
+| 1. File menu with its trigger focused | [workspace-dialog-return-01-file-menu-dark-en-1600x900-20261017.png](workspace-dialog-return-01-file-menu-dark-en-1600x900-20261017.png) |
+| 2. Structure JSON export dialog | [workspace-dialog-return-02-json-export-dark-en-1600x900-20261017.png](workspace-dialog-return-02-json-export-dark-en-1600x900-20261017.png) |
+| 3. Structure JSON Escape return to File | [workspace-dialog-return-03-json-export-escape-return-dark-en-1600x900-20261017.png](workspace-dialog-return-03-json-export-escape-return-dark-en-1600x900-20261017.png) |
+| 4. Minecraft Structure NBT export dialog | [workspace-dialog-return-04-nbt-export-dark-en-1600x900-20261017.png](workspace-dialog-return-04-nbt-export-dark-en-1600x900-20261017.png) |
+| 5. NBT Escape return to File | [workspace-dialog-return-05-nbt-export-escape-return-dark-en-1600x900-20261017.png](workspace-dialog-return-05-nbt-export-escape-return-dark-en-1600x900-20261017.png) |
+
+Both dialogs closed on Escape and restored a visible focus ring to the File
+menu trigger; the menu remained closed. The NBT form keeps its footer visible
+while its content scrolls internally. This check covers opening and closing,
+not download results, validation of exported bytes, or screen-reader behavior.
+No focus-return issue was found in these two flows.
+
 ## Project Diagnostics focus and empty state
 
 | State / viewport                                 | Screenshot                                                                                                                         |

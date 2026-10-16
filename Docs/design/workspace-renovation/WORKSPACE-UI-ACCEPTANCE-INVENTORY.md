@@ -44,6 +44,7 @@ browser pass and the earlier captures catalogued in
 | Area | Result | Evidence |
 | --- | --- | --- |
 | Settings Appearance inner tabs | Verified one tab stop, ArrowLeft/Right wrapping, Home/End, Tab into the selected panel, and visible focus across all four themes and both locales | [Appearance tab captures and browser notes](evidence/current-run-20261017/README.md#settings-appearance-tab-keyboard-navigation) |
+| Structure JSON and Minecraft Structure export dialogs | Escape closes each dialog and restores visible focus to File; NBT dialog scrolls internally with its footer visible | [Current export dialog flow and focus return](evidence/current-run-20261017/README.md#file-export-dialog-close-and-focus-return) |
 
 ## Current code changes under review
 
