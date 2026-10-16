@@ -58,6 +58,31 @@ describe('Structure JSON bounds preflight', () => {
     expect(inspectStructureJsonBounds(exact, { x: 64, y: 18, z: 64 }).exceedsCurrent).toBe(false);
   });
 
+  it('infers bounds for a 262k-block structure without expanding coordinates as arguments', () => {
+    const blocks = Array.from({ length: 262_144 }, (_, index) => ({
+      id: 'minecraft:stone',
+      x: index % 64,
+      y: Math.floor(index / 4096),
+      z: Math.floor(index / 64) % 64,
+    }));
+    const large: StructureJson = {
+      format: 'the-block-laundromat-structure',
+      minecraftVersion: '1.21.1',
+      blocks,
+      decorations: [],
+    };
+
+    expect(inferRequiredStructureJsonSize(large)).toEqual({ x: 64, y: 64, z: 64 });
+    expect(inspectStructureJsonBounds(large, { x: 16, y: 16, z: 16 })).toMatchObject({
+      requiredSize: { x: 64, y: 64, z: 64 },
+      hasCoordinateContent: true,
+      exceedsCurrent: true,
+      hasNegativeCoordinates: false,
+      blocksOutsideBounds: 258_048,
+      decorationsOutsideBounds: 0,
+    });
+  });
+
   it('clips only blocks and decoration anchors outside the current bounds', () => {
     const clipped = clipStructureJsonToBounds(source, { x: 32, y: 10, z: 32 });
     expect(clipped.blocks).toHaveLength(1);
