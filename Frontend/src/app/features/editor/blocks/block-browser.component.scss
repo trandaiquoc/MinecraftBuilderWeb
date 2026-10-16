@@ -326,24 +326,21 @@
 }
 
 .catalog-grid-host.compact .block-item {
-  grid-template-columns: minmax(0, 1fr) 1.5rem;
-  align-items: center;
-  column-gap: 0.15rem;
+  display: block;
   padding: 0.3rem;
 }
 
 .catalog-grid-host.compact .block-select-action {
-  grid-column: 1;
-  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr);
   grid-template-rows: 1fr;
   align-items: center;
-  gap: 0.25rem;
-  padding-right: 0;
+  gap: 0.35rem;
+  padding-right: 1.65rem;
 }
 
 .catalog-grid-host.compact .preview {
-  width: 20px;
-  height: 20px;
+  width: 40px;
+  height: 40px;
   justify-self: start;
 }
 
@@ -364,11 +361,12 @@
 }
 
 .catalog-grid-host.compact .quick-add-wrapper {
-  position: static;
-  grid-column: 2;
-  justify-self: center;
-  align-self: center;
+  position: absolute;
+  top: 50%;
+  right: 0.25rem;
+  left: auto;
   opacity: 1;
+  transform: translateY(-50%);
 }
 
 .catalog-grid-host.compact .quick-add-action {

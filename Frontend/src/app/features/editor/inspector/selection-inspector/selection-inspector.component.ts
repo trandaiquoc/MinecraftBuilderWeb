@@ -1,11 +1,5 @@
-import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
-import {
-  LucideCheck,
-  LucideFocus,
-  LucideMaximize2,
-  LucideMousePointer2,
-  LucideX,
-} from '@lucide/angular';
+import { Component, computed, effect, inject, output, signal } from '@angular/core';
+import { LucideCheck, LucideMousePointer2, LucideX } from '@lucide/angular';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
 import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
 import { isSignDefinition, isSignId } from '../../../../core/block-entities/sign/sign-block-entity';
@@ -33,8 +27,6 @@ import { DECORATED_POT_ID } from '../../../../core/block-entities/decorated-pot/
   selector: 'app-selection-inspector',
   imports: [
     LucideCheck,
-    LucideFocus,
-    LucideMaximize2,
     LucideMousePointer2,
     LucideX,
     DecorationInspectorComponent,
@@ -50,9 +42,6 @@ import { DECORATED_POT_ID } from '../../../../core/block-entities/decorated-pot/
 export class SelectionInspectorComponent {
   readonly selectAllRequested = output<void>();
   readonly clearSelectionRequested = output<void>();
-  readonly fitStructureRequested = output<void>();
-  readonly focusSelectionRequested = output<void>();
-  readonly canFocusSelection = input(false);
   protected readonly i18n = inject(I18nService);
   protected readonly workspace = inject(WorkspaceStateService);
   protected readonly selection = inject(SelectionService);

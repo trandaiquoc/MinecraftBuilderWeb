@@ -46,7 +46,7 @@ describe('SelectionInspectorComponent marquee summary', () => {
     fixture.destroy();
   });
 
-  it('shows live project dimensions and exposes existing selection commands', async () => {
+  it('shows project dimensions and only the selection-specific quick actions', async () => {
     const base = rendererBenchmarkProject('small');
     const project = {
       ...base,
@@ -70,16 +70,10 @@ describe('SelectionInspectorComponent marquee summary', () => {
 
     let selectAllRequests = 0;
     let clearSelectionRequests = 0;
-    let fitStructureRequests = 0;
-    let focusSelectionRequests = 0;
     fixture.componentInstance.selectAllRequested.subscribe(() => selectAllRequests++);
     fixture.componentInstance.clearSelectionRequested.subscribe(() => clearSelectionRequests++);
-    fixture.componentInstance.fitStructureRequested.subscribe(() => fitStructureRequests++);
-    fixture.componentInstance.focusSelectionRequested.subscribe(() => focusSelectionRequests++);
     const selectAllButton = fixture.nativeElement.querySelector('[data-action="select-all"]');
     const clearButton = fixture.nativeElement.querySelector('[data-action="clear-selection"]');
-    const fitButton = fixture.nativeElement.querySelector('[data-action="fit-structure"]');
-    const focusButton = fixture.nativeElement.querySelector('[data-action="focus-selection"]');
     expect(fixture.nativeElement.querySelector('[data-empty-selection]')).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain(i18n.t('selectionEmptyHint'));
     expect(fixture.nativeElement.querySelector('#quick-actions-title').textContent).toContain(
@@ -87,21 +81,14 @@ describe('SelectionInspectorComponent marquee summary', () => {
     );
     expect(selectAllButton.disabled).toBe(false);
     expect(clearButton.disabled).toBe(true);
-    expect(fitButton.disabled).toBe(false);
-    expect(focusButton.disabled).toBe(true);
-    fixture.componentRef.setInput('canFocusSelection', true);
-    fixture.detectChanges();
-    expect(focusButton.disabled).toBe(false);
+    expect(fixture.nativeElement.querySelector('[data-action="fit-structure"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-action="focus-selection"]')).toBeNull();
 
     selectAllButton.click();
     clearButton.click();
-    fitButton.click();
-    focusButton.click();
 
     expect(selectAllRequests).toBe(1);
     expect(clearSelectionRequests).toBe(0);
-    expect(fitStructureRequests).toBe(1);
-    expect(focusSelectionRequests).toBe(1);
     fixture.destroy();
   });
 });

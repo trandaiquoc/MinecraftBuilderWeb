@@ -42,23 +42,6 @@
       >
         <svg lucideX aria-hidden="true"></svg>{{ i18n.t('clearSelection') }}
       </button>
-      <button
-        type="button"
-        class="ui-button ui-button--secondary ui-button--sm"
-        data-action="fit-structure"
-        (click)="fitStructureRequested.emit()"
-      >
-        <svg lucideMaximize2 aria-hidden="true"></svg>{{ i18n.t('fitStructure') }}
-      </button>
-      <button
-        type="button"
-        class="ui-button ui-button--secondary ui-button--sm"
-        data-action="focus-selection"
-        [disabled]="!canFocusSelection()"
-        (click)="focusSelectionRequested.emit()"
-      >
-        <svg lucideFocus aria-hidden="true"></svg>{{ i18n.t('focusSelection') }}
-      </button>
     </div>
   </section>
 }
