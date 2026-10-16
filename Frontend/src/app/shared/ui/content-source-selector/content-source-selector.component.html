@@ -47,7 +47,7 @@
   @if (manageLabel()) {
     <button
       type="button"
-      class="source-manage"
+      class="source-manage ui-tooltip-align-end"
       uiTooltip="{{ manageLabel() }}"
       [attr.aria-label]="manageLabel()"
       (click)="manageRequested.emit()"

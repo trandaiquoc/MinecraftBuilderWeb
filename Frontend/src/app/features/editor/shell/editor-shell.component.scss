@@ -248,6 +248,12 @@
   }
 }
 
+@container left-sidebar (min-width: 218.01px) {
+  .left-panel > .sidebar-tabs button::after {
+    display: none;
+  }
+}
+
 .sidebar-tabs button:hover:not(:disabled):not([aria-selected='true']) {
   background: color-mix(in srgb, var(--workspace-sidebar-text) 15%, transparent);
   color: var(--workspace-sidebar-text);

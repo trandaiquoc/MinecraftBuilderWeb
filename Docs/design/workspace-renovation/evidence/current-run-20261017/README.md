@@ -161,6 +161,24 @@ download and cancel actions with no horizontal overflow. The File menu offers
 Structure JSON import but no Structure NBT import; NBT loading in Minecraft
 was not part of this browser check.
 
+## Decorations and Groups sidebar tabs
+
+| State / viewport | Screenshot |
+| --- | --- |
+| Decorations selected with visible keyboard focus, two-block project, 390 x 520 | [workspace-decorations-keyboard-dark-en-390x520-20261017.png](workspace-decorations-keyboard-dark-en-390x520-20261017.png) |
+| Groups selected with visible keyboard focus, two-block project, 390 x 520 | [workspace-groups-keyboard-dark-en-390x520-20261017.png](workspace-groups-keyboard-dark-en-390x520-20261017.png) |
+
+Native ArrowRight moved Blocks → Decorations → Groups; Home and End selected
+the first and last tabs. Only the selected tab is in the tab sequence, and Tab
+from Groups entered the Group name field. Escape closed the 390 x 520 drawer
+and returned focus to its Blocks opener. The Decorations and Groups labels stay
+visible at this drawer width, so their tooltips are suppressed instead of
+covering tab content; tooltips remain available in the narrow icon-only mode.
+The Manage sources tooltip is aligned to the selector's right edge: before the
+fix the selector measured 286/327 px (client/scroll width) and the Decorations
+panel 307/338 px; afterward both measured equal widths (286/286 and 307/307).
+The document stayed 390 px wide without horizontal overflow.
+
 ## Structure JSON browser round trip
 
 | Step                                          | Screenshot                                                                                                                                                                           |
