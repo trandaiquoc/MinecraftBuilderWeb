@@ -46,21 +46,44 @@ scrolled the active item into view. The document did not overflow horizontally.
 
 ## Workspace panels and responsive shell
 
-| State / viewport                                   | Capture                                                                                                                |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Dark shell, 780×437                                | [workspace-editor-dark-780x437-20261017.png](workspace-editor-dark-780x437-20261017.png)                               |
-| Dark shell, after resizing back to 1600×900        | [workspace-editor-dark-after-resize-1600x900-20261017.png](workspace-editor-dark-after-resize-1600x900-20261017.png)   |
-| Dark shell, 390×520                                | [workspace-editor-dark-after-resize-390x520-20261017.png](workspace-editor-dark-after-resize-390x520-20261017.png)     |
-| Dark shell with narrow-screen drawer open, 390×520 | [workspace-editor-dark-390x520-drawer-after-20261017.png](workspace-editor-dark-390x520-drawer-after-20261017.png)     |
-| Decorations                                        | [workspace-decoration-dark-en-1600x900-20261017-final.png](workspace-decoration-dark-en-1600x900-20261017-final.png)   |
-| Empty Groups state                                 | [workspace-groups-empty-dark-en-1600x900-20261017.png](workspace-groups-empty-dark-en-1600x900-20261017.png)           |
-| Quick Bar with Stone added                         | [workspace-quickbar-stone-dark-en-1600x900-20261017.png](workspace-quickbar-stone-dark-en-1600x900-20261017.png)       |
-| Empty Block Usage                                  | [workspace-block-usage-empty-dark-en-1600x900-20261017.png](workspace-block-usage-empty-dark-en-1600x900-20261017.png) |
+| State / viewport                                   | Capture                                                                                                                                                              |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dark shell, 780×437                                | [workspace-editor-dark-780x437-20261017.png](workspace-editor-dark-780x437-20261017.png)                                                                             |
+| Dark shell, after resizing back to 1600×900        | [workspace-editor-dark-after-resize-1600x900-20261017.png](workspace-editor-dark-after-resize-1600x900-20261017.png)                                                 |
+| Dark shell, 390×520                                | [workspace-editor-dark-after-resize-390x520-20261017.png](workspace-editor-dark-after-resize-390x520-20261017.png)                                                   |
+| Dark shell with narrow-screen drawer open, 390×520 | [workspace-editor-dark-390x520-drawer-after-20261017.png](workspace-editor-dark-390x520-drawer-after-20261017.png)                                                   |
+| Decorations                                        | [workspace-decoration-dark-en-1600x900-20261017-final.png](workspace-decoration-dark-en-1600x900-20261017-final.png)                                                 |
+| Empty Groups state                                 | [workspace-groups-empty-dark-en-1600x900-20261017.png](workspace-groups-empty-dark-en-1600x900-20261017.png)                                                         |
+| Quick Bar with Stone added                         | [workspace-quickbar-stone-dark-en-1600x900-20261017.png](workspace-quickbar-stone-dark-en-1600x900-20261017.png)                                                     |
+| Empty Block Usage                                  | [workspace-block-usage-empty-dark-en-1600x900-20261017.png](workspace-block-usage-empty-dark-en-1600x900-20261017.png)                                               |
+| Block Usage, one Stone                             | [workspace-block-usage-one-stone-dark-en-1600x900-20261017.png](workspace-block-usage-one-stone-dark-en-1600x900-20261017.png)                                       |
+| Block Usage, Stone and Oak Stairs                  | [workspace-block-usage-two-types-dark-en-1600x900-20261017.png](workspace-block-usage-two-types-dark-en-1600x900-20261017.png)                                       |
+| Block Usage, Oak Stairs highlighted by keyboard    | [workspace-block-usage-two-types-oak-highlighted-dark-en-1600x900-20261017.png](workspace-block-usage-two-types-oak-highlighted-dark-en-1600x900-20261017.png)       |
+| Selected Stone, empty BlockState                   | [workspace-inspector-selected-stone-dark-en-1600x900-20261017.png](workspace-inspector-selected-stone-dark-en-1600x900-20261017.png)                                 |
+| Selected Oak Stairs, BlockState controls           | [workspace-inspector-oak-stairs-controls-dark-en-1600x900-20261017.png](workspace-inspector-oak-stairs-controls-dark-en-1600x900-20261017.png)                       |
+| Oak Stairs Facing edited to South                  | [workspace-inspector-oak-stairs-edited-facing-south-dark-en-1600x900-20261017.png](workspace-inspector-oak-stairs-edited-facing-south-dark-en-1600x900-20261017.png) |
 
 Stone was added to and then removed from the Quick Bar through the UI. The
-project stayed at zero placed blocks. Existing 2026-10-16 evidence in the
+project stayed at zero placed blocks for that interaction. Later inspector
+and populated Block Usage captures use the same isolated synthetic project
+with one Stone and one Oak Stairs; the stairs Facing value was restored to
+North after the edit check. No user project data was opened or changed.
+Existing 2026-10-16 evidence in the
 [Workspace renovation index](../../README.md) covers populated Block Usage,
 data-heavy flows, menus, diagnostics, and renderer output.
+
+The selected-block pass confirms the Inspector shows the exact registry ID,
+position, group, and canonical BlockState. Oak Stairs exposes Facing, Half,
+Shape, and Waterlogged; Shape is marked auto-derived and disabled. Changing
+Facing to South by pointer updated both the Inspector and the selected
+combobox. A keyboard Escape/ArrowDown/Enter flow changed it to West, then the
+value was restored to North. Block Usage showed 2 total blocks, 2 unique
+types, 0 missing blocks, and both exact registry IDs at 50% each. The
+inspector itself scrolls when a selected block has several state properties;
+the document viewport remains fixed without horizontal overflow. In Block
+Usage, Tab from the sort control focused Oak Stairs and Enter toggled its
+highlight button to `aria-pressed=true`; the recorded capture shows the
+highlighted row.
 
 ## Changes verified in this pass
 
@@ -81,8 +104,9 @@ Verification for the current code: full suite passed with `--isolate=false`
 build, app/spec/worker TypeScript checks, tool tests (2/2), encoding, Prettier,
 and `git diff --check` passed. The default worker-isolated full-suite run
 failed with Vitest worker timeouts and IPC errors; the successful run disabled
-test isolation. This set is not whole-Workspace acceptance: BlockState,
-non-empty import and export, trusted mod/JAR fixtures, External AI,
-diagnostics, all locales and fonts, focus return for remaining dialogs, and
-reduced-motion behavior
-still require explicit rechecks.
+test isolation. This set is not whole-Workspace acceptance: non-empty browser
+import and export, trusted mod/JAR fixtures, External AI, diagnostics, all
+locales and fonts, focus return for remaining dialogs, and reduced-motion
+behavior still require explicit rechecks. The repository does contain an
+independent Java 1.21.1 NBT fixture used by codec contract tests; a browser
+export round trip remains unverified.
