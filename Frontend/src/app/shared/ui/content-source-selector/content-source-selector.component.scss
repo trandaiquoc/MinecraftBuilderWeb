@@ -80,7 +80,7 @@
   box-shadow: var(--shadow-control-raised);
 }
 .source-option.selected small {
-  color: color-mix(in srgb, var(--control-selected-text) 78%, transparent);
+  color: color-mix(in srgb, var(--control-selected-text) 86%, transparent);
 }
 .source-manage {
   display: grid;

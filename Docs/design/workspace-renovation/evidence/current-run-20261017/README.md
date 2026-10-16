@@ -169,6 +169,34 @@ checks with Chakra Petch and Pangolin remain open.
 | Light | [workspace-font-size-small-light-en-390x520-20261017.png](workspace-font-size-small-light-en-390x520-20261017.png) | [workspace-font-size-small-light-vi-390x520-20261017.png](workspace-font-size-small-light-vi-390x520-20261017.png) |
 | Raccoon | [workspace-font-size-small-raccoon-en-390x520-20261017.png](workspace-font-size-small-raccoon-en-390x520-20261017.png) | [workspace-font-size-small-raccoon-vi-390x520-20261017.png](workspace-font-size-small-raccoon-vi-390x520-20261017.png) |
 
+## Workspace text contrast across themes
+
+The rendered Workspace's visible text was scanned in Chrome at 1600 x 900
+after each theme transition settled, with the File menu open. The 69 visible
+text fragments covered the app chrome, menu, selected Block Browser source,
+catalog cards, inspector empty state, and status bar. After the
+selected-metadata fix, no visible text pair fell below the WCAG AA normal-text
+threshold of 4.5:1 in Minecraft, Light, Raccoon, or Dark. The
+separate palette contract test checks primary and secondary panel text, header
+and sidebar text, selected and secondary controls, primary and destructive
+buttons, status colors, and focus boundaries across all four palettes.
+
+The scan found that selected source counts were blended at 78% opacity. In the
+Raccoon theme, the `All` count measured 4.26:1 against its selected surface.
+The shared source selector and selected block, decoration, and painting
+metadata now use 86% opacity. The same palette pair measures at least 4.78:1
+across the four themes, and the theme service spec protects that threshold.
+The visible screen scan does not cover every dialog, popup, dynamic status, or
+all font-size combinations; those states remain in the acceptance inventory.
+
+| State                                           | Screenshot                                                                                                                                         |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Before: selected source count at 78% in Raccoon | [workspace-selected-source-count-before-raccoon-en-1600x900-20261017.png](workspace-selected-source-count-before-raccoon-en-1600x900-20261017.png) |
+| After: selected source count at 86% in Raccoon  | [workspace-selected-source-count-after-raccoon-en-1600x900-20261017.png](workspace-selected-source-count-after-raccoon-en-1600x900-20261017.png)   |
+
+The 4.5:1 normal-text threshold follows [WCAG 2.2 Success Criterion
+1.4.3](https://www.w3.org/TR/WCAG22/#contrast-minimum).
+
 ## Mobile application menus
 
 The File menu aligns inside the viewport at 390 px in English and Vietnamese.
@@ -803,6 +831,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 191 distinct PNG captures
-in this archive are linked to files in this folder (192 link occurrences, with
-no missing targets).
+animated-state and locale matrix remains open. All 243 distinct PNG captures
+in this archive are linked to files in this folder (244 link occurrences, with
+no missing targets or unlinked captures).

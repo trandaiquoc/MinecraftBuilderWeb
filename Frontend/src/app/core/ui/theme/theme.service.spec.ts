@@ -444,6 +444,12 @@ describe('Workspace color palette contract', () => {
           `${themeName} ${label}`,
         ).toBeGreaterThanOrEqual(4.5);
       }
+
+      const selectedSecondaryText = mixColors(text, selected, 86);
+      expect(
+        contrastRatio(selectedSecondaryText, selected),
+        `${themeName} selected catalog metadata`,
+      ).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(focus, raised), `${themeName} focus boundary`).toBeGreaterThanOrEqual(3);
       expect(contrastRatio(focus, panel), `${themeName} focus on panel`).toBeGreaterThanOrEqual(3);
 
@@ -478,6 +484,19 @@ describe('Workspace color palette contract', () => {
           `${themeName} ${statusRole} on panel`,
         ).toBeGreaterThanOrEqual(4.5);
       }
+    }
+
+    const selectedMetadataRules = [
+      'src/app/shared/ui/content-source-selector/content-source-selector.component.scss',
+      'src/app/features/editor/blocks/block-browser.component.scss',
+      'src/app/features/editor/decorations/decoration-browser.component.scss',
+      'src/app/features/editor/decorations/painting-picker.component.scss',
+    ];
+    for (const path of selectedMetadataRules) {
+      const componentStyles = String(readFileSync(path, 'utf8'));
+      expect(componentStyles, path).toContain(
+        'color: color-mix(in srgb, var(--control-selected-text) 86%, transparent);',
+      );
     }
   });
 });

@@ -102,7 +102,7 @@
   font-size: 0.66rem;
 }
 .decoration-card.active small {
-  color: color-mix(in srgb, var(--control-selected-text) 78%, transparent);
+  color: color-mix(in srgb, var(--control-selected-text) 86%, transparent);
 }
 
 :host-context([data-theme='craft']) .decoration-card {

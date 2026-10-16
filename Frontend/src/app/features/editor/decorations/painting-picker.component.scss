@@ -141,7 +141,7 @@
   background: var(--surface-hover);
 }
 .painting-card.selected small {
-  color: color-mix(in srgb, var(--control-selected-text) 78%, transparent);
+  color: color-mix(in srgb, var(--control-selected-text) 86%, transparent);
 }
 .selected-painting-preview {
   display: grid;

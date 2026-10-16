@@ -300,7 +300,7 @@
   font-size: 0.75rem;
 }
 .block-item.active .block-copy small {
-  color: color-mix(in srgb, var(--control-selected-text) 78%, transparent);
+  color: color-mix(in srgb, var(--control-selected-text) 86%, transparent);
 }
 .block-copy small {
   font-family: var(--font-ui);
