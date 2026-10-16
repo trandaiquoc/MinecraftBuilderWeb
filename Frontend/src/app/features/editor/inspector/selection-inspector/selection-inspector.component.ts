@@ -1,4 +1,5 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, output, signal } from '@angular/core';
+import { LucideCheck, LucideX } from '@lucide/angular';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
 import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
 import { isSignDefinition, isSignId } from '../../../../core/block-entities/sign/sign-block-entity';
@@ -25,6 +26,8 @@ import { DECORATED_POT_ID } from '../../../../core/block-entities/decorated-pot/
 @Component({
   selector: 'app-selection-inspector',
   imports: [
+    LucideCheck,
+    LucideX,
     DecorationInspectorComponent,
     SignInspectorComponent,
     ThemedSelectComponent,
@@ -36,6 +39,8 @@ import { DECORATED_POT_ID } from '../../../../core/block-entities/decorated-pot/
   styleUrl: './selection-inspector.component.scss',
 })
 export class SelectionInspectorComponent {
+  readonly selectAllRequested = output<void>();
+  readonly clearSelectionRequested = output<void>();
   protected readonly i18n = inject(I18nService);
   protected readonly workspace = inject(WorkspaceStateService);
   protected readonly selection = inject(SelectionService);
@@ -45,6 +50,9 @@ export class SelectionInspectorComponent {
   private readonly blockIndex = inject(ProjectBlockRuntimeIndex);
   protected readonly stateFeedback = signal('');
   protected readonly selectedDecoration = this.decorations.selected;
+  protected readonly hasAnySelection = computed(
+    () => !!this.selectedDecoration() || this.selection.kind() !== 'none',
+  );
   protected readonly selectedBlock = computed(() => {
     const project = this.workspace.project();
     const selected = this.selection.single();

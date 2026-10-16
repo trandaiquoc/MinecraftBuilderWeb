@@ -190,6 +190,25 @@ describe('editor shell movement/delete routing', () => {
     mount.mockRestore();
   });
 
+  it('routes inspector quick actions through the existing selection commands', () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    const selection = TestBed.inject(SelectionService);
+    workspace.activate(project, undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    root.querySelector<HTMLButtonElement>('[data-action="select-all"]')?.click();
+    expect(selection.count(project)).toBe(project.blocks.length);
+
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-action="clear-selection"]')?.click();
+    expect(selection.kind()).toBe('none');
+    fixture.destroy();
+    mount.mockRestore();
+  });
+
   it('does not delete on cancellation and reports navigation failure after successful deletion', async () => {
     const fixture = TestBed.createComponent(EditorShellComponent);
     const shell = fixture.componentInstance as unknown as { deleteProject: () => Promise<void> };

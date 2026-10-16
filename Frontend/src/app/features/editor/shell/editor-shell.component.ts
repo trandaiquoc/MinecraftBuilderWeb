@@ -43,7 +43,7 @@ import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/edi
 import { EditorSidebarResizeSession } from './editor-sidebar-resize-session';
 import { DecorationService } from '../../../core/decorations/decoration.service';
 import { SettingsDialogComponent } from '../settings/settings-dialog/settings-dialog.component';
-import { LucideX } from '@lucide/angular';
+import { LucideCuboid, LucideGroup, LucideImage, LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { GroupsPanelComponent } from '../groups/groups-panel.component';
 import { SelectionInspectorComponent } from '../inspector/selection-inspector/selection-inspector.component';
@@ -90,6 +90,9 @@ export function hasEditorSelectionState(
     StructureJsonImportDialogComponent,
     StructureNbtExportDialogComponent,
     LucideX,
+    LucideCuboid,
+    LucideGroup,
+    LucideImage,
     UiTooltipDirective,
   ],
   templateUrl: './editor-shell.component.html',

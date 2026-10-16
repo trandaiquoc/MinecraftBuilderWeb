@@ -1,3 +1,84 @@
+.structure-overview {
+  container-type: inline-size;
+  display: grid;
+  gap: 0.7rem;
+  margin: 0 0 0.85rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-control);
+}
+.overview-heading {
+  display: grid;
+  gap: 0.65rem;
+}
+.overview-heading p,
+.overview-heading h2 {
+  margin: 0;
+}
+.overview-heading p {
+  margin-bottom: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.overview-heading h2 {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.overview-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.overview-actions button {
+  justify-content: center;
+  min-width: 0;
+  padding-inline: 0.35rem;
+  font-size: 0.67rem;
+}
+.overview-actions svg {
+  flex: 0 0 auto;
+  width: 0.85rem;
+  height: 0.85rem;
+}
+.overview-metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 0.4rem;
+  margin: 0;
+}
+.overview-metrics > div {
+  display: grid;
+  align-content: center;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+.overview-metrics dt {
+  color: var(--text-muted);
+  font-size: 0.63rem;
+  line-height: 1.25;
+}
+.overview-metrics dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+@container (max-width: 245px) {
+  .overview-actions,
+  .overview-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .selection-details {
   display: grid;
   gap: 0.85rem;

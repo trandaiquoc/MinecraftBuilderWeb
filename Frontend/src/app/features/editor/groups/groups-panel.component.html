@@ -10,7 +10,7 @@
       class="ui-button ui-button--primary ui-button--sm"
       (click)="createGroup()"
     >
-      {{ i18n.t('createGroup') }}
+      <svg lucideFolderPlus aria-hidden="true"></svg>{{ i18n.t('createGroup') }}
     </button>
   </div>
   <div class="group-search">
@@ -50,7 +50,7 @@
           group.locked ? i18n.t('groupLockedState') : i18n.t('groupUnlockedState')
         }}</span>
         @if (groups.activeGroupId() === group.id) {
-          <svg lucideCheck aria-hidden="true"></svg>
+          <svg class="workspace-selection-indicator" lucideCheck aria-hidden="true"></svg>
         }
       </span>
     </button>
@@ -78,12 +78,22 @@
           class="ui-button ui-button--secondary ui-button--sm"
           (click)="groups.setActiveVisible(!active.visible)"
         >
+          @if (active.visible) {
+            <svg lucideEyeOff aria-hidden="true"></svg>
+          } @else {
+            <svg lucideEye aria-hidden="true"></svg>
+          }
           {{ active.visible ? i18n.t('hideGroup') : i18n.t('showGroup') }}</button
         ><button
           type="button"
           class="ui-button ui-button--secondary ui-button--sm"
           (click)="groups.setActiveLocked(!active.locked)"
         >
+          @if (active.locked) {
+            <svg lucideLockOpen aria-hidden="true"></svg>
+          } @else {
+            <svg lucideLock aria-hidden="true"></svg>
+          }
           {{ active.locked ? i18n.t('unlockGroup') : i18n.t('lockGroup') }}</button
         ><button
           type="button"
@@ -91,25 +101,26 @@
           (click)="groups.addSelectionToActive()"
           [disabled]="active.locked || !hasSelection()"
         >
-          {{ i18n.t('addSelectionToGroup') }}</button
+          <svg lucidePlus aria-hidden="true"></svg>{{ i18n.t('addSelectionToGroup') }}</button
         ><button
           type="button"
           class="ui-button ui-button--secondary ui-button--sm"
           (click)="groups.removeSelectionFromActive()"
           [disabled]="active.locked || !hasSelection()"
         >
-          {{ i18n.t('removeSelectionFromGroup') }}</button
+          <svg lucideMinus aria-hidden="true"></svg>{{ i18n.t('removeSelectionFromGroup') }}</button
         ><button
           type="button"
           class="ui-button ui-button--secondary ui-button--sm"
           (click)="groups.isolateActive()"
         >
-          {{ i18n.t('isolateGroup') }}</button
+          <svg lucideFocus aria-hidden="true"></svg>{{ i18n.t('isolateGroup') }}</button
         ><button
           type="button"
           class="ui-button ui-button--secondary ui-button--sm"
           (click)="movePanelToggle.emit()"
         >
+          <svg lucideMove aria-hidden="true"></svg>
           {{ movePanelVisible() ? i18n.t('hideMove') : i18n.t('showMove') }}
         </button>
       </div>
@@ -119,14 +130,14 @@
           class="ui-button ui-button--danger ui-button--sm"
           (click)="groups.deleteActive()"
         >
-          {{ i18n.t('deleteGroup') }}</button
+          <svg lucideTrash2 aria-hidden="true"></svg>{{ i18n.t('deleteGroup') }}</button
         ><button
           type="button"
           class="ui-button ui-button--danger ui-button--sm"
           [disabled]="active.locked || !groups.activeGroupBlockCount()"
           (click)="deleteGroupBlocks()"
         >
-          {{ i18n.t('deleteGroupBlocks') }}
+          <svg lucideBlocks aria-hidden="true"></svg>{{ i18n.t('deleteGroupBlocks') }}
         </button>
       </div>
     </section>

@@ -94,10 +94,13 @@ describe('GroupsPanelComponent visual state contract', () => {
     expect(buttons()[0].classList.contains('active')).toBe(true);
     expect(buttons()[0].getAttribute('aria-pressed')).toBe('true');
     expect(buttons()[0].textContent).toContain('Locked');
+    expect(buttons()[0].querySelector('.workspace-selection-indicator')).not.toBeNull();
     buttons()[1].click();
     fixture.detectChanges();
     expect(buttons()[0].classList.contains('active')).toBe(false);
     expect(buttons()[1].getAttribute('aria-pressed')).toBe('true');
+    expect(buttons()[0].querySelector('.workspace-selection-indicator')).toBeNull();
+    expect(buttons()[1].querySelector('.workspace-selection-indicator')).not.toBeNull();
     expect(buttons()[1].textContent).toContain('Unlocked');
   });
 });

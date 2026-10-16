@@ -129,9 +129,11 @@
               [attr.aria-controls]="'sidebar-panel-blocks'"
               [class.active]="leftSidebarTab() === 'blocks'"
               [attr.aria-label]="i18n.t('blocksPanel')"
+              uiTooltip="{{ i18n.t('blocksPanel') }}"
               (keydown)="handleSidebarTabKeydown($event, 0)"
               (click)="leftSidebarTab.set('blocks')"
             >
+              <svg class="sidebar-tab-icon" lucideCuboid aria-hidden="true"></svg>
               <span class="sidebar-tab-label">{{ i18n.t('blocksPanel') }}</span>
             </button>
             <button
@@ -142,9 +144,11 @@
               [attr.aria-controls]="'sidebar-panel-decorations'"
               [class.active]="leftSidebarTab() === 'decorations'"
               [attr.aria-label]="i18n.t('decorationsPanel')"
+              uiTooltip="{{ i18n.t('decorationsPanel') }}"
               (keydown)="handleSidebarTabKeydown($event, 1)"
               (click)="leftSidebarTab.set('decorations')"
             >
+              <svg class="sidebar-tab-icon" lucideImage aria-hidden="true"></svg>
               <span class="sidebar-tab-label">{{ i18n.t('decorationsPanel') }}</span>
             </button>
             <button
@@ -155,9 +159,11 @@
               [attr.aria-controls]="'sidebar-panel-groups'"
               [class.active]="leftSidebarTab() === 'groups'"
               [attr.aria-label]="i18n.t('groupsPanel')"
+              uiTooltip="{{ i18n.t('groupsPanel') }}"
               (keydown)="handleSidebarTabKeydown($event, 2)"
               (click)="leftSidebarTab.set('groups')"
             >
+              <svg class="sidebar-tab-icon" lucideGroup aria-hidden="true"></svg>
               <span class="sidebar-tab-label">{{ i18n.t('groupsPanel') }}</span>
             </button>
           </div>
@@ -289,7 +295,10 @@
             [hidden]="rightSidebarTab() !== 'selection'"
             [attr.aria-hidden]="rightSidebarTab() !== 'selection'"
           >
-            <app-selection-inspector></app-selection-inspector>
+            <app-selection-inspector
+              (selectAllRequested)="selectAll()"
+              (clearSelectionRequested)="clearSelection()"
+            ></app-selection-inspector>
           </div>
           <div
             id="right-sidebar-panel-usage"

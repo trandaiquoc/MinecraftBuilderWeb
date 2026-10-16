@@ -4,13 +4,42 @@ import { SelectionService } from '../../../core/editor/selection/selection.servi
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { filterGroups } from '../../../core/editor/groups/group-search';
-import { LucideCheck, LucideX } from '@lucide/angular';
+import {
+  LucideBlocks,
+  LucideCheck,
+  LucideEye,
+  LucideEyeOff,
+  LucideFocus,
+  LucideFolderPlus,
+  LucideLock,
+  LucideLockOpen,
+  LucideMinus,
+  LucideMove,
+  LucidePlus,
+  LucideTrash2,
+  LucideX,
+} from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 
 @Component({
   selector: 'app-groups-panel',
-  imports: [LucideCheck, LucideX, UiTooltipDirective],
+  imports: [
+    LucideBlocks,
+    LucideCheck,
+    LucideEye,
+    LucideEyeOff,
+    LucideFocus,
+    LucideFolderPlus,
+    LucideLock,
+    LucideLockOpen,
+    LucideMinus,
+    LucideMove,
+    LucidePlus,
+    LucideTrash2,
+    LucideX,
+    UiTooltipDirective,
+  ],
   templateUrl: './groups-panel.component.html',
   styleUrl: './groups-panel.component.scss',
 })

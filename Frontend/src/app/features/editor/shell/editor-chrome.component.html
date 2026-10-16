@@ -101,6 +101,7 @@
             </button>
             <hr />
             <button type="button" role="menuitem" (click)="emit({ type: 'select-all' })">
+              <svg lucideListChecks aria-hidden="true"></svg>
               {{ i18n.t('selectAll') }}</button
             ><button
               type="button"
@@ -108,6 +109,7 @@
               [disabled]="!state().hasSelection"
               (click)="emit({ type: 'clear-selection' })"
             >
+              <svg lucideX aria-hidden="true"></svg>
               {{ i18n.t('clearSelection') }}</button
             ><button
               type="button"
@@ -115,6 +117,7 @@
               [disabled]="!state().hasSelection"
               (click)="emit({ type: 'delete-selection' })"
             >
+              <svg lucideTrash2 aria-hidden="true"></svg>
               {{ i18n.t('deleteSelection') }}
             </button>
           </div>
@@ -218,10 +221,12 @@
               {{ i18n.t('statusBar') }}
             </button>
             <button type="button" role="menuitem" (click)="emit({ type: 'reset-layout' })">
+              <svg lucidePanelsTopLeft aria-hidden="true"></svg>
               {{ i18n.t('resetLayout') }}
             </button>
             <hr />
             <button type="button" role="menuitem" (click)="emit({ type: 'fit-structure' })">
+              <svg lucideMaximize2 aria-hidden="true"></svg>
               {{ i18n.t('fitStructure') }}</button
             ><button
               type="button"
@@ -229,6 +234,7 @@
               [disabled]="!state().canFocusSelection"
               (click)="emit({ type: 'focus-selection' })"
             >
+              <svg lucideFocus aria-hidden="true"></svg>
               {{ i18n.t('focusSelection') }}
             </button>
           </div>
@@ -253,10 +259,13 @@
             animate.leave="workspace-popover-exit"
           >
             <button type="button" role="menuitem" (click)="emit({ type: 'open-asset-manager' })">
+              <svg lucidePackageOpen aria-hidden="true"></svg>
               {{ i18n.t('assetManager') }}</button
             ><button type="button" role="menuitem" (click)="emit({ type: 'open-diagnostics' })">
+              <svg lucideActivity aria-hidden="true"></svg>
               {{ i18n.t('projectDiagnostics') }}</button
             ><button type="button" role="menuitem" (click)="emit({ type: 'open-asset-manager' })">
+              <svg lucideDownload aria-hidden="true"></svg>
               {{ i18n.t('modJarImport') }}
             </button>
           </div>
@@ -281,6 +290,7 @@
             animate.leave="workspace-popover-exit"
           >
             <button type="button" role="menuitem" (click)="emit({ type: 'open-settings' })">
+              <svg lucideSettings aria-hidden="true"></svg>
               {{ i18n.t('openSettings') }}
             </button>
             <hr />
@@ -411,8 +421,10 @@
             animate.leave="workspace-popover-exit"
           >
             <button type="button" role="menuitem" (click)="emit({ type: 'open-controls-help' })">
+              <svg lucideKeyboard aria-hidden="true"></svg>
               {{ i18n.t('controlsShortcuts') }}</button
             ><button type="button" role="menuitem" (click)="emit({ type: 'open-about' })">
+              <svg lucideInfo aria-hidden="true"></svg>
               {{ i18n.t('about') }}
             </button>
           </div>
@@ -435,7 +447,11 @@
         >
           <svg lucideCuboid aria-hidden="true"></svg>{{ i18n.t('mode3d') }}
           @if (state().mode === '3d') {
-            <svg class="segment-check" lucideCheck aria-hidden="true"></svg>
+            <svg
+              class="segment-check workspace-selection-indicator"
+              lucideCheck
+              aria-hidden="true"
+            ></svg>
           }</button
         ><button
           type="button"
@@ -446,7 +462,11 @@
         >
           <svg lucideLayers aria-hidden="true"></svg>{{ i18n.t('modeYLayer') }}
           @if (state().mode === 'y-layer') {
-            <svg class="segment-check" lucideCheck aria-hidden="true"></svg>
+            <svg
+              class="segment-check workspace-selection-indicator"
+              lucideCheck
+              aria-hidden="true"
+            ></svg>
           }
         </button>
       </nav>
@@ -460,7 +480,11 @@
         >
           <svg lucideMousePointerClick aria-hidden="true"></svg>{{ i18n.t('toolPlace') }}
           @if (state().tool === 'place') {
-            <svg class="segment-check" lucideCheck aria-hidden="true"></svg>
+            <svg
+              class="segment-check workspace-selection-indicator"
+              lucideCheck
+              aria-hidden="true"
+            ></svg>
           }</button
         ><button
           type="button"
@@ -471,7 +495,11 @@
         >
           <svg lucideMousePointer2 aria-hidden="true"></svg>{{ i18n.t('toolSelect') }}
           @if (state().tool === 'select') {
-            <svg class="segment-check" lucideCheck aria-hidden="true"></svg>
+            <svg
+              class="segment-check workspace-selection-indicator"
+              lucideCheck
+              aria-hidden="true"
+            ></svg>
           }
         </button>
       </div>
@@ -540,6 +568,7 @@
               }
               <hr />
               <button type="button" role="menuitem" (click)="emit({ type: 'reset-camera' })">
+                <svg lucideRotateCcw aria-hidden="true"></svg>
                 {{ i18n.t('resetCamera') }}
               </button>
             </div>

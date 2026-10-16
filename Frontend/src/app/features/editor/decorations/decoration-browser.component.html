@@ -25,7 +25,11 @@
             ><small>{{ paintingCaption() }}</small></span
           >
           @if (decorations.active()?.kind === 'painting') {
-            <svg class="decoration-selected-indicator" lucideCheck aria-hidden="true"></svg>
+            <svg
+              class="decoration-selected-indicator workspace-selection-indicator"
+              lucideCheck
+              aria-hidden="true"
+            ></svg>
           }
         </button>
       }
@@ -45,7 +49,11 @@
             ><small>{{ i18n.t('normalFrame') }}</small></span
           >
           @if (decorations.active()?.kind === 'item-frame') {
-            <svg class="decoration-selected-indicator" lucideCheck aria-hidden="true"></svg>
+            <svg
+              class="decoration-selected-indicator workspace-selection-indicator"
+              lucideCheck
+              aria-hidden="true"
+            ></svg>
           }
         </button>
         <button
@@ -63,7 +71,11 @@
             ><small>{{ i18n.t('glowFrameShort') }}</small></span
           >
           @if (decorations.active()?.kind === 'glow-item-frame') {
-            <svg class="decoration-selected-indicator" lucideCheck aria-hidden="true"></svg>
+            <svg
+              class="decoration-selected-indicator workspace-selection-indicator"
+              lucideCheck
+              aria-hidden="true"
+            ></svg>
           }
         </button>
       }

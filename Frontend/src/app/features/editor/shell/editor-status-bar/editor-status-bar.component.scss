@@ -88,20 +88,45 @@ app-ui-progress.block-loading-progress {
 .status-bar [data-status='invalid'] {
   color: var(--workspace-status-danger);
 }
-@media (max-width: 640px) {
-  .status-right {
-    gap: 0.65rem;
-    flex-basis: 56%;
-  }
-  .asset-status {
-    min-width: 7rem;
-    flex-basis: 100%;
+@media (max-width: 850px) {
+  .status-bar {
+    gap: 0.4rem 0.75rem;
+    padding: 0.4rem 0.65rem;
   }
   .status-left {
-    gap: 0.65rem;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.65rem;
+    overflow: visible;
   }
+  .status-right {
+    flex: 0 0 auto;
+    max-width: 32%;
+    min-width: 0;
+    margin-left: 0;
+  }
+  .asset-status {
+    flex: 0 1 auto;
+    max-width: 100%;
+    min-width: 0;
+  }
+}
+@media (max-width: 640px) {
   .status-bar {
-    gap: 0.65rem;
-    padding-inline: 0.65rem;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .status-left {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .status-right {
+    flex: 1 1 100%;
+    max-width: none;
+    justify-content: flex-start;
+  }
+  .asset-status {
+    justify-items: start;
+    text-align: left;
   }
 }

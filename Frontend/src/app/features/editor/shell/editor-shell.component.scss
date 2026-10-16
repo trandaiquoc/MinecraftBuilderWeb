@@ -127,6 +127,7 @@
 
 .left-panel {
   overflow: hidden;
+  container: left-sidebar / inline-size;
 }
 
 .right-panel {
@@ -206,6 +207,29 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.left-panel > .sidebar-tabs .sidebar-tab-icon {
+  display: none;
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+@container left-sidebar (max-width: 245px) {
+  .left-panel > .sidebar-tabs button {
+    justify-content: center;
+    min-height: 2.35rem;
+    padding-inline: 0.2rem;
+  }
+
+  .left-panel > .sidebar-tabs .sidebar-tab-label {
+    display: none;
+  }
+
+  .left-panel > .sidebar-tabs .sidebar-tab-icon {
+    display: block;
+  }
 }
 
 .sidebar-tabs button:hover:not(:disabled) {

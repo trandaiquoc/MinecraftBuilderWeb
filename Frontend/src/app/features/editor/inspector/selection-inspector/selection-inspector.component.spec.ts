@@ -38,10 +38,47 @@ describe('SelectionInspectorComponent marquee summary', () => {
     );
     fixture.detectChanges();
 
-    const details = [...fixture.nativeElement.querySelectorAll('dd')].map((entry) =>
-      entry.textContent?.replace(/\s+/g, ' ').trim(),
+    const details = [...fixture.nativeElement.querySelectorAll('.selection-details dd')].map(
+      (entry) => entry.textContent?.replace(/\s+/g, ' ').trim(),
     );
     expect(details).toEqual(['X 8, Y 0, Z 8', 'X 8, Y 28, Z 8', '1 x 29 x 1', '2']);
+    fixture.destroy();
+  });
+
+  it('shows live project dimensions and exposes existing selection commands', async () => {
+    const base = rendererBenchmarkProject('small');
+    const project = {
+      ...base,
+      size: { x: 16, y: 32, z: 24 },
+      blocks: [base.blocks[0], { ...base.blocks[0], position: { x: 2, y: 0, z: 0 } }],
+    };
+    await TestBed.configureTestingModule({
+      imports: [SelectionInspectorComponent],
+      providers: [{ provide: ProjectBlockRuntimeIndex, useValue: new ProjectBlockRuntimeIndex() }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SelectionInspectorComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    workspace.publishProject(project);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-overview-size]').textContent).toContain(
+      '16 × 32 × 24',
+    );
+    expect(fixture.nativeElement.querySelector('.overview-metrics').textContent).toContain('2');
+
+    let selectAllRequests = 0;
+    let clearSelectionRequests = 0;
+    fixture.componentInstance.selectAllRequested.subscribe(() => selectAllRequests++);
+    fixture.componentInstance.clearSelectionRequested.subscribe(() => clearSelectionRequests++);
+    const selectAllButton = fixture.nativeElement.querySelector('[data-action="select-all"]');
+    const clearButton = fixture.nativeElement.querySelector('[data-action="clear-selection"]');
+    expect(selectAllButton.disabled).toBe(false);
+    expect(clearButton.disabled).toBe(true);
+    selectAllButton.click();
+    clearButton.click();
+
+    expect(selectAllRequests).toBe(1);
+    expect(clearSelectionRequests).toBe(0);
     fixture.destroy();
   });
 });
