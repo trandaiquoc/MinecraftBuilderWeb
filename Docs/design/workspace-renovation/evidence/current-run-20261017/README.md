@@ -26,21 +26,21 @@ automatically focused. Desktop captures are 1600×900; narrow captures are
 640×520 and 390×520. The Appearance background capture shows the separate
 Workspace Background tab.
 
-| Section / viewport             | Capture                                                                                                                                                      |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| General, 1600×900              | [workspace-settings-final-general-dark-en-1600x900-20261017.png](workspace-settings-final-general-dark-en-1600x900-20261017.png)                             |
-| Appearance, 1600×900           | [workspace-settings-final-appearance-dark-en-1600x900-20261017.png](workspace-settings-final-appearance-dark-en-1600x900-20261017.png)                       |
-| Workspace Background, 1600×900 | [workspace-settings-final-appearance-background-dark-en-1600x900-20261017.png](workspace-settings-final-appearance-background-dark-en-1600x900-20261017.png) |
-| Controls, 1600×900             | [workspace-settings-final-controls-dark-en-1600x900-20261017.png](workspace-settings-final-controls-dark-en-1600x900-20261017.png)                           |
-| Shortcuts, 1600×900            | [workspace-settings-final-shortcuts-dark-en-1600x900-20261017.png](workspace-settings-final-shortcuts-dark-en-1600x900-20261017.png)                         |
-| Accessibility, 1600×900        | [workspace-settings-final-accessibility-dark-en-1600x900-20261017.png](workspace-settings-final-accessibility-dark-en-1600x900-20261017.png)                 |
-| General, 640×520               | [workspace-settings-general-dark-640x520-20261017.png](workspace-settings-general-dark-640x520-20261017.png)                                                 |
-| General, 390×520               | [workspace-settings-general-dark-390x520-20261017.png](workspace-settings-general-dark-390x520-20261017.png)                                                 |
+| Section / viewport                          | Capture                                                                                                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| General, 1600×900                           | [workspace-settings-final-general-dark-en-1600x900-20261017.png](workspace-settings-final-general-dark-en-1600x900-20261017.png)                             |
+| Appearance, 1600×900                        | [workspace-settings-final-appearance-dark-en-1600x900-20261017.png](workspace-settings-final-appearance-dark-en-1600x900-20261017.png)                       |
+| Workspace Background, 1600×900              | [workspace-settings-final-appearance-background-dark-en-1600x900-20261017.png](workspace-settings-final-appearance-background-dark-en-1600x900-20261017.png) |
+| Controls, 1600×900                          | [workspace-settings-final-controls-dark-en-1600x900-20261017.png](workspace-settings-final-controls-dark-en-1600x900-20261017.png)                           |
+| Shortcuts, 1600×900                         | [workspace-settings-final-shortcuts-dark-en-1600x900-20261017.png](workspace-settings-final-shortcuts-dark-en-1600x900-20261017.png)                         |
+| Accessibility, 1600×900                     | [workspace-settings-final-accessibility-dark-en-1600x900-20261017.png](workspace-settings-final-accessibility-dark-en-1600x900-20261017.png)                 |
+| General, 640×520                            | [workspace-settings-general-dark-640x520-20261017.png](workspace-settings-general-dark-640x520-20261017.png)                                                 |
+| General, 390×520                            | [workspace-settings-general-dark-390x520-20261017.png](workspace-settings-general-dark-390x520-20261017.png)                                                 |
+| Accessibility selected by keyboard, 390×520 | [workspace-settings-accessibility-dark-390x520-keyboard-20261017.png](workspace-settings-accessibility-dark-390x520-keyboard-20261017.png)                   |
 
 At 390×520 the Settings dialog stays inside the viewport and keeps its footer
-visible. The section rail scrolls horizontally to provide access to all five
-sections. The current CDP keyboard probe did not reliably demonstrate activating
-the final section, so this image set does not claim that keyboard check passed.
+visible. Tab moved focus from General to Accessibility; Enter selected it and
+scrolled the active item into view. The document did not overflow horizontally.
 
 ## Workspace panels and responsive shell
 
@@ -67,11 +67,17 @@ data-heavy flows, menus, diagnostics, and renderer output.
   viewport grew.
 - Settings opened on General; the Close button no longer receives initial
   focus or danger-red emphasis.
+- Keyboard selection of Accessibility at 390×520 keeps the selected nav item
+  visible and the dialog footer accessible.
 - The narrow Workspace drawer and the 780×437 shell fit without document-level
   horizontal overflow.
 
-Automated results are recorded in the milestone report after the full checks
-run. This set is not whole-Workspace acceptance: BlockState, non-empty import
-and export, trusted mod/JAR fixtures, External AI, diagnostics, all locales
-and fonts, focus return, and reduced-motion behavior still require explicit
-rechecks.
+Verification for the current code: full suite passed with `--isolate=false`
+(308 files passed, 7 skipped; 1,922 tests passed, 11 skipped), production
+build, app/spec/worker TypeScript checks, tool tests (2/2), encoding, Prettier,
+and `git diff --check` passed. The default worker-isolated full-suite run
+failed with Vitest worker timeouts and IPC errors; the successful run disabled
+test isolation. This set is not whole-Workspace acceptance: BlockState,
+non-empty import and export, trusted mod/JAR fixtures, External AI,
+diagnostics, all locales and fonts, focus return, and reduced-motion behavior
+still require explicit rechecks.

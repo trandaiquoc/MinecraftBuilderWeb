@@ -26,11 +26,12 @@
       <nav class="settings-nav" [attr.aria-label]="i18n.t('settingsSections')">
         @for (item of sections; track item) {
           <button
+            #sectionButton
             type="button"
             [class.active]="section() === item"
             [attr.aria-current]="section() === item ? 'page' : null"
             [attr.cdkFocusInitial]="item === 'general' ? '' : null"
-            (click)="setSection(item)"
+            (click)="setSection(item, sectionButton)"
           >
             {{ sectionLabel(item) }}
           </button>

@@ -53,6 +53,39 @@ describe('SettingsDialogComponent Reality previews', () => {
     fixture.destroy();
   });
 
+  it('keeps the selected section visible in the horizontally scrolling navigation', async () => {
+    localStorage.removeItem('the-block-laundromat.ui-preferences');
+    await TestBed.configureTestingModule({
+      imports: [SettingsDialogComponent],
+      providers: [
+        {
+          provide: ContentAssetRuntimeService,
+          useValue: {
+            generation: signal(0),
+            resourceAvailabilitySettled: signal(true),
+            sources: { resources: { textureUrl: () => undefined } },
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(SettingsDialogComponent);
+    fixture.detectChanges();
+    const lastSection = fixture.nativeElement.querySelector(
+      '.settings-nav button:last-child',
+    ) as HTMLButtonElement;
+    const scrollIntoView = vi.fn();
+    lastSection.scrollIntoView = scrollIntoView;
+
+    lastSection.click();
+    fixture.detectChanges();
+
+    expect(lastSection.getAttribute('aria-current')).toBe('page');
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+
+    fixture.destroy();
+  });
+
   it('uses actual ground resources, availability state, and the renderer sky palette', async () => {
     localStorage.removeItem('the-block-laundromat.ui-preferences');
     const generation = signal(0);

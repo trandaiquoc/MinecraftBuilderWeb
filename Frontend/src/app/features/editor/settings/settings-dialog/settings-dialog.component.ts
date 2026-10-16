@@ -154,8 +154,9 @@ export class SettingsDialogComponent implements OnDestroy {
     ),
   );
 
-  protected setSection(section: SettingsSection): void {
+  protected setSection(section: SettingsSection, button?: HTMLButtonElement): void {
     this.section.set(section);
+    button?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
   protected setLocale(locale: UiLocale): void {
     this.session.setLocale(locale);
