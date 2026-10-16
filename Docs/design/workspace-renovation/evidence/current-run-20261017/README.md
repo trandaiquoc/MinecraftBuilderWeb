@@ -18,6 +18,37 @@ and saved 260/230 px sidebars. Only the UI theme changes.
 | Light     | [workspace-final-light-en-1600x900-20261017.png](workspace-final-light-en-1600x900-20261017.png)     |
 | Dark      | [workspace-final-dark-en-1600x900-20261017.png](workspace-final-dark-en-1600x900-20261017.png)       |
 
+## Workspace theme and font matrix
+
+The running Workspace was captured in Chrome at 1600×900 for all four UI
+themes, all three supported fonts, and both locales (24 states). Each state
+was applied through the live theme and localization services. Chrome confirmed
+the selected font family loaded and the document did not overflow
+horizontally. The test workspace was the same local 16×16×16 project with two
+placed blocks used by the surrounding audit captures.
+
+The font choices keep a distinct visual character. Comfortaa remains the most
+open at the normal setting; Chakra Petch is narrower and more technical;
+Pangolin appears heavier and more compact, especially in block metadata. No
+text clipping was found in this desktop pass. Pangolin readability and label
+fit still need a narrow-viewport review, and this matrix does not test the
+Small/Large font-size preferences or formal contrast ratios.
+
+| Theme | Font | English | Vietnamese |
+| --- | --- | --- | --- |
+| Dark | Comfortaa | [workspace-font-dark-comfortaa-en-1600x900-20261017.png](workspace-font-dark-comfortaa-en-1600x900-20261017.png) | [workspace-font-dark-comfortaa-vi-1600x900-20261017.png](workspace-font-dark-comfortaa-vi-1600x900-20261017.png) |
+| Dark | Chakra Petch | [workspace-font-dark-chakra-petch-en-1600x900-20261017.png](workspace-font-dark-chakra-petch-en-1600x900-20261017.png) | [workspace-font-dark-chakra-petch-vi-1600x900-20261017.png](workspace-font-dark-chakra-petch-vi-1600x900-20261017.png) |
+| Dark | Pangolin | [workspace-font-dark-pangolin-en-1600x900-20261017.png](workspace-font-dark-pangolin-en-1600x900-20261017.png) | [workspace-font-dark-pangolin-vi-1600x900-20261017.png](workspace-font-dark-pangolin-vi-1600x900-20261017.png) |
+| Light | Comfortaa | [workspace-font-light-comfortaa-en-1600x900-20261017.png](workspace-font-light-comfortaa-en-1600x900-20261017.png) | [workspace-font-light-comfortaa-vi-1600x900-20261017.png](workspace-font-light-comfortaa-vi-1600x900-20261017.png) |
+| Light | Chakra Petch | [workspace-font-light-chakra-petch-en-1600x900-20261017.png](workspace-font-light-chakra-petch-en-1600x900-20261017.png) | [workspace-font-light-chakra-petch-vi-1600x900-20261017.png](workspace-font-light-chakra-petch-vi-1600x900-20261017.png) |
+| Light | Pangolin | [workspace-font-light-pangolin-en-1600x900-20261017.png](workspace-font-light-pangolin-en-1600x900-20261017.png) | [workspace-font-light-pangolin-vi-1600x900-20261017.png](workspace-font-light-pangolin-vi-1600x900-20261017.png) |
+| Minecraft | Comfortaa | [workspace-font-craft-comfortaa-en-1600x900-20261017.png](workspace-font-craft-comfortaa-en-1600x900-20261017.png) | [workspace-font-craft-comfortaa-vi-1600x900-20261017.png](workspace-font-craft-comfortaa-vi-1600x900-20261017.png) |
+| Minecraft | Chakra Petch | [workspace-font-craft-chakra-petch-en-1600x900-20261017.png](workspace-font-craft-chakra-petch-en-1600x900-20261017.png) | [workspace-font-craft-chakra-petch-vi-1600x900-20261017.png](workspace-font-craft-chakra-petch-vi-1600x900-20261017.png) |
+| Minecraft | Pangolin | [workspace-font-craft-pangolin-en-1600x900-20261017.png](workspace-font-craft-pangolin-en-1600x900-20261017.png) | [workspace-font-craft-pangolin-vi-1600x900-20261017.png](workspace-font-craft-pangolin-vi-1600x900-20261017.png) |
+| Raccoon | Comfortaa | [workspace-font-raccoon-comfortaa-en-1600x900-20261017.png](workspace-font-raccoon-comfortaa-en-1600x900-20261017.png) | [workspace-font-raccoon-comfortaa-vi-1600x900-20261017.png](workspace-font-raccoon-comfortaa-vi-1600x900-20261017.png) |
+| Raccoon | Chakra Petch | [workspace-font-raccoon-chakra-petch-en-1600x900-20261017.png](workspace-font-raccoon-chakra-petch-en-1600x900-20261017.png) | [workspace-font-raccoon-chakra-petch-vi-1600x900-20261017.png](workspace-font-raccoon-chakra-petch-vi-1600x900-20261017.png) |
+| Raccoon | Pangolin | [workspace-font-raccoon-pangolin-en-1600x900-20261017.png](workspace-font-raccoon-pangolin-en-1600x900-20261017.png) | [workspace-font-raccoon-pangolin-vi-1600x900-20261017.png](workspace-font-raccoon-pangolin-vi-1600x900-20261017.png) |
+
 ## Mobile application menus
 
 The File menu aligns inside the viewport at 390 px in English and Vietnamese.
@@ -652,6 +683,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 153 distinct PNG captures
-in this archive are linked to files in this folder (154 link occurrences, with
+animated-state and locale matrix remains open. All 177 distinct PNG captures
+in this archive are linked to files in this folder (178 link occurrences, with
 no missing targets).
