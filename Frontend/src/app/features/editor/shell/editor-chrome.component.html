@@ -67,20 +67,36 @@
             animate.enter="workspace-popover-enter"
             animate.leave="workspace-popover-exit"
           >
-            <button type="button" role="menuitem" (click)="emit({ type: 'navigate-projects' })">
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'navigate-projects' })"
+            >
               <svg lucideFolderPlus aria-hidden="true"></svg>{{ i18n.t('newProjectMenu') }}</button
-            ><button type="button" role="menuitem" (click)="emit({ type: 'navigate-projects' })">
+            ><button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'navigate-projects' })"
+            >
               <svg lucideFolderOpen aria-hidden="true"></svg>{{ i18n.t('openProjectMenu') }}</button
-            ><button type="button" role="menuitem" (click)="emit({ type: 'save-project' })">
+            ><button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'save-project' })"
+            >
               <svg lucideSave aria-hidden="true"></svg>{{ i18n.t('saveProjectMenu') }}
             </button>
             <hr />
             <button
               type="button"
               role="menuitem"
+              tabindex="-1"
               class="menu-danger-action"
-              [disabled]="state().deletingProject"
-              (click)="emit({ type: 'delete-project' })"
+              [attr.aria-disabled]="state().deletingProject ? 'true' : null"
+              (click)="emitWhenEnabled({ type: 'delete-project' }, !state().deletingProject)"
             >
               <svg lucideTrash aria-hidden="true"></svg>
               {{
@@ -88,18 +104,29 @@
               }}
             </button>
             <hr />
-            <button type="button" role="menuitem" (click)="emit({ type: 'import-structure-json' })">
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'import-structure-json' })"
+            >
               <svg lucideFileInput aria-hidden="true"></svg
               >{{ i18n.t('importStructureJson') }}</button
             ><button
               type="button"
               role="menuitem"
+              tabindex="-1"
               (click)="emit({ type: 'export-structure-json' })"
             >
               <svg lucideFileOutput aria-hidden="true"></svg>{{ i18n.t('exportStructureJson') }}
             </button>
             <hr />
-            <button type="button" role="menuitem" (click)="emit({ type: 'export-structure-nbt' })">
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'export-structure-nbt' })"
+            >
               <svg lucideDownload aria-hidden="true"></svg>{{ i18n.t('exportStructureNbt') }}
             </button>
           </div>
@@ -126,35 +153,44 @@
             <button
               type="button"
               role="menuitem"
-              [disabled]="!state().canUndo"
-              (click)="emit({ type: 'undo' })"
+              tabindex="-1"
+              [attr.aria-disabled]="!state().canUndo ? 'true' : null"
+              (click)="emitWhenEnabled({ type: 'undo' }, state().canUndo)"
             >
               <svg lucideUndo2 aria-hidden="true"></svg>{{ i18n.t('undo') }}</button
             ><button
               type="button"
               role="menuitem"
-              [disabled]="!state().canRedo"
-              (click)="emit({ type: 'redo' })"
+              tabindex="-1"
+              [attr.aria-disabled]="!state().canRedo ? 'true' : null"
+              (click)="emitWhenEnabled({ type: 'redo' }, state().canRedo)"
             >
               <svg lucideRedo2 aria-hidden="true"></svg>{{ i18n.t('redo') }}
             </button>
             <hr />
-            <button type="button" role="menuitem" (click)="emit({ type: 'select-all' })">
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'select-all' })"
+            >
               <svg lucideListChecks aria-hidden="true"></svg>
               {{ i18n.t('selectAll') }}</button
             ><button
               type="button"
               role="menuitem"
-              [disabled]="!state().hasSelection"
-              (click)="emit({ type: 'clear-selection' })"
+              tabindex="-1"
+              [attr.aria-disabled]="!state().hasSelection ? 'true' : null"
+              (click)="emitWhenEnabled({ type: 'clear-selection' }, state().hasSelection)"
             >
               <svg lucideX aria-hidden="true"></svg>
               {{ i18n.t('clearSelection') }}</button
             ><button
               type="button"
               role="menuitem"
-              [disabled]="!state().hasSelection"
-              (click)="emit({ type: 'delete-selection' })"
+              tabindex="-1"
+              [attr.aria-disabled]="!state().hasSelection ? 'true' : null"
+              (click)="emitWhenEnabled({ type: 'delete-selection' }, state().hasSelection)"
             >
               <svg lucideTrash2 aria-hidden="true"></svg>
               {{ i18n.t('deleteSelection') }}
@@ -183,6 +219,7 @@
             <button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().mode === '3d'"
               [class.active]="state().mode === '3d'"
               (click)="emit({ type: 'set-mode', mode: '3d' })"
@@ -194,6 +231,7 @@
             ><button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().mode === 'y-layer'"
               [class.active]="state().mode === 'y-layer'"
               (click)="emit({ type: 'set-mode', mode: 'y-layer' })"
@@ -207,6 +245,7 @@
             <button
               type="button"
               role="menuitemcheckbox"
+              tabindex="-1"
               [attr.aria-checked]="state().layout.editorToolbarVisible"
               (click)="emit({ type: 'toggle-layout', key: 'editorToolbarVisible' })"
             >
@@ -218,6 +257,7 @@
             <button
               type="button"
               role="menuitemcheckbox"
+              tabindex="-1"
               [attr.aria-checked]="state().layout.leftSidebarVisible"
               (click)="emit({ type: 'toggle-layout', key: 'leftSidebarVisible' })"
             >
@@ -229,6 +269,7 @@
             <button
               type="button"
               role="menuitemcheckbox"
+              tabindex="-1"
               [attr.aria-checked]="state().layout.rightSidebarVisible"
               (click)="emit({ type: 'toggle-layout', key: 'rightSidebarVisible' })"
             >
@@ -240,6 +281,7 @@
             <button
               type="button"
               role="menuitemcheckbox"
+              tabindex="-1"
               [attr.aria-checked]="state().layout.quickBarVisible"
               (click)="emit({ type: 'toggle-layout', key: 'quickBarVisible' })"
             >
@@ -251,6 +293,7 @@
             <button
               type="button"
               role="menuitemcheckbox"
+              tabindex="-1"
               [attr.aria-checked]="state().layout.statusBarVisible"
               (click)="emit({ type: 'toggle-layout', key: 'statusBarVisible' })"
             >
@@ -259,19 +302,30 @@
               }
               {{ i18n.t('statusBar') }}
             </button>
-            <button type="button" role="menuitem" (click)="emit({ type: 'reset-layout' })">
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'reset-layout' })"
+            >
               <svg lucidePanelsTopLeft aria-hidden="true"></svg>
               {{ i18n.t('resetLayout') }}
             </button>
             <hr />
-            <button type="button" role="menuitem" (click)="emit({ type: 'fit-structure' })">
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'fit-structure' })"
+            >
               <svg lucideMaximize2 aria-hidden="true"></svg>
               {{ i18n.t('fitStructure') }}</button
             ><button
               type="button"
               role="menuitem"
-              [disabled]="!state().canFocusSelection"
-              (click)="emit({ type: 'focus-selection' })"
+              tabindex="-1"
+              [attr.aria-disabled]="!state().canFocusSelection ? 'true' : null"
+              (click)="emitWhenEnabled({ type: 'focus-selection' }, state().canFocusSelection)"
             >
               <svg lucideFocus aria-hidden="true"></svg>
               {{ i18n.t('focusSelection') }}
@@ -297,13 +351,28 @@
             animate.enter="workspace-popover-enter"
             animate.leave="workspace-popover-exit"
           >
-            <button type="button" role="menuitem" (click)="emit({ type: 'open-asset-manager' })">
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'open-asset-manager' })"
+            >
               <svg lucidePackageOpen aria-hidden="true"></svg>
               {{ i18n.t('assetManager') }}</button
-            ><button type="button" role="menuitem" (click)="emit({ type: 'open-diagnostics' })">
+            ><button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'open-diagnostics' })"
+            >
               <svg lucideActivity aria-hidden="true"></svg>
               {{ i18n.t('projectDiagnostics') }}</button
-            ><button type="button" role="menuitem" (click)="emit({ type: 'open-asset-manager' })">
+            ><button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'open-asset-manager' })"
+            >
               <svg lucideDownload aria-hidden="true"></svg>
               {{ i18n.t('modJarImport') }}
             </button>
@@ -328,7 +397,12 @@
             animate.enter="workspace-popover-enter"
             animate.leave="workspace-popover-exit"
           >
-            <button type="button" role="menuitem" (click)="emit({ type: 'open-settings' })">
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'open-settings' })"
+            >
               <svg lucideSettings aria-hidden="true"></svg>
               {{ i18n.t('openSettings') }}
             </button>
@@ -337,6 +411,7 @@
             ><button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().locale === 'en'"
               [class.active]="state().locale === 'en'"
               (click)="emit({ type: 'set-locale', locale: 'en' })"
@@ -348,6 +423,7 @@
             ><button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().locale === 'vi'"
               [class.active]="state().locale === 'vi'"
               (click)="emit({ type: 'set-locale', locale: 'vi' })"
@@ -361,6 +437,7 @@
             ><button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().theme === 'light'"
               [class.active]="state().theme === 'light'"
               (click)="emit({ type: 'set-theme', theme: 'light' })"
@@ -372,6 +449,7 @@
             ><button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().theme === 'dark'"
               [class.active]="state().theme === 'dark'"
               (click)="emit({ type: 'set-theme', theme: 'dark' })"
@@ -383,6 +461,7 @@
             ><button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().theme === 'craft'"
               [class.active]="state().theme === 'craft'"
               (click)="emit({ type: 'set-theme', theme: 'craft' })"
@@ -394,6 +473,7 @@
             ><button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().theme === 'raccoon'"
               [class.active]="state().theme === 'raccoon'"
               (click)="emit({ type: 'set-theme', theme: 'raccoon' })"
@@ -407,6 +487,7 @@
             ><button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().background === 'dark'"
               [class.active]="state().background === 'dark'"
               (click)="emit({ type: 'set-background', background: 'dark' })"
@@ -418,6 +499,7 @@
             ><button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().background === 'light'"
               [class.active]="state().background === 'light'"
               (click)="emit({ type: 'set-background', background: 'light' })"
@@ -429,6 +511,7 @@
             ><button
               type="button"
               role="menuitemradio"
+              tabindex="-1"
               [attr.aria-checked]="state().background === 'reality'"
               [class.active]="state().background === 'reality'"
               (click)="emit({ type: 'set-background', background: 'reality' })"
@@ -459,10 +542,20 @@
             animate.enter="workspace-popover-enter"
             animate.leave="workspace-popover-exit"
           >
-            <button type="button" role="menuitem" (click)="emit({ type: 'open-controls-help' })">
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'open-controls-help' })"
+            >
               <svg lucideKeyboard aria-hidden="true"></svg>
               {{ i18n.t('controlsShortcuts') }}</button
-            ><button type="button" role="menuitem" (click)="emit({ type: 'open-about' })">
+            ><button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              (click)="emit({ type: 'open-about' })"
+            >
               <svg lucideInfo aria-hidden="true"></svg>
               {{ i18n.t('about') }}
             </button>
@@ -633,6 +726,7 @@
             class="ui-button ui-button--toolbar menu-trigger"
             aria-haspopup="menu"
             [attr.aria-expanded]="activeMenu() === 'camera'"
+            [class.active]="activeMenu() === 'camera'"
             (click)="toggleMenu('camera', $event)"
           >
             <svg lucideCamera aria-hidden="true"></svg>{{ i18n.t('camera') }}
@@ -649,13 +743,19 @@
                 <button
                   type="button"
                   role="menuitem"
+                  tabindex="-1"
                   (click)="emit({ type: 'camera-preset', preset })"
                 >
                   {{ cameraPresetLabel(preset) }}
                 </button>
               }
               <hr />
-              <button type="button" role="menuitem" (click)="emit({ type: 'reset-camera' })">
+              <button
+                type="button"
+                role="menuitem"
+                tabindex="-1"
+                (click)="emit({ type: 'reset-camera' })"
+              >
                 <svg lucideRotateCcw aria-hidden="true"></svg>
                 {{ i18n.t('resetCamera') }}
               </button>

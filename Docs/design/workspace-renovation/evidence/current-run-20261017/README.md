@@ -43,6 +43,40 @@ scrolling each item into view, every item received pointer hit-testing inside
 the menu bounds. The View and Settings menus therefore remain usable without
 extending the document viewport.
 
+## Application menu keyboard navigation
+
+The Help popup exposed a shared keyboard bug: repeated ArrowDown presses kept
+focus on the first item. All application and Camera menus now open with focus on
+the first item; ArrowDown/ArrowUp move through items and wrap, while Home/End
+move to the first/last item. Unavailable commands remain focusable with an
+`aria-disabled="true"` state and do not activate. ArrowDown on a trigger
+opens at the first item and ArrowUp opens at the last. Menu items are removed
+from the page Tab sequence, so Tab leaves the popup and closes it. Escape
+closes the popup and returns visible focus to its trigger. These interactions
+use the keyboard model in the W3C
+[Menu Button Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/)
+and [Menu and Menubar Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/menubar/).
+
+| State | Screenshot |
+| --- | --- |
+| Before fix: ArrowDown remains on Controls & Shortcuts | [workspace-menu-arrowdown-stuck-before-dark-en-1600x900-20261017.png](workspace-menu-arrowdown-stuck-before-dark-en-1600x900-20261017.png) |
+| ArrowDown opens Help on the first item | [workspace-menu-keyboard-01-arrowdown-opens-first-dark-en-1600x900-20261017.png](workspace-menu-keyboard-01-arrowdown-opens-first-dark-en-1600x900-20261017.png) |
+| ArrowDown advances focus to About | [workspace-menu-keyboard-02-arrowdown-next-item-dark-en-1600x900-20261017.png](workspace-menu-keyboard-02-arrowdown-next-item-dark-en-1600x900-20261017.png) |
+| Tab leaves the menu and focuses 3D Edit | [workspace-menu-keyboard-03-tab-leaves-menu-dark-en-1600x900-20261017.png](workspace-menu-keyboard-03-tab-leaves-menu-dark-en-1600x900-20261017.png) |
+| ArrowUp opens Help on the last item | [workspace-menu-keyboard-04-arrowup-opens-last-dark-en-1600x900-20261017.png](workspace-menu-keyboard-04-arrowup-opens-last-dark-en-1600x900-20261017.png) |
+| Escape closes Help and returns focus to its trigger | [workspace-menu-keyboard-05-escape-returns-trigger-dark-en-1600x900-20261017.png](workspace-menu-keyboard-05-escape-returns-trigger-dark-en-1600x900-20261017.png) |
+| ArrowDown opens Camera on its first preset | [workspace-menu-keyboard-06-camera-open-first-dark-en-1600x900-20261017.png](workspace-menu-keyboard-06-camera-open-first-dark-en-1600x900-20261017.png) |
+| Escape closes Camera and returns focus to its trigger | [workspace-menu-keyboard-07-camera-escape-return-dark-en-1600x900-20261017.png](workspace-menu-keyboard-07-camera-escape-return-dark-en-1600x900-20261017.png) |
+| A disabled Edit command remains focusable with aria-disabled | [workspace-menu-keyboard-08-disabled-action-focus-dark-en-1600x900-20261017.png](workspace-menu-keyboard-08-disabled-action-focus-dark-en-1600x900-20261017.png) |
+
+Chrome verified sequential movement, wraparound, Home/End, Tab dismissal,
+ArrowUp/ArrowDown entry, and Escape focus return for Help and Camera. A disabled
+Clear selection item stayed focusable, did not activate on click, and kept the
+menu open. The component spec verifies sequential movement, disabled Edit
+actions staying focusable without activation, and Camera focus return. Other
+menu contents and screen-reader output were not exhaustively tested in this
+pass.
+
 ## Settings
 
 The Settings window was opened from the real Workspace. General is the initial
@@ -358,6 +392,25 @@ while its content scrolls internally. This check covers opening and closing,
 not download results, validation of exported bytes, or screen-reader behavior.
 No focus-return issue was found in these two flows.
 
+## Project Diagnostics and About focus return
+
+Tools > Project Diagnostics starts focus on its dialog heading; Escape closes
+the dialog and returns visible focus to Tools. Help > About uses the shared
+alert dialog; Escape closes it and returns visible focus to Help. Both menus
+remain closed after their dialogs close.
+
+| Step / state | Screenshot |
+| --- | --- |
+| Tools menu before opening Diagnostics | [workspace-dialog-return-06-tools-menu-dark-en-1600x900-20261017.png](workspace-dialog-return-06-tools-menu-dark-en-1600x900-20261017.png) |
+| Project Diagnostics opened from Tools | [workspace-dialog-return-07-project-diagnostics-dark-en-1600x900-20261017.png](workspace-dialog-return-07-project-diagnostics-dark-en-1600x900-20261017.png) |
+| Diagnostics Escape return to Tools | [workspace-dialog-return-08-project-diagnostics-escape-return-dark-en-1600x900-20261017.png](workspace-dialog-return-08-project-diagnostics-escape-return-dark-en-1600x900-20261017.png) |
+| Help menu before opening About | [workspace-dialog-return-09-help-menu-dark-en-1600x900-20261017.png](workspace-dialog-return-09-help-menu-dark-en-1600x900-20261017.png) |
+| About dialog opened from Help | [workspace-dialog-return-10-about-dialog-dark-en-1600x900-20261017.png](workspace-dialog-return-10-about-dialog-dark-en-1600x900-20261017.png) |
+| About Escape return to Help | [workspace-dialog-return-11-about-escape-return-dark-en-1600x900-20261017.png](workspace-dialog-return-11-about-escape-return-dark-en-1600x900-20261017.png) |
+
+These browser checks cover opening, Escape dismissal, and visible focus return;
+they do not cover screen-reader announcements or every dialog action.
+
 ## Project Diagnostics focus and empty state
 
 | State / viewport                                 | Screenshot                                                                                                                         |
@@ -504,6 +557,11 @@ locale were restored to Dark/English after the matrix.
 - Settings Appearance tabs use one tab stop and support ArrowLeft/Right, Home,
   and End; Tab continues into the active panel. Focus was checked in all four
   themes and both locales.
+- Application and Camera menus use one managed focus target, support Arrow
+  navigation with wrapping plus Home/End, close on Tab focus-out, and restore
+  focus to their trigger on Escape.
+- Project Diagnostics and About both close on Escape and return visible focus
+  to the Tools or Help trigger; no focus-return issue was found.
 - Themed selects announce the active listbox option and keep popup options out
   of the page Tab sequence. Escape closes a select popup without closing its
   owning Settings dialog; Tab closes it and continues to the next control.
@@ -542,3 +600,10 @@ The latest Settings Appearance tab follow-up passed its focused component spec
 progression; the focus ring and tab state were checked in all four themes and
 both English and Vietnamese. The saved Dark/English preference was restored
 afterward.
+
+The shared menu keyboard follow-up passed the EditorChrome and EditorShell
+focused specs (28 tests total), production build, Frontend encoding check,
+Prettier, and `git diff --check`. Chrome checked menu entry and item movement,
+wraparound, Home/End, Tab dismissal, Escape focus return for Help and Camera,
+disabled action focus and non-activation, and the Diagnostics/About dialog
+focus paths. All 141 PNG links in this archive resolve to files in this folder.

@@ -72,8 +72,9 @@ type SegmentControl = 'mode' | 'tool';
   styleUrl: './editor-chrome.component.scss',
   host: {
     '[class.menu-open]': '!!activeMenu()',
-    '(document:click)': 'closeMenus()',
+    '(document:click)': 'handleDocumentClick($event)',
     '(document:keydown)': 'handleDocumentKeydown($event)',
+    '(document:focusin)': 'handleDocumentFocusin($event)',
     '(window:resize)': 'alignActiveMenu()',
   },
 })
@@ -91,6 +92,7 @@ export class EditorChromeComponent {
     this.alignActiveMenu();
   });
   private segmentDrag: SegmentControl | undefined;
+  private nextMenuFocus: 'first' | 'last' = 'first';
   protected readonly cameraPresets = [
     'perspective',
     'top',
@@ -104,6 +106,10 @@ export class EditorChromeComponent {
     event.stopPropagation();
     const next = this.activeMenu() === menu ? undefined : menu;
     this.activeMenu.set(next);
+    const initialFocus = this.nextMenuFocus;
+    this.nextMenuFocus = 'first';
+    if (next && event.currentTarget instanceof HTMLElement)
+      this.focusMenuItem(next, event.currentTarget, initialFocus);
   }
 
   protected alignActiveMenu(): void {
@@ -140,6 +146,10 @@ export class EditorChromeComponent {
       this.host.nativeElement.querySelector<HTMLElement>('.menu-trigger.active')?.focus();
     this.activeMenu.set(undefined);
     this.action.emit(action);
+  }
+
+  protected emitWhenEnabled(action: EditorChromeAction, enabled: boolean): void {
+    if (enabled) this.emit(action);
   }
 
   protected beginSegmentDrag(control: SegmentControl, event: PointerEvent): void {
@@ -211,27 +221,51 @@ export class EditorChromeComponent {
     this.activeMenu.set(undefined);
   }
 
+  protected handleDocumentClick(event: MouseEvent): void {
+    if (!this.activeMenu()) return;
+    const menu = this.host.nativeElement.querySelector<HTMLElement>('.menu-popover[role="menu"]');
+    if (event.target instanceof Node && menu?.contains(event.target)) return;
+    this.closeMenus();
+  }
+
   protected handleMenuKeydown(event: KeyboardEvent): void {
-    const trigger =
-      event.target instanceof HTMLElement ? event.target.closest('.menu-trigger') : null;
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const trigger = target?.closest<HTMLElement>('.menu-trigger') ?? null;
     if (event.key === 'Escape' && (trigger || this.activeMenu())) {
       event.preventDefault();
-      const focusedTrigger = trigger as HTMLElement | null;
+      event.stopPropagation();
       const activeTrigger =
         this.host.nativeElement.querySelector<HTMLElement>('.menu-trigger.active');
       this.closeMenus();
-      (focusedTrigger ?? activeTrigger)?.focus();
+      (trigger ?? activeTrigger)?.focus();
       return;
     }
-    if (!this.activeMenu() || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
+    if (trigger && !this.activeMenu() && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.nextMenuFocus = event.key === 'ArrowUp' ? 'last' : 'first';
+      trigger.click();
+      return;
+    }
 
-    const entry =
-      (trigger as HTMLElement | null)?.closest('.menu-entry') ??
-      this.host.nativeElement.querySelector('.menu-popover')?.parentElement;
-    const items = entry?.querySelectorAll<HTMLButtonElement>('.menu-popover button:not(:disabled)');
-    if (!items?.length) return;
+    const menu = target?.closest<HTMLElement>('[role="menu"]');
+    if (!menu || !this.activeMenu()) return;
+
+    const items = Array.from(menu.querySelectorAll<HTMLButtonElement>('button[role^="menuitem"]'));
+    const currentItem = target?.closest<HTMLButtonElement>('button[role^="menuitem"]');
+    const currentIndex = currentItem ? items.indexOf(currentItem) : -1;
+    let nextIndex: number | undefined;
+    if (event.key === 'ArrowDown' && currentIndex >= 0)
+      nextIndex = (currentIndex + 1) % items.length;
+    if (event.key === 'ArrowUp' && currentIndex >= 0)
+      nextIndex = (currentIndex - 1 + items.length) % items.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = items.length - 1;
+    if (nextIndex === undefined || !items.length) return;
+
     event.preventDefault();
-    (event.key === 'ArrowUp' ? items[items.length - 1] : items[0]).focus();
+    event.stopPropagation();
+    items[nextIndex]?.focus();
   }
 
   protected handleDocumentKeydown(event: KeyboardEvent): void {
@@ -240,6 +274,30 @@ export class EditorChromeComponent {
       this.host.nativeElement.querySelector<HTMLElement>('.menu-trigger.active');
     this.closeMenus();
     activeTrigger?.focus();
+  }
+
+  protected handleDocumentFocusin(event: FocusEvent): void {
+    if (!this.activeMenu()) return;
+    const menu = this.host.nativeElement.querySelector<HTMLElement>('.menu-popover[role="menu"]');
+    if (event.target instanceof Node && menu?.contains(event.target)) return;
+    this.closeMenus();
+  }
+
+  private focusMenuItem(
+    menuName: EditorMenu,
+    trigger: HTMLElement,
+    position: 'first' | 'last',
+  ): void {
+    const entry = trigger.closest<HTMLElement>('.menu-entry');
+    const view = this.host.nativeElement.ownerDocument.defaultView;
+    view?.requestAnimationFrame(() => {
+      if (this.activeMenu() !== menuName || !entry) return;
+      const items = entry.querySelectorAll<HTMLButtonElement>(
+        '.menu-popover button[role^="menuitem"]',
+      );
+      const item = position === 'last' ? items[items.length - 1] : items[0];
+      item?.focus();
+    });
   }
 
   protected shortcutTitle(action: 'undo' | 'redo'): string {
