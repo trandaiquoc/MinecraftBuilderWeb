@@ -362,7 +362,7 @@
 
 .catalog-grid-host.compact .quick-add-wrapper {
   position: absolute;
-  top: 50%;
+  top: calc(50% + 0.2rem);
   right: 0.25rem;
   left: auto;
   opacity: 1;
