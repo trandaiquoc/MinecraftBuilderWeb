@@ -49,6 +49,23 @@ Small/Large font-size preferences or formal contrast ratios.
 | Raccoon | Chakra Petch | [workspace-font-raccoon-chakra-petch-en-1600x900-20261017.png](workspace-font-raccoon-chakra-petch-en-1600x900-20261017.png) | [workspace-font-raccoon-chakra-petch-vi-1600x900-20261017.png](workspace-font-raccoon-chakra-petch-vi-1600x900-20261017.png) |
 | Raccoon | Pangolin | [workspace-font-raccoon-pangolin-en-1600x900-20261017.png](workspace-font-raccoon-pangolin-en-1600x900-20261017.png) | [workspace-font-raccoon-pangolin-vi-1600x900-20261017.png](workspace-font-raccoon-pangolin-vi-1600x900-20261017.png) |
 
+## Compact Workspace shell across themes and locales
+
+The responsive shell was captured at 780×437 in all four themes and both
+locales, using Comfortaa. The sidebars collapse to Blocks and Selection
+openers; the toolbar wraps to another row when needed. The English and
+Vietnamese labels remained within the viewport, and Chrome reported no
+document-level horizontal or vertical overflow in any of the eight states.
+These captures check the closed shell only; drawer contents and narrow-viewport
+font variations are covered by separate checks or remain open below.
+
+| Theme | English | Vietnamese |
+| --- | --- | --- |
+| Light | [workspace-shell-compact-light-en-780x437-20261017.png](workspace-shell-compact-light-en-780x437-20261017.png) | [workspace-shell-compact-light-vi-780x437-20261017.png](workspace-shell-compact-light-vi-780x437-20261017.png) |
+| Minecraft | [workspace-shell-compact-minecraft-en-780x437-20261017.png](workspace-shell-compact-minecraft-en-780x437-20261017.png) | [workspace-shell-compact-minecraft-vi-780x437-20261017.png](workspace-shell-compact-minecraft-vi-780x437-20261017.png) |
+| Raccoon | [workspace-shell-compact-raccoon-en-780x437-20261017.png](workspace-shell-compact-raccoon-en-780x437-20261017.png) | [workspace-shell-compact-raccoon-vi-780x437-20261017.png](workspace-shell-compact-raccoon-vi-780x437-20261017.png) |
+| Dark | [workspace-shell-compact-dark-en-780x437-20261017.png](workspace-shell-compact-dark-en-780x437-20261017.png) | [workspace-shell-compact-dark-vi-780x437-20261017.png](workspace-shell-compact-dark-vi-780x437-20261017.png) |
+
 ## Mobile application menus
 
 The File menu aligns inside the viewport at 390 px in English and Vietnamese.
@@ -683,6 +700,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 177 distinct PNG captures
-in this archive are linked to files in this folder (178 link occurrences, with
+animated-state and locale matrix remains open. All 185 distinct PNG captures
+in this archive are linked to files in this folder (186 link occurrences, with
 no missing targets).
