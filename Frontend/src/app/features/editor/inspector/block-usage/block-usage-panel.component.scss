@@ -34,38 +34,31 @@ h2 {
 .usage-metrics {
   display: grid;
   flex: 0 0 auto;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-areas:
-    'total total'
-    'types missing';
-  gap: 0.32rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   min-width: 0;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--workspace-border);
+  border-radius: var(--workspace-radius-md);
+  background: var(--workspace-muted);
 }
 .usage-metric {
   display: grid;
-  align-content: start;
-  gap: 0.22rem;
+  align-content: center;
+  gap: 0.18rem;
   min-width: 0;
-  padding: 0.38rem 0.44rem;
-  border: 1px solid var(--workspace-border);
-  border-radius: var(--workspace-radius-sm);
-  background: var(--workspace-muted);
+  min-height: 3.35rem;
+  padding: 0.36rem 0.42rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.usage-metric + .usage-metric {
+  border-inline-start: 1px solid var(--workspace-border);
 }
 .usage-metric--total {
-  grid-area: total;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding-block: 0.48rem;
-}
-.usage-metric--types {
-  grid-area: types;
-}
-.usage-metric--missing {
-  grid-area: missing;
+  min-height: 0;
 }
 .usage-metric dt,
 .usage-metric dd {
@@ -75,16 +68,13 @@ h2 {
 }
 .usage-metric dt {
   color: var(--workspace-text-secondary);
-  font-size: 0.64rem;
+  font-size: 0.62rem;
   line-height: 1.2;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 .usage-metric dd {
   color: var(--workspace-sidebar-text);
-  font: 700 0.95rem/1 var(--font-readable);
-}
-.usage-metric--total dd {
-  font-size: 1.18rem;
+  font: 700 1rem/1 var(--font-readable);
 }
 .usage-tools {
   display: grid;
@@ -148,26 +138,27 @@ h2 {
   scrollbar-gutter: stable;
 }
 .usage-row {
-  height: 74px;
-  min-height: 74px;
+  height: 84px;
+  min-height: 84px;
   box-sizing: border-box;
-  padding: 0.2rem 0.1rem;
+  padding: 0;
 }
 .usage-row-button {
   display: grid;
-  grid-template-columns: 2.1rem minmax(0, 1fr) auto;
+  grid-template-columns: 2.75rem minmax(0, 1fr) auto;
   grid-template-rows: minmax(0, 1fr) 3px;
   width: 100%;
-  height: 68px;
-  min-height: 68px;
+  height: 84px;
+  min-height: 84px;
   align-items: center;
-  gap: 0.24rem 0.42rem;
+  gap: 0.24rem 0.48rem;
   box-sizing: border-box;
-  padding: 0.36rem 0.4rem;
-  border: 1px solid var(--workspace-border);
+  padding: 0.42rem 0.46rem;
+  border: 0;
+  border-bottom: 1px solid var(--workspace-border);
   border-inline-start: 3px solid transparent;
-  border-radius: var(--workspace-radius-md);
-  background: var(--workspace-raised);
+  border-radius: 0;
+  background: transparent;
   color: var(--workspace-sidebar-text);
   cursor: pointer;
   text-align: left;
@@ -200,8 +191,8 @@ h2 {
 .usage-thumbnail {
   display: grid;
   place-items: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.75rem;
+  height: 2.75rem;
   background: var(--workspace-raised);
   border: 1px solid var(--workspace-border);
   border-radius: var(--workspace-radius-sm);
@@ -227,16 +218,16 @@ h2 {
 }
 .usage-copy strong {
   color: var(--workspace-sidebar-text);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   line-height: 1.2;
 }
 .usage-copy code {
   color: var(--workspace-text-secondary);
-  font: 0.57rem/1.15 var(--font-readable);
+  font: 0.62rem/1.15 var(--font-readable);
 }
 .usage-copy small {
   color: var(--workspace-text-secondary);
-  font-size: 0.57rem;
+  font-size: 0.61rem;
   line-height: 1.15;
 }
 .usage-count {
@@ -250,17 +241,17 @@ h2 {
 }
 .usage-count strong {
   color: var(--workspace-sidebar-text);
-  font: 700 0.76rem/1 var(--font-readable);
+  font: 700 0.86rem/1 var(--font-readable);
 }
 .usage-count small {
   color: var(--workspace-text-secondary);
-  font: 0.55rem/1 var(--font-readable);
+  font: 0.61rem/1 var(--font-readable);
 }
 .usage-frequency {
   grid-column: 2 / -1;
   display: block;
   min-width: 0;
-  height: 3px;
+  height: 4px;
   overflow: hidden;
   border-radius: 999px;
   background: var(--workspace-muted);
@@ -280,18 +271,14 @@ h2 {
 
 @container (max-width: 220px) {
   .usage-row-button {
-    grid-template-columns: 1.85rem minmax(0, 1fr) auto;
-    column-gap: 0.32rem;
-    padding-inline: 0.3rem;
-  }
-
-  .usage-frequency {
-    grid-column: 2 / -1;
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+    column-gap: 0.38rem;
+    padding-inline: 0.38rem;
   }
 
   .usage-thumbnail {
-    width: 1.8rem;
-    height: 1.8rem;
+    width: 2.5rem;
+    height: 2.5rem;
   }
 }
 
@@ -304,44 +291,6 @@ h2 {
 
   .usage-heading p {
     margin: 0;
-  }
-
-  .usage-metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-areas: none;
-    gap: 0;
-    overflow: hidden;
-    border: 1px solid var(--workspace-border);
-    border-radius: var(--workspace-radius-md);
-    background: var(--workspace-muted);
-  }
-
-  .usage-metric--total,
-  .usage-metric--types,
-  .usage-metric--missing {
-    grid-area: auto;
-  }
-
-  .usage-metric {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    padding: 0.42rem 0.4rem;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .usage-metric + .usage-metric {
-    border-inline-start: 1px solid var(--workspace-border);
-  }
-
-  .usage-metric--total {
-    display: grid;
-    padding-block: 0.42rem;
-  }
-
-  .usage-metric--total dd {
-    font-size: 0.95rem;
   }
 
   .usage-tools {

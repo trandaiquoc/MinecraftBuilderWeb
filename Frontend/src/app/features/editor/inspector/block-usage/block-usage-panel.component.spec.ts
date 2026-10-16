@@ -67,7 +67,7 @@ describe('BlockUsagePanelComponent', () => {
     TestBed.resetTestingModule();
   });
 
-  it('presents compact project metrics and selectable usage rows', async () => {
+  it('presents unified project metrics and selectable usage rows', async () => {
     resizeCallbacks = [];
     disconnectObserver = vi.fn();
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
@@ -133,6 +133,7 @@ describe('BlockUsagePanelComponent', () => {
     expect(root.querySelector('.usage-metrics')?.textContent).toContain('17');
     expect(root.querySelector('.usage-metrics')?.textContent).toContain('2');
     expect(root.querySelector('.usage-metrics')?.textContent).toContain('5');
+    expect(root.querySelectorAll('.usage-metric')).toHaveLength(3);
     expect(root.querySelector('input[type="search"]')?.getAttribute('aria-label')).toBe(
       'searchBlockUsage',
     );
