@@ -39,17 +39,27 @@ describe('ProjectDiagnosticsDialogComponent', () => {
   let workspace: WorkspaceStateService;
   let locale: WritableSignal<'en' | 'vi'>;
   let provider: WritableSignal<VanillaAssetProvider | undefined>;
+  let assetStatus: WritableSignal<string>;
   let library: { catalogRevision: WritableSignal<number>; get: ReturnType<typeof vi.fn> };
   let component: {
     issues: () => readonly {
       readonly key: string;
       readonly code: string;
+      readonly category: string;
+      readonly severity: string;
       readonly title: string;
       readonly detail: string;
       readonly id?: string;
       readonly affectedBlocks: number;
     }[];
-    visibleIssues: () => readonly { readonly id?: string }[];
+    primaryIssues: () => readonly { readonly code: string }[];
+    compatibilityIssues: () => readonly { readonly code: string }[];
+    visiblePrimaryIssues: () => readonly { readonly code: string }[];
+    visibleCompatibilityIssues: () => readonly { readonly code: string }[];
+    compatibilityDetailsExpanded: () => boolean;
+    compatibilityIssueGroupCount: () => number;
+    compatibilityAffectedBlockCount: () => number;
+    issueGroupCount: () => number;
     hasMoreIssues: () => boolean;
     severityGroupCounts: () => {
       readonly error: number;
@@ -59,6 +69,7 @@ describe('ProjectDiagnosticsDialogComponent', () => {
     setQuery: (event: Event) => void;
     setSeverity: (event: Event) => void;
     setCategory: (event: Event) => void;
+    toggleCompatibilityDetails: () => void;
     showMoreIssues: () => void;
     runAudit: () => Promise<void>;
     auditing: () => boolean;
@@ -71,13 +82,21 @@ describe('ProjectDiagnosticsDialogComponent', () => {
     workspace.publishProject(project('first'));
     locale = signal<'en' | 'vi'>('en');
     provider = signal(new VanillaAssetProvider('audit-fixture', {}, new Map()));
+    assetStatus = signal('ready');
     library = {
       catalogRevision: signal(0),
-      get: vi.fn((id: string) =>
-        id === 'minecraft:stone' ? { visualSupport: 'real', behaviorSupport: 'full' } : undefined,
-      ),
+      get: vi.fn((id: string) => {
+        if (id === 'minecraft:stone') return { visualSupport: 'real', behaviorSupport: 'full' };
+        if (id === 'example:partial') {
+          return { visualSupport: 'partial', behaviorSupport: 'partial' };
+        }
+        if (id === 'minecraft:trapped_chest') {
+          return { visualSupport: 'real', behaviorSupport: 'unknown' };
+        }
+        return undefined;
+      }),
     };
-    const assets = { status: signal('ready'), provider };
+    const assets = { status: assetStatus, provider };
     TestBed.configureTestingModule({
       imports: [ProjectDiagnosticsDialogComponent],
       providers: [
@@ -90,7 +109,6 @@ describe('ProjectDiagnosticsDialogComponent', () => {
         },
       ],
     });
-    TestBed.overrideComponent(ProjectDiagnosticsDialogComponent, { set: { template: '' } });
     await TestBed.compileComponents();
     fixture = TestBed.createComponent(ProjectDiagnosticsDialogComponent);
     component = fixture.componentInstance as unknown as typeof component;
@@ -122,6 +140,89 @@ describe('ProjectDiagnosticsDialogComponent', () => {
     expect(library.get).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps actionable findings visible and collapses compatibility details by default', () => {
+    const baseBlock = project('base').blocks[0];
+    workspace.publishProject({
+      ...project('diagnostics-contract'),
+      blocks: [
+        { ...baseBlock, kind: 'missing', id: 'example:missing', namespace: 'example' },
+        { ...baseBlock, id: 'example:partial', namespace: 'example' },
+        { ...baseBlock, id: 'minecraft:trapped_chest', namespace: 'minecraft' },
+        { ...baseBlock, id: 'example:unknown', namespace: 'example' },
+      ],
+    });
+    assetStatus.set('unavailable');
+    fixture.detectChanges();
+
+    expect(component.compatibilityDetailsExpanded()).toBe(false);
+    expect(component.primaryIssues().map((issue) => issue.code)).toEqual([
+      'missing-content',
+      'unresolved-content',
+      'assets-unavailable',
+    ]);
+    expect(component.compatibilityIssues().map((issue) => issue.code)).toEqual([
+      'visual-support-partial',
+      'behavior-support-partial',
+      'behavior-support-unknown',
+    ]);
+    expect(component.visiblePrimaryIssues().map((issue) => issue.code)).toEqual(
+      component.primaryIssues().map((issue) => issue.code),
+    );
+    expect(component.issueGroupCount()).toBe(6);
+    expect(component.compatibilityIssueGroupCount()).toBe(3);
+    expect(component.compatibilityAffectedBlockCount()).toBe(3);
+    expect(
+      fixture.nativeElement.querySelectorAll('#diagnostics-compatibility-issues .issue'),
+    ).toHaveLength(0);
+
+    component.toggleCompatibilityDetails();
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelectorAll('#diagnostics-compatibility-issues .issue'),
+    ).toHaveLength(3);
+  });
+
+  it('opens compatibility details for search and filters without rescanning project content', () => {
+    const baseBlock = project('base').blocks[0];
+    workspace.publishProject({
+      ...project('diagnostics-filters'),
+      blocks: [
+        { ...baseBlock, id: 'example:partial', namespace: 'example' },
+        { ...baseBlock, id: 'minecraft:trapped_chest', namespace: 'minecraft' },
+        { ...baseBlock, id: 'example:unknown', namespace: 'example' },
+      ],
+    });
+    fixture.detectChanges();
+    component.issues();
+    const lookupsAfterCollection = library.get.mock.calls.length;
+
+    expect(component.compatibilityDetailsExpanded()).toBe(false);
+    component.setQuery({ target: { value: 'example:unknown' } } as unknown as Event);
+    expect(component.issues().map((issue) => issue.code)).toEqual(['unresolved-content']);
+    expect(component.compatibilityDetailsExpanded()).toBe(false);
+    expect(library.get).toHaveBeenCalledTimes(lookupsAfterCollection);
+
+    component.setQuery({ target: { value: 'trapped_chest' } } as unknown as Event);
+    expect(component.compatibilityDetailsExpanded()).toBe(true);
+    expect(component.visibleCompatibilityIssues().map((issue) => issue.code)).toEqual([
+      'behavior-support-unknown',
+    ]);
+    expect(library.get).toHaveBeenCalledTimes(lookupsAfterCollection);
+
+    component.setQuery({ target: { value: '' } } as unknown as Event);
+    component.toggleCompatibilityDetails();
+    expect(component.compatibilityDetailsExpanded()).toBe(false);
+    component.setCategory({ target: { value: 'visual' } } as unknown as Event);
+    expect(component.compatibilityDetailsExpanded()).toBe(true);
+    expect(component.issues().map((issue) => issue.code)).toEqual(['visual-support-partial']);
+    expect(library.get).toHaveBeenCalledTimes(lookupsAfterCollection);
+
+    component.toggleCompatibilityDetails();
+    component.setSeverity({ target: { value: 'warning' } } as unknown as Event);
+    expect(component.compatibilityDetailsExpanded()).toBe(true);
+    expect(library.get).toHaveBeenCalledTimes(lookupsAfterCollection);
+  });
+
   it('groups repeated findings, filters them, and pages unique issue groups', () => {
     library.get.mockClear();
     const baseBlock = project('base').blocks[0];
@@ -151,12 +252,12 @@ describe('ProjectDiagnosticsDialogComponent', () => {
 
     expect(component.issues()).toHaveLength(45);
     expect(component.severityGroupCounts()).toEqual({ error: 45, warning: 0, info: 0 });
-    expect(component.visibleIssues()).toHaveLength(40);
+    expect(component.visiblePrimaryIssues()).toHaveLength(40);
     expect(component.hasMoreIssues()).toBe(true);
     expect(library.get).toHaveBeenCalledTimes(46);
 
     component.showMoreIssues();
-    expect(component.visibleIssues()).toHaveLength(45);
+    expect(component.visiblePrimaryIssues()).toHaveLength(45);
     expect(component.hasMoreIssues()).toBe(false);
     component.setSeverity({ target: { value: 'warning' } } as unknown as Event);
     expect(component.issues()).toEqual([]);

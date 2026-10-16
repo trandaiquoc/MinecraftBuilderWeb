@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
   computed,
@@ -9,7 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
-import { LucideX } from '@lucide/angular';
+import { LucideChevronDown, LucideChevronUp, LucideX } from '@lucide/angular';
 import {
   auditVanillaAssets,
   VanillaAssetCoverageReport,
@@ -31,6 +32,7 @@ import {
   type DiagnosticCategoryFilter,
   type DiagnosticFilter,
   type DiagnosticSeverity,
+  type ProjectIssuePresentation,
 } from './project-diagnostics-analysis';
 
 interface ProjectDiagnosticsAuditScope {
@@ -42,7 +44,15 @@ interface ProjectDiagnosticsAuditScope {
 
 @Component({
   selector: 'app-project-diagnostics-dialog',
-  imports: [LucideX, UiTooltipDirective, UiProgressComponent, CdkTrapFocus],
+  imports: [
+    LucideChevronDown,
+    LucideChevronUp,
+    LucideX,
+    NgTemplateOutlet,
+    UiTooltipDirective,
+    UiProgressComponent,
+    CdkTrapFocus,
+  ],
   templateUrl: './project-diagnostics-dialog.component.html',
   styleUrl: './project-diagnostics-dialog.component.scss',
   host: { '(document:keydown.escape)': 'closed.emit()' },
@@ -57,6 +67,7 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
   protected readonly query = signal('');
   protected readonly severityFilter = signal<DiagnosticFilter>('all');
   protected readonly categoryFilter = signal<DiagnosticCategoryFilter>('all');
+  protected readonly compatibilityDetailsExpanded = signal(false);
   protected readonly visibleIssueLimit = signal(40);
   protected readonly severityOptions = ['all', 'error', 'warning', 'info'] as const;
   protected readonly severitySummaryOptions = ['error', 'warning', 'info'] as const;
@@ -106,8 +117,23 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
       this.categoryFilter(),
     ),
   );
-  protected readonly visibleIssues = computed(() =>
-    this.issues().slice(0, this.visibleIssueLimit()),
+  protected readonly primaryIssues = computed(() =>
+    this.issues().filter((issue) => !isCompatibilityIssue(issue)),
+  );
+  protected readonly compatibilityIssues = computed(() =>
+    this.issues().filter(isCompatibilityIssue),
+  );
+  protected readonly visiblePrimaryIssues = computed(() =>
+    this.primaryIssues().slice(0, this.visibleIssueLimit()),
+  );
+  protected readonly visibleCompatibilityIssues = computed(() =>
+    this.compatibilityIssues().slice(0, this.visibleIssueLimit()),
+  );
+  protected readonly compatibilityIssueGroupCount = computed(
+    () => this.compatibilityIssues().length,
+  );
+  protected readonly compatibilityAffectedBlockCount = computed(() =>
+    this.compatibilityIssues().reduce((total, issue) => total + issue.affectedBlocks, 0),
   );
   protected readonly issueGroupCount = computed(() => this.collectedIssues().length);
   protected readonly affectedBlockCount = computed(() =>
@@ -119,7 +145,18 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
     return counts;
   });
   protected readonly hasMoreIssues = computed(
-    () => this.visibleIssues().length < this.issues().length,
+    () =>
+      this.visiblePrimaryIssues().length < this.primaryIssues().length ||
+      (this.compatibilityDetailsExpanded() &&
+        this.visibleCompatibilityIssues().length < this.compatibilityIssues().length),
+  );
+  protected readonly remainingIssueCount = computed(
+    () =>
+      this.primaryIssues().length -
+      this.visiblePrimaryIssues().length +
+      (this.compatibilityDetailsExpanded()
+        ? this.compatibilityIssues().length - this.visibleCompatibilityIssues().length
+        : 0),
   );
 
   constructor() {
@@ -142,19 +179,34 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
     this.cancelAudit();
   }
   protected setQuery(event: Event): void {
-    this.query.set((event.target as HTMLInputElement).value);
+    const query = (event.target as HTMLInputElement).value;
+    this.query.set(query);
+    if (query.trim()) this.expandCompatibilityDetailsIfResultsMatch();
     this.visibleIssueLimit.set(this.issuePageSize);
   }
   protected setSeverity(event: Event): void {
-    this.severityFilter.set((event.target as HTMLButtonElement).value as DiagnosticFilter);
+    const severity = (event.target as HTMLButtonElement).value as DiagnosticFilter;
+    this.severityFilter.set(severity);
+    if (severity === 'warning' || severity === 'info')
+      this.expandCompatibilityDetailsIfResultsMatch();
     this.visibleIssueLimit.set(this.issuePageSize);
   }
   protected setCategory(event: Event): void {
-    this.categoryFilter.set((event.target as HTMLSelectElement).value as DiagnosticCategoryFilter);
+    const category = (event.target as HTMLSelectElement).value as DiagnosticCategoryFilter;
+    this.categoryFilter.set(category);
+    if (category === 'visual' || category === 'behavior') {
+      this.expandCompatibilityDetailsIfResultsMatch();
+    }
     this.visibleIssueLimit.set(this.issuePageSize);
+  }
+  protected toggleCompatibilityDetails(): void {
+    this.compatibilityDetailsExpanded.update((expanded) => !expanded);
   }
   protected showMoreIssues(): void {
     this.visibleIssueLimit.update((limit) => limit + this.issuePageSize);
+  }
+  private expandCompatibilityDetailsIfResultsMatch(): void {
+    if (this.compatibilityIssues().length) this.compatibilityDetailsExpanded.set(true);
   }
   protected severityLabel(severity: DiagnosticSeverity): string {
     return severity === 'error'
@@ -231,4 +283,8 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
       !scope.controller.signal.aborted
     );
   }
+}
+
+function isCompatibilityIssue(issue: ProjectIssuePresentation): boolean {
+  return issue.category === 'visual' || issue.category === 'behavior';
 }

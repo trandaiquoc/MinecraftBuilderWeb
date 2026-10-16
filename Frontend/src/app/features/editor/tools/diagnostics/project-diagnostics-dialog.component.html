@@ -24,6 +24,23 @@
       </button>
     </header>
     <div class="tool-dialog-body">
+      <ng-template #issueCard let-issue>
+        <article class="issue" [attr.data-severity]="issue.severity">
+          <div>
+            <strong>{{ issue.title }}</strong
+            ><small>{{ severityLabel(issue.severity) }}</small>
+          </div>
+          <p>{{ issue.detail }}</p>
+          @if (issue.affectedBlocks) {
+            <small class="issue-count">
+              {{ issue.affectedBlocks }} {{ i18n.t('diagnosticsAffectedBlocks') }}
+            </small>
+          }
+          @if (issue.id) {
+            <code>{{ issue.id }}</code>
+          }
+        </article>
+      </ng-template>
       <section class="diagnostic-summary">
         <strong>{{ issueGroupCount() }}</strong
         ><span>{{ i18n.t('diagnosticsIssueGroups') }}</span>
@@ -77,34 +94,76 @@
         </label>
       </div>
       @if (issues().length) {
-        <div
-          class="issue-list"
-          [class.issue-list--many]="issues().length > 3"
-          role="region"
-          tabindex="0"
-          [attr.aria-label]="i18n.t('diagnosticsIssueGroups')"
-        >
-          @for (issue of visibleIssues(); track issue.key) {
-            <article class="issue" [attr.data-severity]="issue.severity">
-              <div>
-                <strong>{{ issue.title }}</strong
-                ><small>{{ severityLabel(issue.severity) }}</small>
+        @if (primaryIssues().length) {
+          <div
+            class="issue-list"
+            [class.issue-list--many]="primaryIssues().length > 3"
+            role="region"
+            tabindex="0"
+            [attr.aria-label]="i18n.t('diagnosticsActionableIssues')"
+          >
+            @for (issue of visiblePrimaryIssues(); track issue.key) {
+              <ng-container
+                [ngTemplateOutlet]="issueCard"
+                [ngTemplateOutletContext]="{ $implicit: issue }"
+              />
+            }
+          </div>
+        }
+        @if (compatibilityIssueGroupCount()) {
+          <button
+            type="button"
+            class="compatibility-disclosure"
+            [attr.aria-expanded]="compatibilityDetailsExpanded()"
+            aria-controls="diagnostics-compatibility-issues"
+            (click)="toggleCompatibilityDetails()"
+          >
+            <span class="compatibility-disclosure-label">
+              {{
+                i18n.t(
+                  compatibilityDetailsExpanded()
+                    ? 'diagnosticsHideCompatibilityDetails'
+                    : 'diagnosticsShowCompatibilityDetails'
+                )
+              }}
+            </span>
+            <small class="compatibility-disclosure-count">
+              {{ compatibilityIssueGroupCount() }} {{ i18n.t('diagnosticsIssueGroups') }}
+              <span aria-hidden="true">&bull;</span>
+              {{ compatibilityAffectedBlockCount() }} {{ i18n.t('diagnosticsAffectedBlocks') }}
+            </small>
+            @if (compatibilityDetailsExpanded()) {
+              <svg lucideChevronUp aria-hidden="true"></svg>
+            } @else {
+              <svg lucideChevronDown aria-hidden="true"></svg>
+            }
+          </button>
+          <div
+            id="diagnostics-compatibility-issues"
+            class="compatibility-issue-details"
+            [hidden]="!compatibilityDetailsExpanded()"
+          >
+            @if (compatibilityDetailsExpanded()) {
+              <div
+                class="issue-list"
+                [class.issue-list--many]="compatibilityIssueGroupCount() > 3"
+                role="region"
+                tabindex="0"
+                [attr.aria-label]="i18n.t('diagnosticsCompatibilityDetails')"
+              >
+                @for (issue of visibleCompatibilityIssues(); track issue.key) {
+                  <ng-container
+                    [ngTemplateOutlet]="issueCard"
+                    [ngTemplateOutletContext]="{ $implicit: issue }"
+                  />
+                }
               </div>
-              <p>{{ issue.detail }}</p>
-              @if (issue.affectedBlocks) {
-                <small class="issue-count">
-                  {{ issue.affectedBlocks }} {{ i18n.t('diagnosticsAffectedBlocks') }}
-                </small>
-              }
-              @if (issue.id) {
-                <code>{{ issue.id }}</code>
-              }
-            </article>
-          }
-        </div>
+            }
+          </div>
+        }
         @if (hasMoreIssues()) {
           <button type="button" class="show-more-issues" (click)="showMoreIssues()">
-            {{ i18n.t('diagnosticsShowMore') }} ({{ issues().length - visibleIssues().length }})
+            {{ i18n.t('diagnosticsShowMore') }} ({{ remainingIssueCount() }})
           </button>
         }
       } @else {
