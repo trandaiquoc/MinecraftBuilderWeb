@@ -22,7 +22,7 @@
 
 .app-menu-row {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   isolation: isolate;
   background: var(--workspace-header-bg);
 }
@@ -118,6 +118,8 @@
 }
 
 .editor-toolbar-row {
+  position: relative;
+  z-index: 1;
   flex-wrap: wrap;
   row-gap: 0.35rem;
   min-height: 2.9rem;

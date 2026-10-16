@@ -71,6 +71,20 @@ const mixColors = (foreground: string, background: string, foregroundPercent: nu
 };
 
 describe('Workspace color palette contract', () => {
+  it('keeps application menus above the editor toolbar', () => {
+    const chromeStyles = String(
+      readFileSync('src/app/features/editor/shell/editor-chrome.component.scss', 'utf8'),
+    );
+    const menuRowStart = chromeStyles.indexOf('.app-menu-row {');
+    const menuRowEnd = chromeStyles.indexOf('}', menuRowStart);
+    const toolbarRowStart = chromeStyles.indexOf('.editor-toolbar-row {', menuRowEnd);
+    const toolbarRowEnd = chromeStyles.indexOf('}', toolbarRowStart);
+
+    expect(chromeStyles.slice(menuRowStart, menuRowEnd)).toContain('z-index: 2;');
+    expect(chromeStyles.slice(toolbarRowStart, toolbarRowEnd)).toContain('position: relative;');
+    expect(chromeStyles.slice(toolbarRowStart, toolbarRowEnd)).toContain('z-index: 1;');
+  });
+
   it('marks the selected tab surface without a detached or moving indicator', () => {
     const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
     expect(stylesheet).not.toContain('.ui-tab-strip::before');
