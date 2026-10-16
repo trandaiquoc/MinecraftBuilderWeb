@@ -10,6 +10,13 @@ interface AssetManagerTabState {
   readonly onTabKeydown: (event: KeyboardEvent, currentTab: AssetManagerTab) => void;
 }
 
+interface AssetManagerHelpState {
+  readonly helpOpen: WritableSignal<boolean>;
+  readonly openHelp: () => void;
+  readonly closeHelp: () => void;
+  readonly closeHelpFromEscape: (event: Event) => void;
+}
+
 describe('AssetManagerDialogComponent tabs', () => {
   it('keeps one tab stop and moves focus with arrow, Home, and End keys', () => {
     const state = Object.create(AssetManagerDialogComponent.prototype) as AssetManagerTabState;
@@ -67,5 +74,22 @@ describe('AssetManagerDialogComponent tabs', () => {
     expect(state.tab()).toBe('mods');
     expect(document.activeElement).toBe(tabs[1]);
     tablist.remove();
+  });
+});
+
+describe('AssetManagerDialogComponent help', () => {
+  it('keeps help open when both focus and click request it', () => {
+    const state = Object.create(AssetManagerDialogComponent.prototype) as AssetManagerHelpState;
+    Object.defineProperty(state, 'helpOpen', { value: signal(false) });
+
+    state.openHelp();
+    state.openHelp();
+
+    expect(state.helpOpen()).toBe(true);
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    state.closeHelpFromEscape(escape);
+    expect(escape.defaultPrevented).toBe(true);
+    expect(escape.cancelBubble).toBe(true);
+    expect(state.helpOpen()).toBe(false);
   });
 });

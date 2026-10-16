@@ -239,11 +239,14 @@ export class AssetManagerDialogComponent {
   protected openHelp(): void {
     this.helpOpen.set(true);
   }
-  protected toggleHelp(): void {
-    this.helpOpen.update((open) => !open);
-  }
   protected closeHelp(): void {
     this.helpOpen.set(false);
+  }
+  protected closeHelpFromEscape(event: Event): void {
+    if (!this.helpOpen()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.closeHelp();
   }
   protected openJarPicker(input: HTMLInputElement): void {
     if (this.importing() || this.assets.status() === 'importing') return;

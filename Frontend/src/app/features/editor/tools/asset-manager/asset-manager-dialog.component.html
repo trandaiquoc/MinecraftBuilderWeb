@@ -220,8 +220,13 @@
                 class="help-button"
                 [attr.aria-label]="i18n.t('assetManagerHelp')"
                 [attr.title]="i18n.t('assetManagerHelp')"
+                [attr.aria-expanded]="helpOpen()"
+                [attr.aria-controls]="'asset-manager-help-popover'"
+                [attr.aria-describedby]="helpOpen() ? 'asset-manager-help-popover' : null"
                 (focus)="openHelp()"
-                (click)="toggleHelp()"
+                (blur)="closeHelp()"
+                (click)="openHelp()"
+                (keydown.escape)="closeHelpFromEscape($event)"
               >
                 ?</button
               ><ng-template
@@ -232,7 +237,7 @@
                 cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
                 (backdropClick)="closeHelp()"
                 (detach)="closeHelp()"
-                ><aside class="help-popover" role="tooltip">
+                ><aside id="asset-manager-help-popover" class="help-popover" role="tooltip">
                   <strong>{{ i18n.t('assetManagerHelpTitle') }}</strong>
                   <ul>
                     <li>{{ i18n.t('assetManagerHelpStatic') }}</li>

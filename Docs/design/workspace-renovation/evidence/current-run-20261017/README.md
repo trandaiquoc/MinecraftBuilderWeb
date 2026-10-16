@@ -367,6 +367,30 @@ leaves the saved two-block test project unchanged. The synthetic project has
 no imported mods. Actual mod JAR inspection and failure recovery remain open
 pending a trusted fixture.
 
+## Asset Manager Mod help overlay
+
+The Mods tab help control previously opened the tooltip on focus and toggled
+it closed again on the same mouse click. The first click therefore only showed
+focus; a second click was needed to read the help. The control now opens
+idempotently and exposes its open state through `aria-expanded`, `aria-controls`,
+and `aria-describedby`. Moving focus away closes the help. Escape closes only
+the help overlay, keeps Asset Manager open, and leaves focus on its trigger.
+Clicking outside the help also dismisses only that overlay. No mod JAR was
+imported; the Mods list remains empty.
+
+| Step / state                                            | Screenshot                                                                                                                                                 |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor before opening Tools                             | [workspace-overlay-01-editor-start-dark-en-1600x900-20261017.png](workspace-overlay-01-editor-start-dark-en-1600x900-20261017.png)                         |
+| Tools menu                                              | [workspace-overlay-02-tools-menu-dark-en-1600x900-20261017.png](workspace-overlay-02-tools-menu-dark-en-1600x900-20261017.png)                             |
+| Asset Manager, Vanilla tab                              | [workspace-overlay-03-asset-manager-vanilla-dark-en-1600x900-20261017.png](workspace-overlay-03-asset-manager-vanilla-dark-en-1600x900-20261017.png)       |
+| Asset Manager, empty Mods tab                           | [workspace-overlay-04-asset-manager-mods-dark-en-1600x900-20261017.png](workspace-overlay-04-asset-manager-mods-dark-en-1600x900-20261017.png)             |
+| Before fix: first click leaves help closed              | [workspace-overlay-05-help-click-no-popover-dark-en-1600x900-20261017.png](workspace-overlay-05-help-click-no-popover-dark-en-1600x900-20261017.png)       |
+| Before fix: second click opens help                     | [workspace-overlay-06-help-open-after-second-click-dark-en-1600x900-20261017.png](workspace-overlay-06-help-open-after-second-click-dark-en-1600x900-20261017.png) |
+| After fix: first click opens help                       | [workspace-overlay-07-help-open-first-click-dark-en-1600x900-20261017.png](workspace-overlay-07-help-open-first-click-dark-en-1600x900-20261017.png)         |
+| Tab moves focus away and closes help                    | [workspace-overlay-08-help-dismissed-by-tab-dark-en-1600x900-20261017.png](workspace-overlay-08-help-dismissed-by-tab-dark-en-1600x900-20261017.png)       |
+| Escape closes help and keeps Asset Manager open         | [workspace-overlay-09-help-dismissed-by-escape-dark-en-1600x900-20261017.png](workspace-overlay-09-help-dismissed-by-escape-dark-en-1600x900-20261017.png) |
+| Outside click closes help and keeps Asset Manager open  | [workspace-overlay-10-help-dismissed-by-backdrop-dark-en-1600x900-20261017.png](workspace-overlay-10-help-dismissed-by-backdrop-dark-en-1600x900-20261017.png) |
+
 ## Changes verified in this pass
 
 - Resizing the viewport 1600→390→1600 kept saved sidebar preferences at
