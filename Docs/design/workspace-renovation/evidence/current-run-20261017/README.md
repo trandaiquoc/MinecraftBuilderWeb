@@ -65,6 +65,9 @@ scrolled the active item into view. The document did not overflow horizontally.
 | Oak Stairs details in the mobile inspector         | [workspace-inspector-oak-stairs-mobile-details-dark-en-390x520-20261017.png](workspace-inspector-oak-stairs-mobile-details-dark-en-390x520-20261017.png)               |
 | Oak Stairs controls in the mobile inspector        | [workspace-inspector-oak-stairs-mobile-controls-dark-en-390x520-20261017.png](workspace-inspector-oak-stairs-mobile-controls-dark-en-390x520-20261017.png)             |
 | Mobile Facing options open                         | [workspace-inspector-oak-stairs-mobile-facing-options-dark-en-390x520-20261017.png](workspace-inspector-oak-stairs-mobile-facing-options-dark-en-390x520-20261017.png) |
+| Datapack ZIP download complete, 1600 x 900         | [workspace-nbt-datapack-export-success-two-blocks-dark-en-1600x900-20261017.png](workspace-nbt-datapack-export-success-two-blocks-dark-en-1600x900-20261017.png)       |
+| Datapack ZIP download complete, 390 x 520          | [workspace-nbt-datapack-export-success-two-blocks-dark-en-390x520-20261017.png](workspace-nbt-datapack-export-success-two-blocks-dark-en-390x520-20261017.png)         |
+| Standalone NBT download complete, 1600 x 900       | [workspace-nbt-standalone-export-success-two-blocks-dark-en-1600x900-20261017.png](workspace-nbt-standalone-export-success-two-blocks-dark-en-1600x900-20261017.png)   |
 
 Stone was added to and then removed from the Quick Bar through the UI. The
 project stayed at zero placed blocks for that interaction. Later inspector
@@ -91,6 +94,41 @@ highlighted row. At 390 x 520, the Inspector opens as a 340 px drawer with a
 and all four state controls. The Facing option menu stays within the drawer
 and viewport, and the document has no horizontal overflow.
 
+The browser exported the two-block project in both supported formats. The
+downloaded `workspace-ui-audit.zip` contained only `pack.mcmeta` and
+`data/theblocklaundromat/structure/workspace-ui-audit.nbt`; its pack format was 48. Both NBT outputs decoded with the empty root name, DataVersion 3955, size
+16 x 16 x 16, and 4,096 block entries. The palette preserved Stone and Oak
+Stairs with `facing=north`, `half=bottom`, `shape=straight`, and
+`waterlogged=false`; the two non-air block positions were X4/Y0/Z3 and
+X4/Y0/Z4. The dialog displayed successful byte counts of 8,646 for the ZIP
+and 8,252 for the standalone NBT. The 390 x 520 datapack dialog retained its
+download and cancel actions with no horizontal overflow. The File menu offers
+Structure JSON import but no Structure NBT import; NBT loading in Minecraft
+was not part of this browser check.
+
+## Structure JSON browser round trip
+
+| Step                         | Screenshot                                                                                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Export                       | [workspace-structure-json-export-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-export-two-blocks-dark-en-1600x900-20261017.png)                                 |
+| Import validation, desktop   | [workspace-structure-json-import-validated-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-1600x900-20261017.png)             |
+| Import validation, 390 x 520 | [workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png)               |
+| Replace confirmation         | [workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png) |
+| Inspector after save         | [workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png)       |
+
+The app exported a 466-byte Structure JSON file from the same isolated project,
+then imported that downloaded file through the visible file picker. Validation
+reported 2 blocks total, 2 valid, 0 missing definitions, 0 out-of-bounds, 0
+invalid states, 0 duplicates, and 2 positive-offset warnings. At 390 x 520,
+the import dialog measured 374 x 504 px, kept Apply Import visible in its
+footer, and had no horizontal overflow. Applying Replace showed an explicit
+confirmation to replace 2 current blocks with 2 imported blocks. After
+confirmation, the app reported Saved; the Inspector showed Oak Stairs at
+X4/Y0/Z3 with `facing=north`, `half=bottom`, `shape=straight`, and
+`waterlogged=false`. Stone remained at X4/Y0/Z4. This verifies the non-empty
+browser export/import/replace/save path for this synthetic project; malformed
+file recovery and focus return still need a separate pass.
+
 ## Changes verified in this pass
 
 - Resizing the viewport 1600→390→1600 kept saved sidebar preferences at
@@ -110,9 +148,11 @@ Verification for the current code: full suite passed with `--isolate=false`
 build, app/spec/worker TypeScript checks, tool tests (2/2), encoding, Prettier,
 and `git diff --check` passed. The default worker-isolated full-suite run
 failed with Vitest worker timeouts and IPC errors; the successful run disabled
-test isolation. This set is not whole-Workspace acceptance: non-empty browser
-import and export, trusted mod/JAR fixtures, External AI, diagnostics, all
-locales and fonts, focus return for remaining dialogs, and reduced-motion
-behavior still require explicit rechecks. The repository does contain an
-independent Java 1.21.1 NBT fixture used by codec contract tests; a browser
-export round trip remains unverified.
+test isolation. This set is not whole-Workspace acceptance: trusted mod/JAR
+fixtures, External AI, diagnostics, all locales and fonts, focus return for
+remaining dialogs, and
+reduced-motion behavior still require explicit rechecks. The non-empty
+Structure JSON browser round trip is recorded above. Both non-empty NBT
+export modes were decoded in this pass; manual loading in Minecraft remains
+pending. The repository's independent Java 1.21.1 NBT fixture is covered by
+codec contract tests. NBT import is not exposed in the Workspace File menu.
