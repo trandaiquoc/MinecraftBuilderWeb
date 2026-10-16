@@ -18,12 +18,12 @@ vector artwork and has not been redrawn or optimized.
 The references share one composition and differ by palette, lighting, and
 scene:
 
-| Direction | Palette and atmosphere                                            | Status                                    |
-| --------- | ----------------------------------------------------------------- | ----------------------------------------- |
-| Minecraft | Grass-green chrome with dirt/stone surfaces and pale-stone panels | Runtime theme (`craft` compatibility key) |
-| Light     | Neutral white, black, and gray without a blue cast                | Runtime theme                             |
-| Raccoon   | Charcoal/gray contrast with soft, rounded surfaces                | Independent runtime theme                 |
-| Dark      | Near-black background with restrained charcoal elevation          | Runtime theme                             |
+| Direction | Palette and atmosphere                                                                 | Status                                    |
+| --------- | -------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Minecraft | Grass-green pixel-patched chrome over jagged dirt-brown edges and neutral stone panels | Runtime theme (`craft` compatibility key) |
+| Light     | Neutral white, black, and gray without a blue cast                                     | Runtime theme                             |
+| Raccoon   | Charcoal/gray contrast with soft, rounded surfaces                                     | Independent runtime theme                 |
+| Dark      | Near-black background with restrained charcoal elevation                               | Runtime theme                             |
 
 The same layout, Angular components, spacing, content, and behavior serve all
 four directions. Theme tokens change visual treatment, not feature behavior.

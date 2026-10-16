@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { PlacedBlock, ProjectDocument } from '../../../../core/domain/project.types';
-import { collectProjectIssues, filterProjectIssues } from './project-diagnostics-analysis';
+import {
+  collectProjectIssues,
+  filterProjectIssues,
+  localizeProjectIssues,
+} from './project-diagnostics-analysis';
 
 const enabled =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[
@@ -11,10 +15,14 @@ const text = {
   missingContent: 'Missing content',
   missingText: 'Block content is missing.',
   unresolvedText: 'Block content cannot be resolved.',
-  visualSupport: 'Visual support',
-  behaviorSupport: 'Behavior support',
-  partialVisualText: 'Partial visual support.',
-  partialBehaviorText: 'Partial behavior support.',
+  partialVisualTitle: 'Partial visual support',
+  partialVisualText: 'Partial visual support is available.',
+  fallbackVisualTitle: 'Fallback visual support',
+  fallbackVisualText: 'Fallback visual support is in use.',
+  partialBehaviorTitle: 'Partial editor behavior',
+  partialBehaviorText: 'Some editor behavior is not modeled.',
+  unknownBehaviorTitle: 'Unverified editor behavior',
+  unknownBehaviorText: 'The editor has no verified behavior profile.',
   assetProblem: 'Asset problem',
   assetUnavailableText: 'Vanilla assets are unavailable.',
 } as const;
@@ -52,18 +60,28 @@ describe.skipIf(!enabled)('Project diagnostics analysis benchmark', () => {
 
     for (let sample = 0; sample < samples; sample += 1) {
       let start = performance.now();
-      beforeCounts = queries.map(
-        (query) =>
-          filterProjectIssues(
-            collectProjectIssues(project, () => undefined, true, text),
-            query,
-          ).length,
+      beforeCounts = queries.map((query) =>
+        filterProjectIssues(
+          localizeProjectIssues(
+            collectProjectIssues(project, () => undefined, true),
+            text,
+          ),
+          query,
+        ).reduce((total, issue) => total + issue.affectedBlocks, 0),
       );
       beforeDurations.push(performance.now() - start);
 
       start = performance.now();
-      const collected = collectProjectIssues(project, () => undefined, true, text);
-      afterCounts = queries.map((query) => filterProjectIssues(collected, query).length);
+      const collected = localizeProjectIssues(
+        collectProjectIssues(project, () => undefined, true),
+        text,
+      );
+      afterCounts = queries.map((query) =>
+        filterProjectIssues(collected, query).reduce(
+          (total, issue) => total + issue.affectedBlocks,
+          0,
+        ),
+      );
       afterDurations.push(performance.now() - start);
     }
 

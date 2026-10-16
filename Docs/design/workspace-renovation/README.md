@@ -31,6 +31,20 @@ The latest navigation pass has a separate 1600 x 1200 set; all four captures use
 | Light     | [workspace-renovation-light-20261016.png](evidence/workspace-renovation-light-20261016.png)         |
 | Dark      | [workspace-renovation-dark-20261016.png](evidence/workspace-renovation-dark-20261016.png)           |
 
+### Grass/dirt theme surface refresh
+
+These live browser captures verify the Craft-only Minecraft treatment: a sparse, deterministic grass patch motif over the green header and a pixel-stepped grass edge over the dirt toolbar. All themes retain the same workspace layout and toolbar actions. The four theme captures were recorded in one live Chrome session from the same 16 x 16 x 16 Java 1.21.1 project, with one Stone at X 9, Y 0, Z 9. The camera, 1600 x 900 viewport, English locale, Comfortaa/Normal font, selected Blocks tab, and 230/230 px sidebar preferences stayed fixed; only the theme changed. The wide-sidebar capture uses the same project and camera at the same viewport with 320/300 px sidebars. The block is placed in the editor; the images do not imply terrain rendering or a grass-texture asset.
+
+| Theme / layout           | Browser capture                                                                                                         |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Minecraft                | [workspace-grass-dirt-craft-20261016.png](evidence/workspace-grass-dirt-craft-20261016.png)                             |
+| Raccoon                  | [workspace-grass-dirt-raccoon-20261016.png](evidence/workspace-grass-dirt-raccoon-20261016.png)                         |
+| Light                    | [workspace-grass-dirt-light-20261016.png](evidence/workspace-grass-dirt-light-20261016.png)                             |
+| Dark                     | [workspace-grass-dirt-dark-20261016.png](evidence/workspace-grass-dirt-dark-20261016.png)                               |
+| Minecraft, wide sidebars | [workspace-grass-dirt-wide-sidebars-craft-20261016.png](evidence/workspace-grass-dirt-wide-sidebars-craft-20261016.png) |
+
+The keyboard resize smoke check focused the left separator at 320 px, sent `ArrowRight`, observed 336 px and the prevented default event, then restored 320 px. The persisted widths in the temporary browser profile were reset after captures.
+
 The toolbar-switcher captures show the 3D Edit and Place choices selected in one shared track per control, at 1600 x 1200. Each pair has one sliding selected surface; the unselected option remains subdued in the same track. They use the same editor project, panel widths, English locale, and Comfortaa/Normal font.
 
 | Theme     | Browser capture                                                                         |
@@ -123,3 +137,23 @@ The 3D/Y-Layer and Place/Select pairs share one continuous track each, with a fl
 Raccoon Block Library rows use one uniform base surface. There is no `nth-child(odd)`/`nth-child(even)` card color rule; selected cards still use the same semantic selected fill, border and check indicator as the other themes, while Raccoon's rounded geometry and inset/raised surfaces provide its softer treatment.
 
 Only interaction patterns were adapted; no Lucian Labs component source, CSS, script, sample content, dependency, or visual asset was copied. The reference repository declares an MIT license; these independently implemented patterns do not include copied source. See the [Lucian Labs UI catalog](https://lucianlabs.dev/uxui-prompt/) and [source repository/license](https://github.com/Seokwoooo/lucian-uxui-prompt).
+
+## Project diagnostics presentation contract
+
+Diagnostics group repeated block findings by stable semantic identity: issue code, category, severity, and canonical block ID. Each group retains its affected block-instance count. Errors appear before warnings and informational items. Missing content and unresolved IDs remain separate errors. Partial and fallback visuals remain separate warnings; partial behavior is a warning, while unknown behavior is informational. Localized wording never participates in grouping.
+
+Behavior coverage describes what the editor can simulate. It does not determine whether a placed block is valid. For example, `minecraft:trapped_chest` remains behavior-unknown until a verified reusable behavior profile is available; its known block ID and visual support do not prove inventory or neighbor behavior coverage. The diagnostic copy explicitly separates simulation coverage from placement validity.
+
+The semantic report is collected when the project, catalog, or asset-ready state changes. Repeated IDs reuse one catalog lookup during collection. Localization is a separate projection over collected issue codes, so changing EN/VI text does not rescan project blocks or look up definitions again. Search, category/severity filters, and list paging operate on the collected groups. The issue list renders at most 40 groups at a time inside its own scroll area. The summary shows total groups, affected block instances, and error/warning/info group counts. Renderer performance metrics, search, and Asset Audit controls remain directly visible in the dialog.
+
+Browser evidence uses a deterministic 79-block synthetic project: 22 fence instances across 11 partial-behavior IDs, 6 trapped chests, 6 missing-content instances, and 45 unresolved IDs. It produces 58 semantic issue groups and 79 affected-block findings. The English Craft and Dark captures show missing/unresolved errors first, filters and paging directly below the summary, and renderer metrics after the issue area. The Vietnamese capture selects the Behavior category and shows 12 groups / 28 affected instances; the 640 x 520 capture verifies that this explanation and the renderer heading remain reachable in a short viewport.
+
+| Evidence                               | Browser capture                                                                                                 |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| English, Craft, 1440 x 900             | [diagnostics-grouped-craft-en-20261016.png](evidence/diagnostics-grouped-craft-en-20261016.png)                 |
+| Vietnamese, Craft, 1440 x 900          | [diagnostics-grouped-craft-vi-20261016.png](evidence/diagnostics-grouped-craft-vi-20261016.png)                 |
+| Vietnamese, Craft, 640 x 520           | [diagnostics-grouped-craft-vi-640x520-20261016.png](evidence/diagnostics-grouped-craft-vi-640x520-20261016.png) |
+| Trapped chest query, Vietnamese, Craft | [diagnostics-trapped-chest-craft-vi-20261016.png](evidence/diagnostics-trapped-chest-craft-vi-20261016.png)     |
+| English, Dark, 1440 x 900              | [diagnostics-grouped-dark-en-20261016.png](evidence/diagnostics-grouped-dark-en-20261016.png)                   |
+
+In the 110,000-block analysis benchmark, collecting once and applying three UI filters took a median 51.63 ms versus 161.93 ms for repeating collection per query (3.14x faster). Browser query, category/severity filters, paging, inner-list scrolling, and dialog scrolling did not invoke another project scan or catalog lookup. This verifies the presentation path against a synthetic high-volume workload; it is not a full browser import or rendering benchmark for 110,000 blocks.

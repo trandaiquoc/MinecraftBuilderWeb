@@ -17,23 +17,23 @@
 | Semantic role       | Minecraft (`craft`) | Light   | Raccoon | Dark    |
 | ------------------- | ------------------- | ------- | ------- | ------- |
 | App Background      | #292C25             | #F7F7F6 | #181A1C | #08090C |
-| Header / Status bar | #2D5127             | #FFFFFF | #202326 | #050608 |
-| Sidebar             | #E4E2D7             | #F1F1F0 | #292D30 | #0F1115 |
-| Panel / Dialog      | #F4F2E9             | #FFFFFF | #35393D | #13161B |
-| Input / Raised      | #FBFAF4             | #FAFAFA | #42474C | #1A1D24 |
-| Surface Muted       | #E9E7DC             | #EEEEED | #2C3034 | #0E1014 |
-| Surface Hover       | #DFE5D6             | #E8E8E7 | #4D545A | #222630 |
-| Selected Surface    | #D0DFBA             | #DEDEDD | #596068 | #2C333D |
-| Border              | #A7A18F             | #CCCCCA | #687178 | #343A45 |
-| Primary Text        | #292A25             | #171717 | #F5F4F1 | #F2F3F5 |
-| Secondary Text      | #55584F             | #535353 | #C5C9CD | #B7BEC9 |
-| Header Text         | #F7F6ED             | #171717 | #F8F7F4 | #F1F3F5 |
-| Sidebar Text        | #292A25             | #202020 | #EFEFED | #E6E9EF |
-| Disabled Text       | #74766D             | #848484 | #95999F | #858B96 |
+| Header / Status bar | #315E27             | #FFFFFF | #202326 | #050608 |
+| Sidebar             | #E3E6DE             | #F1F1F0 | #292D30 | #0F1115 |
+| Panel / Dialog      | #F3F4EF             | #FFFFFF | #35393D | #13161B |
+| Input / Raised      | #FAFBF8             | #FAFAFA | #42474C | #1A1D24 |
+| Surface Muted       | #E7E9E3             | #EEEEED | #2C3034 | #0E1014 |
+| Surface Hover       | #DFE6D9             | #E8E8E7 | #4D545A | #222630 |
+| Selected Surface    | #C6D7B9             | #DEDEDD | #596068 | #2C333D |
+| Border              | #A7AEA1             | #CCCCCA | #687178 | #343A45 |
+| Primary Text        | #252B25             | #171717 | #F5F4F1 | #F2F3F5 |
+| Secondary Text      | #50584D             | #535353 | #C5C9CD | #B7BEC9 |
+| Header Text         | #F3F7EB             | #171717 | #F8F7F4 | #F1F3F5 |
+| Sidebar Text        | #252B25             | #202020 | #EFEFED | #E6E9EF |
+| Disabled Text       | #737A70             | #848484 | #95999F | #858B96 |
 | Primary / Accent    | #35772E             | #252525 | #D1D5D7 | #A7B7CF |
 | Primary Hover       | #2A6424             | #111111 | #ECEBE7 | #C2D0E3 |
 | Text on Primary     | #FFFFFF             | #FFFFFF | #1B1D20 | #0D121A |
-| Secondary Accent    | #8D6542             | #777777 | #B7BEC2 | #8D9AAF |
+| Secondary Accent    | #A7783F             | #777777 | #B7BEC2 | #8D9AAF |
 | Focus / Outline     | #286C27             | #424242 | #ECEBE7 | #B1C3DE |
 | Success             | #286D3A             | #237044 | #8BD0A0 | #80C89F |
 | Warning             | #81551D             | #8A5A1B | #E5B978 | #E0B77C |
@@ -42,12 +42,12 @@
 
 ## Theme treatment
 
-- **Minecraft:** deep grass-green navigation chrome over a warm dirt-brown working toolbar, bright neutral stone sidebars and panels, dark toolbar ink for readable controls, crisp framed surfaces, and a small pixel-step grass edge over a darker dirt seam. Green is reserved for primary actions, focus, and selection rather than washing every surface green.
+- **Minecraft:** grass-green navigation chrome with sparse, fixed pixel patches over a rich dirt-brown toolbar and a jagged grass-to-dirt edge. Neutral gray-stone sidebars and panels balance the saturated green and brown. Green remains available for primary actions, focus, and selection without washing every surface green.
 - **Raccoon:** charcoal and gray surfaces with alternating light text/surface levels, soft elevated controls, and noticeably rounded component silhouettes. It remains a distinct product theme, not a dark-mode alias.
 - **Light:** clean white, black, and neutral gray surfaces without a blue cast. Selected states use strong neutral contrast.
 - **Dark:** near-black application background with subtle charcoal surface levels for comfortable night use.
 
-All 23 roles in the table are exact palette values. Additional aliases for toolbar chrome, shape, and elevation are derived in `Frontend/src/styles.scss`; the Minecraft toolbar uses a separate dirt-brown surface (`#B9956B`) with dark text that exceeds 4.5:1 contrast. These aliases do not create another palette or alter the 23-role contract. `Secondary Accent` is a decorative support color, not a general text or secondary-button color.
+All 23 roles in the table are exact palette values. Additional toolbar, pixel-patch, shape, and elevation tokens are defined in `Frontend/src/styles.scss`. The Minecraft toolbar uses rich dirt brown (`#76502F`) with warm cream text (`#FFF7E7`) at 6.66:1 contrast; its hover surface (`#8A603A`) keeps 5.17:1. Header grass-patch colors maintain at least 4.92:1 with header text. These aliases do not alter the 23-role contract. `Secondary Accent` is a decorative support color, not a general text or secondary-button color.
 
 ## Token ownership and boundaries
 
@@ -55,7 +55,7 @@ All 23 roles in the table are exact palette values. Additional aliases for toolb
 - Components use semantic tokens such as `--surface`, `--text`, `--control-selected`, `--button-primary-*`, `--danger`, `--focus-color`, `--radius-*`, and `--shadow-control-*`. Component styles may define geometry and state, but must not copy theme palettes.
 - Header and sidebar foregrounds use their paired tokens. Open popovers/dialogs keep the foreground paired to their own surface instead of inheriting menu or sidebar text colors.
 - Minecraft native selects use the same stone fill, compact frame, bottom edge, and text color as buttons; the browser-default arrow is replaced by a matching chevron. Focus remains grass green, while resting borders stay stone-neutral.
-- The canonical Minecraft success color is retained as `--workspace-success`. Its panel text alias is derived 2% toward black to meet 4.5:1 against the approved parchment panel; header status text uses a separate contrast-adjusted alias. Other themes use their canonical success color directly.
+- The canonical Minecraft success color is retained as `--workspace-success`. Its panel text alias is derived 2% toward black to meet 4.5:1 against the neutral stone panel; header status text uses a separate contrast-adjusted alias. Other themes use their canonical success color directly.
 - All functional controls must preserve normal, hover, selected, disabled, destructive, and keyboard-focus states. Focus and selection must remain visibly distinguishable in all four themes.
 - `ThemeService` continues to set `--editor-viewport-bg` from the independent Dark/Light/Reality preference. Reality sky colors are shared by `editor-background-contract.ts`; Reality ground previews use the corresponding bundled or loaded texture. Neither is coupled to the UI theme.
 - Minecraft block/item/decoration previews and the retained 3D renderer are content visuals, not theme artwork. Do not replace them with Stitch screenshots or recolor them with Workspace tokens.

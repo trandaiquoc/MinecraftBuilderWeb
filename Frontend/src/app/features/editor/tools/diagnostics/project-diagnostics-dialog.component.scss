@@ -69,12 +69,43 @@
   display: flex;
   align-items: baseline;
   gap: 0.55rem;
+  flex-wrap: wrap;
   padding: 0.7rem;
   border-radius: var(--radius-md);
   background: var(--surface-raised);
 }
 .diagnostic-summary strong {
   font-size: 1.35rem;
+}
+.diagnostic-severity-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+.diagnostic-severity-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.25rem 0.4rem;
+  border-left: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+.diagnostic-severity-count strong {
+  font-size: 0.8rem;
+}
+.diagnostic-severity-count[data-severity='error'] {
+  border-left-color: var(--danger);
+}
+.diagnostic-severity-count[data-severity='warning'] {
+  border-left-color: var(--warning);
+}
+.diagnostic-severity-count[data-severity='info'] {
+  border-left-color: var(--text-muted);
 }
 .tool-dialog-body > input {
   width: 100%;
@@ -86,9 +117,56 @@
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--border);
 }
+.diagnostic-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.diagnostic-filters button,
+.diagnostic-filters select,
+.show-more-issues {
+  min-height: 2rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--control-normal);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.diagnostic-filters button.is-selected {
+  border-color: var(--accent);
+  background: var(--control-selected);
+  color: var(--control-selected-text);
+}
+.diagnostic-filters button:focus-visible,
+.diagnostic-filters select:focus-visible,
+.show-more-issues:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.diagnostic-filters label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
 .issue-list {
   display: grid;
+  align-content: start;
   gap: 0.45rem;
+  min-height: min(8rem, 42vh);
+  max-height: min(19rem, 42vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0.15rem;
+}
+.issue-list--many {
+  height: min(19rem, 42vh);
 }
 .issue {
   display: grid;
@@ -114,6 +192,14 @@
   color: var(--text-muted);
   font-size: 0.75rem;
   line-height: 1.35;
+}
+.issue-count {
+  color: var(--text);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.show-more-issues {
+  justify-self: start;
 }
 .issue code,
 .audit-records code {

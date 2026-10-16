@@ -25,9 +25,91 @@
     </header>
     <div class="tool-dialog-body">
       <section class="diagnostic-summary">
-        <strong>{{ issues().length }}</strong
-        ><span>{{ i18n.t('diagnosticsTitle') }}</span>
+        <strong>{{ issueGroupCount() }}</strong
+        ><span>{{ i18n.t('diagnosticsIssueGroups') }}</span>
+        <strong>{{ affectedBlockCount() }}</strong
+        ><span>{{ i18n.t('diagnosticsAffectedBlocks') }}</span>
+        <div
+          class="diagnostic-severity-summary"
+          role="group"
+          [attr.aria-label]="i18n.t('diagnosticsSeveritySummary')"
+        >
+          @for (severity of severitySummaryOptions; track severity) {
+            <span class="diagnostic-severity-count" [attr.data-severity]="severity">
+              <strong>{{ severityGroupCounts()[severity] }}</strong>
+              <span>{{ severityGroupLabel(severity) }}</span>
+            </span>
+          }
+        </div>
       </section>
+      <input
+        type="search"
+        [value]="query()"
+        [placeholder]="i18n.t('diagnosticsSearch')"
+        [attr.aria-label]="i18n.t('diagnosticsSearch')"
+        (input)="setQuery($event)"
+      />
+      <div
+        class="diagnostic-filters"
+        role="group"
+        [attr.aria-label]="i18n.t('diagnosticsFilterSeverity')"
+      >
+        @for (severity of severityOptions; track severity) {
+          <button
+            type="button"
+            [value]="severity"
+            [attr.aria-pressed]="severityFilter() === severity"
+            [class.is-selected]="severityFilter() === severity"
+            (click)="setSeverity($event)"
+          >
+            {{ severity === 'all' ? i18n.t('diagnosticsFilterAll') : severityLabel(severity) }}
+          </button>
+        }
+        <label>
+          <span>{{ i18n.t('diagnosticsFilterCategory') }}</span>
+          <select [value]="categoryFilter()" (change)="setCategory($event)">
+            <option value="all">{{ i18n.t('diagnosticsFilterAll') }}</option>
+            <option value="content">{{ i18n.t('diagnosticsCategoryContent') }}</option>
+            <option value="visual">{{ i18n.t('diagnosticsCategoryVisual') }}</option>
+            <option value="behavior">{{ i18n.t('diagnosticsCategoryBehavior') }}</option>
+            <option value="assets">{{ i18n.t('diagnosticsCategoryAssets') }}</option>
+          </select>
+        </label>
+      </div>
+      @if (issues().length) {
+        <div
+          class="issue-list"
+          [class.issue-list--many]="issues().length > 3"
+          role="region"
+          tabindex="0"
+          [attr.aria-label]="i18n.t('diagnosticsIssueGroups')"
+        >
+          @for (issue of visibleIssues(); track issue.key) {
+            <article class="issue" [attr.data-severity]="issue.severity">
+              <div>
+                <strong>{{ issue.title }}</strong
+                ><small>{{ severityLabel(issue.severity) }}</small>
+              </div>
+              <p>{{ issue.detail }}</p>
+              @if (issue.affectedBlocks) {
+                <small class="issue-count">
+                  {{ issue.affectedBlocks }} {{ i18n.t('diagnosticsAffectedBlocks') }}
+                </small>
+              }
+              @if (issue.id) {
+                <code>{{ issue.id }}</code>
+              }
+            </article>
+          }
+        </div>
+        @if (hasMoreIssues()) {
+          <button type="button" class="show-more-issues" (click)="showMoreIssues()">
+            {{ i18n.t('diagnosticsShowMore') }} ({{ issues().length - visibleIssues().length }})
+          </button>
+        }
+      } @else {
+        <p class="empty-diagnostics">{{ i18n.t('diagnosticsEmpty') }}</p>
+      }
       @if (rendererEvidence(); as renderer) {
         <section class="renderer-performance" aria-labelledby="renderer-performance-title">
           <div class="performance-heading">
@@ -184,31 +266,6 @@
             >
           </div>
         </section>
-      }
-      <input
-        type="search"
-        [value]="query()"
-        [placeholder]="i18n.t('diagnosticsSearch')"
-        [attr.aria-label]="i18n.t('diagnosticsSearch')"
-        (input)="setQuery($event)"
-      />
-      @if (issues().length) {
-        <div class="issue-list">
-          @for (issue of issues(); track $index) {
-            <article class="issue" [attr.data-severity]="issue.severity">
-              <div>
-                <strong>{{ issue.title }}</strong
-                ><small>{{ severityLabel(issue.severity) }}</small>
-              </div>
-              <p>{{ issue.detail }}</p>
-              @if (issue.id) {
-                <code>{{ issue.id }}</code>
-              }
-            </article>
-          }
-        </div>
-      } @else {
-        <p class="empty-diagnostics">{{ i18n.t('diagnosticsEmpty') }}</p>
       }
       <section class="asset-audit-section">
         <div class="audit-heading">

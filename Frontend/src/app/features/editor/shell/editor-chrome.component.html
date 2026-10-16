@@ -1,5 +1,32 @@
 <header class="shell-header" [class.menu-open]="!!activeMenu()">
   <div class="app-menu-row" (keydown)="handleMenuKeydown($event)">
+    <svg class="grass-header-texture" aria-hidden="true" focusable="false">
+      <defs>
+        <pattern
+          id="minecraft-grass-header-patches"
+          width="2048"
+          height="44"
+          patternUnits="userSpaceOnUse"
+        >
+          <rect width="2048" height="44" fill="var(--workspace-header-bg)" />
+          <g shape-rendering="crispEdges">
+            <path
+              fill="var(--workspace-grass-patch-mid)"
+              d="M8 7h8v4H8z M247 19h6v4h-6z M452 9h9v3h-9z M711 28h7v4h-7z M980 13h8v4h-8z M1250 33h7v3h-7z M1540 16h6v4h-6z M1788 9h9v3h-9z M1990 32h7v4h-7z"
+            />
+            <path
+              fill="var(--workspace-grass-patch-light)"
+              d="M95 29h6v3h-6z M310 6h7v4h-7z M580 23h8v3h-8z M840 8h5v4h-5z M1160 34h8v3h-8z M1430 12h5v4h-5z M1690 26h8v3h-8z M1940 7h6v4h-6z"
+            />
+            <path
+              fill="var(--workspace-grass-patch-dark)"
+              d="M170 15h5v3h-5z M375 34h4v3h-4z M660 6h5v3h-5z M1020 16h6v4h-6z M1320 22h5v3h-5z M1605 9h7v4h-7z M1850 29h5v3h-5z M2015 19h5v3h-5z"
+            />
+          </g>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#minecraft-grass-header-patches)" />
+    </svg>
     <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('appName')">
       <img
         class="brand-logo"
@@ -437,6 +464,44 @@
   </div>
   @if (state().layout.editorToolbarVisible) {
     <div class="editor-toolbar-row" (keydown)="handleMenuKeydown($event)">
+      <svg class="grass-dirt-edge" aria-hidden="true" focusable="false">
+        <defs>
+          <pattern
+            id="minecraft-grass-dirt-edge"
+            width="2048"
+            height="14"
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              fill="var(--workspace-header-bg)"
+              d="M0 0H2048V4h-10v3h-23v-3h-34v2h-17v1h-35v-3h-14v1h-32v2h-31v-3h-12v8h-15v-4h-8v-3h-18v-1h-26v1h-22v1h-23v-2h-15v1h-36v5h-16v-1h-28v-4h-10v-1h-35v2h-17v-1h-16v2h-20v-3h-24v1h-27v2h-16v4h-17v-3h-19v-3h-29v-1h-21v1h-17v-1h-21v8h-15v-5h-22v-3h-38v2h-14v-1h-30v1h-13v-1h-36v-1h-20v3h-34v-1h-36v4h-27v-1h-23v-3h-30v1h-21v-3h-31v1h-23v-1h-14v3h-12v-3h-25v7h-21v-2h-23v-3h-28v1h-31v-3h-24v2h-9v1h-19v-3h-25v2h-31v-1h-12v2h-9v-3h-38v1h-13v2h-33v5h-17v-5h-9v-3h-14v2h-32v7h-23v-4h-37v-5h-13v1h-18v1h-24v-2h-14v1h-25v2h-22v-3h-24v3h-16v-3h-12v2h-12v-2h-21v2h-12v-2h-14v1h-16v1h-28v-1h-34v8h-16v-6h-38v-1h-23v5h-12v-3h-31v-3h-7v1H0Z"
+            />
+            <g shape-rendering="crispEdges">
+              <path
+                fill="var(--workspace-grass-patch-mid)"
+                d="M31 2h8v2h-8z M196 1h6v3h-6z M377 2h9v2h-9z M551 1h7v3h-7z M728 2h8v2h-8z M906 1h6v3h-6z M1094 2h8v2h-8z M1271 1h7v3h-7z M1458 2h8v2h-8z M1635 1h6v3h-6z M1822 2h8v2h-8z M1991 1h7v3h-7z"
+              />
+              <path
+                fill="var(--workspace-grass-patch-light)"
+                d="M101 1h6v2h-6z M281 2h7v2h-7z M462 1h6v3h-6z M638 2h7v2h-7z M817 1h6v3h-6z M996 2h7v2h-7z M1180 1h6v3h-6z M1360 2h7v2h-7z M1537 1h6v3h-6z M1718 2h7v2h-7z M1890 1h6v3h-6z"
+              />
+              <path
+                fill="var(--workspace-grass-patch-dark)"
+                d="M67 3h5v2h-5z M241 2h5v2h-5z M418 3h5v2h-5z M596 1h5v2h-5z M776 3h5v2h-5z M953 2h5v2h-5z M1134 3h5v2h-5z M1311 1h5v2h-5z M1491 3h5v2h-5z M1670 2h5v2h-5z M1847 3h5v2h-5z M2020 1h5v2h-5z"
+              />
+              <path
+                fill="var(--workspace-grass-edge-shadow)"
+                d="M114 8h5v2h-5z M482 9h6v1h-6z M861 7h5v2h-5z M1244 9h7v1h-7z M1601 8h5v2h-5z M1978 9h5v1h-5z"
+              />
+              <path
+                fill="var(--workspace-dirt-shadow)"
+                d="M297 8h4v2h-4z M683 9h5v1h-5z M1072 8h5v2h-5z M1450 9h4v1h-4z M1834 8h5v2h-5z"
+              />
+            </g>
+          </pattern>
+        </defs>
+        <rect width="100%" height="14" fill="url(#minecraft-grass-dirt-edge)" />
+      </svg>
       <div
         class="toolbar-group mode-switch"
         role="radiogroup"

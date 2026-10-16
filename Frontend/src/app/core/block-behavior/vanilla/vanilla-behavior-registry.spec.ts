@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import vanillaRegistry from '../../../../../public/assets/vanilla-block-registry-1.21.1.json';
 import { AssetBlockRecord } from '../../blocks/catalog/block-definition.types';
 import {
   mergeDefaultStateByProvenance,
@@ -49,6 +50,27 @@ describe('VanillaBehaviorRegistry', () => {
     expect(
       Object.values(VANILLA_BEHAVIOR_COMPATIBILITY).every((entry) => entry.evidence.length > 0),
     ).toBe(true);
+  });
+  it('keeps trapped chest behavior unknown despite its verified state registry entry', () => {
+    const source = vanillaRegistry.blocks.find(
+      (block) => block.id === 'minecraft:trapped_chest',
+    ) as
+      | {
+          readonly defaultState: Readonly<Record<string, string>>;
+          readonly properties: AssetBlockRecord['stateDefinitions'];
+        }
+      | undefined;
+    if (!source) throw new Error('The 1.21.1 registry fixture has no trapped chest entry.');
+    const registry = new VanillaBehaviorRegistry();
+
+    const enriched = registry.enrich({
+      ...baseRecord('minecraft:trapped_chest'),
+      defaultState: source.defaultState,
+      stateDefinitions: source.properties,
+    });
+
+    expect(enriched).toMatchObject({ behaviorSupport: 'unknown' });
+    expect(enriched.behavior).toBeUndefined();
   });
   it('resolves nested authoritative block tags without registry-name heuristics', () => {
     const resources = new Map<string, unknown>([

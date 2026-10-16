@@ -314,12 +314,12 @@ describe('Workspace color palette contract', () => {
     expect(stylesheet).toContain('appearance: none;');
     expect(stylesheet).toContain('background-color: var(--workspace-raised);');
     expect(stylesheet).toContain('border-bottom-width: 2px;');
-    expect(stylesheet).toContain('--workspace-control-frame-strong: #817c69;');
+    expect(stylesheet).toContain('--workspace-control-frame-strong: #828b7c;');
     expect(blockStyles).toContain('border: 1px solid var(--workspace-border);');
     expect(blockStyles).toContain('.block-browser input:focus-visible');
   });
 
-  it('keeps the Minecraft toolbar dirt-brown with readable dark controls', () => {
+  it('keeps the Minecraft toolbar dirt-brown with readable cream controls', () => {
     const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
     const chromeStyles = String(
       readFileSync('src/app/features/editor/shell/editor-chrome.component.scss', 'utf8'),
@@ -331,14 +331,45 @@ describe('Workspace color palette contract', () => {
     )?.[1];
     const toolbarText = craftTheme?.match(/--workspace-toolbar-text:\s*(#[0-9A-Fa-f]{6});/)?.[1];
 
-    expect(toolbarBackground?.toLowerCase()).toBe('#b9956b');
+    expect(toolbarBackground?.toLowerCase()).toBe('#76502f');
     expect(toolbarText).toBeDefined();
     expect(contrastRatio(toolbarText!, toolbarBackground!)).toBeGreaterThanOrEqual(4.5);
+    expect(toolbarText?.toLowerCase()).toBe('#fff7e7');
+    const toolbarHover = craftTheme?.match(/--workspace-toolbar-hover:\s*(#[0-9A-Fa-f]{6});/)?.[1];
+    const headerText = craftTheme?.match(/--workspace-header-text:\s*(#[0-9A-Fa-f]{6});/)?.[1];
+    expect(contrastRatio(toolbarText!, toolbarHover!)).toBeGreaterThanOrEqual(4.5);
+    for (const token of [
+      '--workspace-grass-patch-light',
+      '--workspace-grass-patch-mid',
+      '--workspace-grass-patch-dark',
+    ]) {
+      const patch = craftTheme?.match(new RegExp(`${token}:\\s*(#[0-9A-Fa-f]{6});`))?.[1];
+      expect(
+        contrastRatio(headerText!, patch!),
+        `${token} against header text`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
     expect(craftTheme).toContain('--workspace-segment-idle-text-mix: 100%;');
+    expect(craftTheme).toContain('--workspace-toolbar-hover: #8a603a;');
+    expect(craftTheme).toContain('--workspace-grass-patch-light: #427738;');
+    expect(craftTheme).toContain('--workspace-grass-patch-mid: #3b6d2f;');
+    expect(craftTheme).toContain('--workspace-grass-patch-dark: #2e5725;');
+    expect(craftTheme).toContain('--workspace-grass-edge-shadow: #24451e;');
+    expect(craftTheme).toContain('--workspace-dirt-shadow: #56351d;');
     expect(chromeStyles).toContain('box-shadow: inset 0 -2px var(--workspace-secondary-accent);');
-    expect(chromeStyles).toContain(
-      'background: color-mix(in srgb, var(--workspace-toolbar-bg) 78%, white);',
+    expect(chromeStyles).toContain('background: var(--workspace-toolbar-hover);');
+    expect(chromeStyles).toContain('background-image: none;');
+    expect(chromeStyles).not.toContain(
+      'repeating-linear-gradient(90deg, var(--workspace-header-bg)',
     );
+    const chromeTemplate = String(
+      readFileSync('src/app/features/editor/shell/editor-chrome.component.html', 'utf8'),
+    );
+    expect(chromeTemplate).toContain('class="grass-header-texture"');
+    expect(chromeTemplate).toContain('class="grass-dirt-edge"');
+    expect(chromeTemplate).toContain('var(--workspace-grass-patch-light)');
+    expect(chromeTemplate).toContain('width="2048"');
+    expect(chromeTemplate).not.toContain('width="192"');
   });
 
   it('keeps interactive text, focus, danger, and status combinations accessible', () => {

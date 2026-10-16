@@ -27,6 +27,9 @@ import type { ViewportPerformanceEvidence } from '../../../../core/renderer/engi
 import {
   collectProjectIssues,
   filterProjectIssues,
+  localizeProjectIssues,
+  type DiagnosticCategoryFilter,
+  type DiagnosticFilter,
   type DiagnosticSeverity,
 } from './project-diagnostics-analysis';
 
@@ -52,6 +55,12 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
   readonly closed = output<void>();
   readonly rendererEvidence = input<ViewportPerformanceEvidence | undefined>();
   protected readonly query = signal('');
+  protected readonly severityFilter = signal<DiagnosticFilter>('all');
+  protected readonly categoryFilter = signal<DiagnosticCategoryFilter>('all');
+  protected readonly visibleIssueLimit = signal(40);
+  protected readonly severityOptions = ['all', 'error', 'warning', 'info'] as const;
+  protected readonly severitySummaryOptions = ['error', 'warning', 'info'] as const;
+  private readonly issuePageSize = 40;
   protected readonly logicalBlockCount = computed(
     () => this.workspace.project()?.blocks.length ?? 0,
   );
@@ -70,21 +79,47 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
       this.workspace.project(),
       (id) => this.library.get(id),
       this.assets.status() === 'ready',
-      {
-        missingContent: this.i18n.t('diagnosticsMissingContent'),
-        missingText: this.i18n.t('diagnosticsMissingText'),
-        unresolvedText: this.i18n.t('diagnosticsUnresolvedText'),
-        visualSupport: this.i18n.t('diagnosticsVisualSupport'),
-        behaviorSupport: this.i18n.t('diagnosticsBehaviorSupport'),
-        partialVisualText: this.i18n.t('diagnosticsPartialVisualText'),
-        partialBehaviorText: this.i18n.t('diagnosticsPartialBehaviorText'),
-        assetProblem: this.i18n.t('diagnosticsAssetProblem'),
-        assetUnavailableText: this.i18n.t('diagnosticsAssetUnavailableText'),
-      },
     );
   });
+  private readonly localizedIssues = computed(() =>
+    localizeProjectIssues(this.collectedIssues(), {
+      missingContent: this.i18n.t('diagnosticsMissingContent'),
+      missingText: this.i18n.t('diagnosticsMissingText'),
+      unresolvedText: this.i18n.t('diagnosticsUnresolvedText'),
+      partialVisualTitle: this.i18n.t('diagnosticsPartialVisualTitle'),
+      partialVisualText: this.i18n.t('diagnosticsPartialVisualText'),
+      fallbackVisualTitle: this.i18n.t('diagnosticsFallbackVisualTitle'),
+      fallbackVisualText: this.i18n.t('diagnosticsFallbackVisualText'),
+      partialBehaviorTitle: this.i18n.t('diagnosticsPartialBehaviorTitle'),
+      partialBehaviorText: this.i18n.t('diagnosticsPartialBehaviorText'),
+      unknownBehaviorTitle: this.i18n.t('diagnosticsUnknownBehaviorTitle'),
+      unknownBehaviorText: this.i18n.t('diagnosticsUnknownBehaviorText'),
+      assetProblem: this.i18n.t('diagnosticsAssetProblem'),
+      assetUnavailableText: this.i18n.t('diagnosticsAssetUnavailableText'),
+    }),
+  );
   protected readonly issues = computed(() =>
-    filterProjectIssues(this.collectedIssues(), this.query()),
+    filterProjectIssues(
+      this.localizedIssues(),
+      this.query(),
+      this.severityFilter(),
+      this.categoryFilter(),
+    ),
+  );
+  protected readonly visibleIssues = computed(() =>
+    this.issues().slice(0, this.visibleIssueLimit()),
+  );
+  protected readonly issueGroupCount = computed(() => this.collectedIssues().length);
+  protected readonly affectedBlockCount = computed(() =>
+    this.collectedIssues().reduce((total, issue) => total + issue.affectedBlocks, 0),
+  );
+  protected readonly severityGroupCounts = computed(() => {
+    const counts: Record<DiagnosticSeverity, number> = { error: 0, warning: 0, info: 0 };
+    for (const issue of this.collectedIssues()) counts[issue.severity] += 1;
+    return counts;
+  });
+  protected readonly hasMoreIssues = computed(
+    () => this.visibleIssues().length < this.issues().length,
   );
 
   constructor() {
@@ -108,6 +143,18 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
   }
   protected setQuery(event: Event): void {
     this.query.set((event.target as HTMLInputElement).value);
+    this.visibleIssueLimit.set(this.issuePageSize);
+  }
+  protected setSeverity(event: Event): void {
+    this.severityFilter.set((event.target as HTMLButtonElement).value as DiagnosticFilter);
+    this.visibleIssueLimit.set(this.issuePageSize);
+  }
+  protected setCategory(event: Event): void {
+    this.categoryFilter.set((event.target as HTMLSelectElement).value as DiagnosticCategoryFilter);
+    this.visibleIssueLimit.set(this.issuePageSize);
+  }
+  protected showMoreIssues(): void {
+    this.visibleIssueLimit.update((limit) => limit + this.issuePageSize);
   }
   protected severityLabel(severity: DiagnosticSeverity): string {
     return severity === 'error'
@@ -115,6 +162,13 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
       : severity === 'warning'
         ? this.i18n.t('warning')
         : this.i18n.t('info');
+  }
+  protected severityGroupLabel(severity: DiagnosticSeverity): string {
+    return severity === 'error'
+      ? this.i18n.t('diagnosticsErrorGroups')
+      : severity === 'warning'
+        ? this.i18n.t('diagnosticsWarningGroups')
+        : this.i18n.t('diagnosticsInfoGroups');
   }
   protected recordMatches(record: VanillaAssetAuditRecord): boolean {
     const q = this.query().trim().toLocaleLowerCase();

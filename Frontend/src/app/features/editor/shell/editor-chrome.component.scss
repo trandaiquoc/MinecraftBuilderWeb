@@ -21,10 +21,28 @@
 }
 
 .app-menu-row {
+  position: relative;
+  isolation: isolate;
   background: var(--workspace-header-bg);
 }
 
+.grass-header-texture {
+  display: none;
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.grass-dirt-edge {
+  display: none;
+}
+
 .brand {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -40,6 +58,8 @@
 }
 
 .app-menus {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 0.12rem;
@@ -83,6 +103,8 @@
 }
 
 .chrome-project-status {
+  position: relative;
+  z-index: 1;
   flex: 0 1 auto;
   min-width: 0;
   margin-left: auto;
@@ -382,22 +404,34 @@
     0 2px 0 color-mix(in srgb, #1e3019 40%, transparent);
 }
 
+:host-context([data-theme='craft']) .grass-header-texture {
+  display: block;
+}
+
 :host-context([data-theme='craft']) .editor-toolbar-row {
+  position: relative;
+  isolation: isolate;
   border-top: 0;
+  padding-top: 1rem;
   background-color: var(--workspace-toolbar-bg);
-  background-image:
-    linear-gradient(var(--workspace-header-bg), var(--workspace-header-bg)),
-    repeating-linear-gradient(90deg, var(--workspace-header-bg) 0 12px, transparent 12px 16px);
+  background-image: none;
   box-shadow: inset 0 -2px var(--workspace-secondary-accent);
-  background-position: top left;
-  background-repeat: no-repeat, repeat-x;
-  background-size:
-    100% 2px,
-    100% 4px;
+}
+
+:host-context([data-theme='craft']) .grass-dirt-edge {
+  display: block;
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  left: 0;
+  width: 100%;
+  height: 14px;
+  pointer-events: none;
 }
 
 :host-context([data-theme='craft']) .ui-button--toolbar:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--workspace-toolbar-bg) 78%, white);
+  background: var(--workspace-toolbar-hover);
   color: var(--workspace-toolbar-text);
 }
 
