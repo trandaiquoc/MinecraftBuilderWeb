@@ -45,6 +45,22 @@ These live browser captures verify the Craft-only Minecraft treatment: a sparse,
 
 The keyboard resize smoke check focused the left separator at 320 px, sent `ArrowRight`, observed 336 px and the prevented default event, then restored 320 px. The persisted widths in the temporary browser profile were reset after captures.
 
+### Minecraft grass edge refresh
+
+The Craft header pattern now uses larger, spaced pixel clusters, and the grass-to-dirt edge has more varied notches and an 18 px visual height. The SVG remains decorative (`aria-hidden`, non-focusable, and pointer-transparent); its CSS is enabled only for Craft. No component state, toolbar action, project data, or renderer code changed. The before/after pair uses the same live 79-block, 16 x 16 x 16 project, camera, and 1600 x 900 viewport. Light, Raccoon, and Dark were captured from that same session and project. Chrome-resolved header text contrast is 7.00:1 and toolbar text contrast is 6.66:1.
+
+| Theme / viewport                 | Browser capture                                                                                                   |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Craft before refresh, 1600 x 900 | [workspace-grass-refresh-before-craft-20261016.png](evidence/workspace-grass-refresh-before-craft-20261016.png)   |
+| Craft after refresh, 1600 x 900  | [workspace-grass-refresh-craft-20261016.png](evidence/workspace-grass-refresh-craft-20261016.png)                 |
+| Light, 1600 x 900                | [workspace-grass-refresh-light-20261016.png](evidence/workspace-grass-refresh-light-20261016.png)                 |
+| Raccoon, 1600 x 900              | [workspace-grass-refresh-raccoon-20261016.png](evidence/workspace-grass-refresh-raccoon-20261016.png)             |
+| Dark, 1600 x 900                 | [workspace-grass-refresh-dark-20261016.png](evidence/workspace-grass-refresh-dark-20261016.png)                   |
+| Craft, 640 x 520                 | [workspace-grass-refresh-craft-640x520-20261016.png](evidence/workspace-grass-refresh-craft-640x520-20261016.png) |
+| Craft, 390 x 520                 | [workspace-grass-refresh-craft-390x520-20261016.png](evidence/workspace-grass-refresh-craft-390x520-20261016.png) |
+
+The 390 px check measured document `clientWidth` and `scrollWidth` at 390 px. The existing Quick Bar hint text is clipped at the right edge in this narrow capture; the decorative theme change does not alter that layout.
+
 The toolbar-switcher captures show the 3D Edit and Place choices selected in one shared track per control, at 1600 x 1200. Each pair has one sliding selected surface; the unselected option remains subdued in the same track. They use the same editor project, panel widths, English locale, and Comfortaa/Normal font.
 
 | Theme     | Browser capture                                                                         |

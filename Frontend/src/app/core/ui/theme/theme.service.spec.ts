@@ -319,7 +319,7 @@ describe('Workspace color palette contract', () => {
     expect(blockStyles).toContain('.block-browser input:focus-visible');
   });
 
-  it('keeps the Minecraft toolbar dirt-brown with readable cream controls', () => {
+  it('keeps the Minecraft toolbar palette and grass decoration contract', () => {
     const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
     const chromeStyles = String(
       readFileSync('src/app/features/editor/shell/editor-chrome.component.scss', 'utf8'),
@@ -368,7 +368,7 @@ describe('Workspace color palette contract', () => {
     expect(chromeTemplate).toContain('class="grass-header-texture"');
     expect(chromeTemplate).toContain('class="grass-dirt-edge"');
     expect(chromeTemplate).toContain('var(--workspace-grass-patch-light)');
-    expect(chromeTemplate).toContain('width="2048"');
+    expect(chromeTemplate).toContain('width="4096"');
     expect(chromeTemplate).not.toContain('width="192"');
   });
 
