@@ -25,6 +25,36 @@ import { SelectionService } from '../../../../core/editor/selection/selection.se
 beforeEach(() => localStorage.removeItem('the-block-laundromat.ui-preferences'));
 afterEach(() => localStorage.removeItem('the-block-laundromat.ui-preferences'));
 
+describe('EditorStatusBarComponent project save announcements', () => {
+  it('announces saved, saving, and failed states politely', async () => {
+    const saveStatus = signal<'saved' | 'pending' | 'saving' | 'error'>('saved');
+    await TestBed.configureTestingModule({
+      imports: [EditorStatusBarComponent],
+      providers: [
+        {
+          provide: ProjectAutosaveService,
+          useValue: { status: saveStatus, error: signal(undefined) },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(EditorStatusBarComponent);
+    fixture.detectChanges();
+
+    const status = fixture.nativeElement.querySelector('[role="status"]') as HTMLElement;
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.getAttribute('aria-atomic')).toBe('true');
+    expect(status.textContent).toContain('Saved');
+
+    saveStatus.set('saving');
+    fixture.detectChanges();
+    expect(status.textContent).toContain('Saving...');
+
+    saveStatus.set('error');
+    fixture.detectChanges();
+    expect(status.textContent).toContain('Save error');
+  });
+});
+
 function createAssetRuntimeStub() {
   return {
     status: signal<VanillaAssetStatus>('loading-cache'),

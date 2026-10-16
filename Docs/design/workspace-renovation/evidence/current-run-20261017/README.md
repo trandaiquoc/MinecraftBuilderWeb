@@ -179,6 +179,22 @@ fix the selector measured 286/327 px (client/scroll width) and the Decorations
 panel 307/338 px; afterward both measured equal widths (286/286 and 307/307).
 The document stayed 390 px wide without horizontal overflow.
 
+## Quick Bar collapse and save status announcements
+
+| State / viewport | Screenshot |
+| --- | --- |
+| Quick Bar collapsed with keyboard focus, Dark EN, 390 x 520 | [workspace-quickbar-collapsed-dark-en-390x520-20261017.png](workspace-quickbar-collapsed-dark-en-390x520-20261017.png) |
+
+At 390 x 520, Enter collapsed and expanded the empty Quick Bar while keeping
+focus on its toggle. The button exposes `aria-expanded=false/true` and the
+localized Expand/Collapse action name; the slot panel is removed while
+collapsed. The save label exposes `role=status`, polite live updates, and
+atomic text for Saved, Saving, and Save error. The status semantics and
+Quick Bar state were checked in Minecraft, Raccoon, Light, and Dark with both
+English and Vietnamese; the document stayed 390 px wide. At 320 x 520 in
+Vietnamese, the footer wrapped to two rows and remained 320 px wide. The
+browser was returned to Dark/English with the empty Quick Bar expanded.
+
 ## Structure JSON browser round trip
 
 | Step                                          | Screenshot                                                                                                                                                                           |

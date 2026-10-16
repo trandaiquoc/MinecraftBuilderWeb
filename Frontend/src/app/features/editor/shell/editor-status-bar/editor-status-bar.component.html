@@ -14,6 +14,9 @@
       >
     }
     <span
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       [attr.data-status]="
         autosave.status() === 'error'
           ? 'invalid'

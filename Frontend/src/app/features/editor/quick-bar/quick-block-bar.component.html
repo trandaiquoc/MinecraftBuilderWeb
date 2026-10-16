@@ -8,6 +8,7 @@
     class="collapse"
     uiTooltip="{{ quick.collapsed() ? i18n.t('expand') : i18n.t('collapse') }}"
     [attr.aria-label]="quick.collapsed() ? i18n.t('expand') : i18n.t('collapse')"
+    [attr.aria-expanded]="!quick.collapsed()"
     (click)="quick.toggleCollapsed()"
   >
     @if (quick.collapsed()) {
