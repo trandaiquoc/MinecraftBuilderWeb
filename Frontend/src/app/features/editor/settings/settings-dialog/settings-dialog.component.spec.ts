@@ -22,6 +22,37 @@ interface SettingsAppearanceView {
 describe('SettingsDialogComponent Reality previews', () => {
   afterEach(() => localStorage.removeItem('the-block-laundromat.ui-preferences'));
 
+  it('marks the current Settings section as the dialog initial focus target', async () => {
+    localStorage.removeItem('the-block-laundromat.ui-preferences');
+    await TestBed.configureTestingModule({
+      imports: [SettingsDialogComponent],
+      providers: [
+        {
+          provide: ContentAssetRuntimeService,
+          useValue: {
+            generation: signal(0),
+            resourceAvailabilitySettled: signal(true),
+            sources: { resources: { textureUrl: () => undefined } },
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(SettingsDialogComponent);
+    fixture.detectChanges();
+    const currentSection = fixture.nativeElement.querySelector(
+      '.settings-nav button[aria-current="page"]',
+    );
+    const cancel = fixture.nativeElement.querySelector('.settings-close');
+    expect(currentSection.hasAttribute('cdkfocusinitial')).toBe(true);
+    expect(cancel.hasAttribute('cdkfocusinitial')).toBe(false);
+    expect(fixture.nativeElement.querySelector('.settings-dialog').hasAttribute('autofocus')).toBe(
+      false,
+    );
+
+    fixture.destroy();
+  });
+
   it('uses actual ground resources, availability state, and the renderer sky palette', async () => {
     localStorage.removeItem('the-block-laundromat.ui-preferences');
     const generation = signal(0);

@@ -1082,19 +1082,15 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--danger);
+  color: var(--text-muted);
   cursor: pointer;
 }
 .ui-close-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  color: var(--danger);
+  background: var(--surface-hover);
+  color: var(--text);
 }
 .ui-close-button:active:not(:disabled) {
   transform: translateY(1px);
-}
-.ui-close-button:focus-visible {
-  outline: 2px solid var(--danger);
-  outline-offset: 2px;
 }
 .ui-close-button:disabled {
   cursor: not-allowed;

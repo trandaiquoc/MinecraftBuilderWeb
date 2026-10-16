@@ -4,6 +4,7 @@ import type { EditorLayoutPreferences } from '../../../core/ui/preferences/edito
 import { EditorSidebarResizeSession } from './editor-sidebar-resize-session';
 
 function setup(width = 1000) {
+  const viewportWidth = signal(width);
   const preferences = signal<EditorLayoutPreferences>({
     editorToolbarVisible: true,
     leftSidebarVisible: true,
@@ -21,8 +22,8 @@ function setup(width = 1000) {
         [side === 'left' ? 'leftSidebarWidth' : 'rightSidebarWidth']: value,
       })),
   };
-  const session = new EditorSidebarResizeSession(layout as never, () => width);
-  return { session, preferences, layout };
+  const session = new EditorSidebarResizeSession(layout as never, () => viewportWidth());
+  return { session, preferences, layout, viewportWidth };
 }
 
 describe('EditorSidebarResizeSession', () => {
@@ -84,5 +85,62 @@ describe('EditorSidebarResizeSession', () => {
     expect(preferences().leftSidebarWidth).toBe(276);
     preferences.update((current) => ({ ...current, rightSidebarVisible: false }));
     expect(session.gridTemplate()).toBe('276px minmax(0, 1fr)');
+  });
+
+  it('constrains sidebar columns to the viewport without changing saved widths', () => {
+    const { session, preferences, viewportWidth } = setup(1600);
+    preferences.update((current) => ({
+      ...current,
+      leftSidebarWidth: 520,
+      rightSidebarWidth: 520,
+    }));
+
+    viewportWidth.set(900);
+    session.clampToViewport();
+    expect(session.gridTemplate()).toBe('180px minmax(0, 1fr) 400px');
+    expect(preferences()).toMatchObject({ leftSidebarWidth: 520, rightSidebarWidth: 520 });
+
+    preferences.update((current) => ({
+      ...current,
+      leftSidebarWidth: 260,
+      rightSidebarWidth: 230,
+    }));
+    expect(session.gridTemplate()).toBe('260px minmax(0, 1fr) 230px');
+
+    preferences.update((current) => ({
+      ...current,
+      leftSidebarWidth: 520,
+      rightSidebarWidth: 520,
+    }));
+    viewportWidth.set(1600);
+    session.clampToViewport();
+    expect(session.gridTemplate()).toBe('520px minmax(0, 1fr) 520px');
+    expect(preferences()).toMatchObject({ leftSidebarWidth: 520, rightSidebarWidth: 520 });
+  });
+
+  it('does not persist a viewport-constrained width when a divider is released without moving', () => {
+    const { session, preferences, viewportWidth } = setup(900);
+    preferences.update((current) => ({
+      ...current,
+      leftSidebarWidth: 520,
+      rightSidebarWidth: 520,
+    }));
+    session.clampToViewport();
+    const event = {
+      button: 0,
+      pointerId: 9,
+      clientX: 100,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      currentTarget: { setPointerCapture: vi.fn() },
+    } as unknown as PointerEvent;
+
+    session.begin('left', event);
+    session.end({ pointerId: 9 } as PointerEvent);
+
+    expect(preferences()).toMatchObject({ leftSidebarWidth: 520, rightSidebarWidth: 520 });
+    viewportWidth.set(1600);
+    session.clampToViewport();
+    expect(session.gridTemplate()).toBe('520px minmax(0, 1fr) 520px');
   });
 });

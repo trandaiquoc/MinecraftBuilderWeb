@@ -1,5 +1,10 @@
 # Workspace Renovation Evidence
 
+## Current run — 2026-10-17
+
+- [Current browser screenshots and notes](evidence/current-run-20261017/README.md)
+- [Workspace UI acceptance inventory](WORKSPACE-UI-ACCEPTANCE-INVENTORY.md)
+
 ## Approved Workspace compositions
 
 These are the four approved Stitch Workspace frames, kept separate from the browser evidence below. They are visual references only; their mock canvas content, metrics, and unsupported controls are not application behavior.

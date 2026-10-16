@@ -9,7 +9,6 @@
     aria-modal="true"
     [attr.aria-label]="i18n.t('settingsDialogTitle')"
     tabindex="-1"
-    autofocus
   >
     <header class="settings-dialog-header">
       <h2>{{ i18n.t('settingsDialogTitle') }}</h2>
@@ -30,6 +29,7 @@
             type="button"
             [class.active]="section() === item"
             [attr.aria-current]="section() === item ? 'page' : null"
+            [attr.cdkFocusInitial]="item === 'general' ? '' : null"
             (click)="setSection(item)"
           >
             {{ sectionLabel(item) }}
