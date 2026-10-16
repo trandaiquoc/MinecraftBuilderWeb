@@ -172,27 +172,38 @@ checks with Chakra Petch and Pangolin remain open.
 ## Workspace text contrast across themes
 
 The rendered Workspace's visible text was scanned in Chrome at 1600 x 900
-after each theme transition settled, with the File menu open. The 69 visible
-text fragments covered the app chrome, menu, selected Block Browser source,
-catalog cards, inspector empty state, and status bar. After the
-selected-metadata fix, no visible text pair fell below the WCAG AA normal-text
-threshold of 4.5:1 in Minecraft, Light, Raccoon, or Dark. The
-separate palette contract test checks primary and secondary panel text, header
-and sidebar text, selected and secondary controls, primary and destructive
-buttons, status colors, and focus boundaries across all four palettes.
+after each theme transition settled. With the File menu open, the scan covered
+69 visible text fragments across the app chrome, menu, selected Block Browser
+source, catalog cards, inspector empty state, and status bar. The Settings
+dialog was checked in General, Appearance, Controls, Accessibility, and both
+Shortcuts tabs (Keyboard and Mouse) for all four themes. Those sections exposed
+16, 19, 18, 20, 76, and 29 visible text fragments per state. After the fixes
+below, no scanned pair fell below
+the WCAG AA normal-text threshold of 4.5:1 in Minecraft, Light, Raccoon, or
+Dark. The separate palette contract test also checks panel, header, sidebar,
+selected and secondary controls, primary and destructive buttons, status
+colors, and focus boundaries across all four palettes.
 
 The scan found that selected source counts were blended at 78% opacity. In the
 Raccoon theme, the `All` count measured 4.26:1 against its selected surface.
 The shared source selector and selected block, decoration, and painting
 metadata now use 86% opacity. The same palette pair measures at least 4.78:1
 across the four themes, and the theme service spec protects that threshold.
-The visible screen scan does not cover every dialog, popup, dynamic status, or
-all font-size combinations; those states remain in the acceptance inventory.
+The Settings Shortcuts scan also found the enabled `Clear all` action at 4.12:1
+in Minecraft and 4.46:1 in Raccoon. Both keyboard and mouse binding reset
+buttons now use the existing destructive-button background, text, and hover
+tokens. Their normal and hover color pairs are checked against all four themes
+in the theme service spec. Other dialogs, popups, dynamic states, and font-size
+combinations still need contrast coverage.
 
 | State                                           | Screenshot                                                                                                                                         |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Before: selected source count at 78% in Raccoon | [workspace-selected-source-count-before-raccoon-en-1600x900-20261017.png](workspace-selected-source-count-before-raccoon-en-1600x900-20261017.png) |
 | After: selected source count at 86% in Raccoon  | [workspace-selected-source-count-after-raccoon-en-1600x900-20261017.png](workspace-selected-source-count-after-raccoon-en-1600x900-20261017.png)   |
+| Before: `Clear all` in Minecraft                | [workspace-shortcut-clear-all-before-craft-en-1600x900-20261017.png](workspace-shortcut-clear-all-before-craft-en-1600x900-20261017.png)         |
+| After: `Clear all` in Minecraft                 | [workspace-shortcut-clear-all-after-craft-en-1600x900-20261017.png](workspace-shortcut-clear-all-after-craft-en-1600x900-20261017.png)           |
+| Before: `Clear all` in Raccoon                  | [workspace-shortcut-clear-all-before-raccoon-en-1600x900-20261017.png](workspace-shortcut-clear-all-before-raccoon-en-1600x900-20261017.png)     |
+| After: `Clear all` in Raccoon                   | [workspace-shortcut-clear-all-after-raccoon-en-1600x900-20261017.png](workspace-shortcut-clear-all-after-raccoon-en-1600x900-20261017.png)       |
 
 The 4.5:1 normal-text threshold follows [WCAG 2.2 Success Criterion
 1.4.3](https://www.w3.org/TR/WCAG22/#contrast-minimum).
@@ -831,6 +842,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 243 distinct PNG captures
-in this archive are linked to files in this folder (244 link occurrences, with
+animated-state and locale matrix remains open. All 247 distinct PNG captures
+in this archive are linked to files in this folder (248 link occurrences, with
 no missing targets or unlinked captures).

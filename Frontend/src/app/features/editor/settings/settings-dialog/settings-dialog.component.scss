@@ -651,7 +651,12 @@
   gap: 0.45rem;
 }
 .shortcut-actions .shortcut-clear-all {
-  color: var(--danger);
+  background: var(--button-danger-bg);
+  color: var(--button-danger-text);
+}
+.shortcut-actions .shortcut-clear-all:hover:not(:disabled) {
+  background: var(--button-danger-hover);
+  color: var(--button-danger-hover-text);
 }
 .shortcut-conflict {
   margin: 0;

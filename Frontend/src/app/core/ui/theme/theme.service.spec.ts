@@ -498,6 +498,31 @@ describe('Workspace color palette contract', () => {
         'color: color-mix(in srgb, var(--control-selected-text) 86%, transparent);',
       );
     }
+
+    const settingsStyles = String(
+      readFileSync(
+        'src/app/features/editor/settings/settings-dialog/settings-dialog.component.scss',
+        'utf8',
+      ),
+    );
+    const shortcutDangerStart = settingsStyles.indexOf('.shortcut-actions .shortcut-clear-all {');
+    const shortcutDangerEnd = settingsStyles.indexOf('}', shortcutDangerStart);
+    const shortcutDangerHoverStart = settingsStyles.indexOf(
+      '.shortcut-actions .shortcut-clear-all:hover:not(:disabled) {',
+    );
+    const shortcutDangerHoverEnd = settingsStyles.indexOf('}', shortcutDangerHoverStart);
+    expect(settingsStyles.slice(shortcutDangerStart, shortcutDangerEnd)).toContain(
+      'background: var(--button-danger-bg);',
+    );
+    expect(settingsStyles.slice(shortcutDangerStart, shortcutDangerEnd)).toContain(
+      'color: var(--button-danger-text);',
+    );
+    expect(settingsStyles.slice(shortcutDangerHoverStart, shortcutDangerHoverEnd)).toContain(
+      'background: var(--button-danger-hover);',
+    );
+    expect(settingsStyles.slice(shortcutDangerHoverStart, shortcutDangerHoverEnd)).toContain(
+      'color: var(--button-danger-hover-text);',
+    );
   });
 });
 
