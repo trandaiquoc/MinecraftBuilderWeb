@@ -57,6 +57,7 @@ import { AssetManagerModDetailsComponent } from './asset-manager-mod-details.com
 import { AssetManagerModImportWorkflow } from './asset-manager-mod-import-workflow';
 
 type AssetManagerTab = 'vanilla' | 'mods';
+const assetManagerTabs: readonly AssetManagerTab[] = ['vanilla', 'mods'];
 type DiagnosticDialogState = {
   readonly modName: string;
   readonly kind: 'warning' | 'blocking';
@@ -201,6 +202,30 @@ export class AssetManagerDialogComponent {
   }
   protected setTab(tab: AssetManagerTab): void {
     this.tab.set(tab);
+  }
+  protected tabIndex(tab: AssetManagerTab): 0 | -1 {
+    return this.tab() === tab ? 0 : -1;
+  }
+  protected onTabKeydown(event: KeyboardEvent, currentTab: AssetManagerTab): void {
+    const currentIndex = assetManagerTabs.indexOf(currentTab);
+    const nextIndex =
+      event.key === 'ArrowRight'
+        ? (currentIndex + 1) % assetManagerTabs.length
+        : event.key === 'ArrowLeft'
+          ? (currentIndex - 1 + assetManagerTabs.length) % assetManagerTabs.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? assetManagerTabs.length - 1
+              : -1;
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    this.setTab(assetManagerTabs[nextIndex]);
+    (event.currentTarget as HTMLElement)
+      .closest('[role="tablist"]')
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      .item(nextIndex)
+      ?.focus();
   }
   protected closeDetails(): void {
     const target = this.detailsRestoreTarget;

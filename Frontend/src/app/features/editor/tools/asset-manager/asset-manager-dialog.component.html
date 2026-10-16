@@ -14,11 +14,10 @@
     role="dialog"
     aria-modal="true"
     tabindex="-1"
-    autofocus
-    [attr.aria-label]="i18n.t('assetManagerTitle')"
+    aria-labelledby="asset-manager-title"
   >
     <header class="manager-header">
-      <h2>{{ i18n.t('assetManagerTitle') }}</h2>
+      <h2 id="asset-manager-title">{{ i18n.t('assetManagerTitle') }}</h2>
       <button
         type="button"
         class="ui-close-button"
@@ -37,8 +36,12 @@
         type="button"
         role="tab"
         class="manager-tab"
+        id="asset-manager-tab-vanilla"
         [attr.aria-selected]="tab() === 'vanilla'"
+        [tabIndex]="tabIndex('vanilla')"
+        [attr.cdkFocusInitial]="tab() === 'vanilla' ? '' : null"
         (click)="setTab('vanilla')"
+        (keydown)="onTabKeydown($event, 'vanilla')"
       >
         {{ i18n.t('assetManagerTabVanilla') }}
       </button>
@@ -46,8 +49,11 @@
         type="button"
         role="tab"
         class="manager-tab"
+        id="asset-manager-tab-mods"
         [attr.aria-selected]="tab() === 'mods'"
+        [tabIndex]="tabIndex('mods')"
         (click)="setTab('mods')"
+        (keydown)="onTabKeydown($event, 'mods')"
       >
         {{ i18n.t('assetManagerTabMods') }}
         <span class="tab-count">{{ assets.importedMods().length }}</span>
@@ -56,7 +62,12 @@
     <div class="manager-layout">
       <main class="manager-main">
         @if (tab() === 'vanilla') {
-          <section class="manager-pane" role="tabpanel">
+          <section
+            id="asset-manager-panel-vanilla"
+            class="manager-pane"
+            role="tabpanel"
+            aria-labelledby="asset-manager-tab-vanilla"
+          >
             <div class="pane-heading">
               <div>
                 <h3>
@@ -176,7 +187,12 @@
             </div>
           </section>
         } @else {
-          <section class="manager-pane mods-pane" role="tabpanel">
+          <section
+            id="asset-manager-panel-mods"
+            class="manager-pane mods-pane"
+            role="tabpanel"
+            aria-labelledby="asset-manager-tab-mods"
+          >
             <div class="mods-toolbar">
               <input
                 type="search"

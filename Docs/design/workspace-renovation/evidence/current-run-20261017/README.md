@@ -181,6 +181,27 @@ overflow. The renderer interval label and hint explain that the value is
 smoothed and includes idle time. Browser coverage of valid, warning, and
 invalid-placement cases remains open.
 
+## Asset Manager tabs and empty Mods state
+
+| State / viewport                                      | Screenshot                                                                                                                                                 |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Initial Vanilla state before keyboard fix, 1600 x 900 | [workspace-asset-manager-initial-dark-en-1600x900-20261017.png](workspace-asset-manager-initial-dark-en-1600x900-20261017.png)                             |
+| Initial Vanilla state before keyboard fix, 390 x 520  | [workspace-asset-manager-initial-dark-en-390x520-20261017.png](workspace-asset-manager-initial-dark-en-390x520-20261017.png)                               |
+| Vanilla tab receives initial focus, 1600 x 900        | [workspace-asset-manager-tabs-initial-focus-dark-en-1600x900-20261017.png](workspace-asset-manager-tabs-initial-focus-dark-en-1600x900-20261017.png)       |
+| Arrow/Home/End select Mods, 1600 x 900                | [workspace-asset-manager-tabs-keyboard-dark-en-1600x900-20261017.png](workspace-asset-manager-tabs-keyboard-dark-en-1600x900-20261017.png)                 |
+| ArrowLeft/Right select Mods, 390 x 520                | [workspace-asset-manager-tabs-keyboard-dark-en-390x520-20261017.png](workspace-asset-manager-tabs-keyboard-dark-en-390x520-20261017.png)                   |
+| Escape returns focus to Tools, 1600 x 900             | [workspace-asset-manager-focus-return-to-tools-dark-en-1600x900-20261017.png](workspace-asset-manager-focus-return-to-tools-dark-en-1600x900-20261017.png) |
+
+The initial captures show Vanilla selected with the Close button focused. The
+updated dialog focuses the selected Vanilla tab, keeps only the selected tab
+in the regular Tab sequence, and uses ArrowLeft/Right with wraparound plus
+Home/End. At 390 x 520, selecting Mods by keyboard keeps its focus ring visible
+inside the dialog; the dialog measures 374 x 504 px and the document has no
+horizontal overflow. Escape closes Asset Manager, restores focus to Tools, and
+leaves the saved two-block test project unchanged. The synthetic project has
+no imported mods. Actual mod JAR inspection and failure recovery remain open
+pending a trusted fixture.
+
 ## Changes verified in this pass
 
 - Resizing the viewport 1600→390→1600 kept saved sidebar preferences at
@@ -201,6 +222,8 @@ invalid-placement cases remains open.
   view at 390 x 520 with no document-level horizontal overflow.
 - Diagnostics starts focus at its heading, uses a neutral close control, and
   labels its render interval as smoothed with idle time included.
+- Asset Manager starts focus on Vanilla; Arrow/Home/End navigate between its
+  Vanilla and Mods tabs with one tab stop.
 - The narrow Workspace drawer and the 780×437 shell fit without document-level
   horizontal overflow.
 
@@ -217,10 +240,14 @@ Prettier, `git diff --check`, and a check that its 49 linked PNGs exist. Native
 Tab entry and arrow navigation were both checked in Chrome at 390 x 520. The
 Diagnostics focus and wording follow-up passed its focused component spec (8
 tests), production build, encoding check, Prettier, `git diff --check`, and a
-check that all 53 linked PNGs exist. Workspace acceptance remains in progress.
-Remaining checks cover trusted mod/JAR fixtures, External AI, Diagnostics
-warning/error cases, all locales and fonts, focus return for other dialogs,
-and reduced-motion behavior. The non-empty
+check that all 53 linked PNGs exist. Asset Manager tab navigation passed its
+focused component spec (1 test), production build, encoding check, Prettier,
+`git diff --check`, and a check that all 59 linked PNGs exist. Browser checks
+verified initial Vanilla focus, Arrow/Home/End behavior, the 390 x 520 Mods
+state without horizontal overflow, and Escape focus return to Tools. Workspace
+acceptance remains in progress. Remaining checks cover trusted mod/JAR
+fixtures, Asset Manager load and failure recovery, External AI, Diagnostics warning/error cases, all locales
+and fonts, focus return for other dialogs, and reduced-motion behavior. The non-empty
 Structure JSON browser round trip is recorded above. Both non-empty NBT
 export modes were decoded in this pass; manual loading in Minecraft remains
 pending. The repository's independent Java 1.21.1 NBT fixture is covered by
