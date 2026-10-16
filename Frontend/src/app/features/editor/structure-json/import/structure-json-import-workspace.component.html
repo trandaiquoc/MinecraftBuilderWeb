@@ -398,6 +398,9 @@
         </button>
       </div>
     </div>
+    @if (fileReadError()) {
+      <p class="status-error" role="alert">{{ i18n.t('structureJsonProjectFileReadError') }}</p>
+    }
     <textarea
       class="structure-json-code-editor"
       [value]="draftJson()"

@@ -51,3 +51,8 @@ mode-plan caching, stale-project cancellation, bounds choices, and the single
 History commit. The Angular component owns file-input interaction and
 diagnostic presentation; this internal split does not change the Structure JSON
 contract or Replace/Merge/New Group behavior.
+
+If the browser cannot read a selected JSON file, the import workspace shows a
+localized alert, keeps the existing draft, and clears the error when another
+file loads, the draft is edited, or the current draft is validated. No project
+changes occur until the user applies a validated import.

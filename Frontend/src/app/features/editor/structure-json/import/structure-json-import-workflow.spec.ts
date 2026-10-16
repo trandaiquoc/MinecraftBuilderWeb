@@ -106,6 +106,32 @@ describe('StructureJsonImportWorkflow', () => {
     expect(workflow.draftJson()).toBe(serializedStone());
   });
 
+  it('reports a file read failure and clears it after a successful retry', async () => {
+    const { workflow } = configure();
+    workflow.setDraft(serializedStone());
+
+    await workflow.loadFile({
+      text: vi.fn().mockRejectedValue(new Error('read failed')),
+    } as unknown as File);
+
+    expect(workflow.fileReadError()).toBe(true);
+    expect(workflow.progress()).toBe('idle');
+    expect(workflow.draftJson()).toBe(serializedStone());
+    expect(workflow.canApplyImport()).toBe(false);
+
+    await workflow.validate(context);
+
+    expect(workflow.fileReadError()).toBe(false);
+    expect(workflow.canApplyImport()).toBe(true);
+
+    await workflow.loadFile({
+      text: vi.fn().mockResolvedValue(serializedStone()),
+    } as unknown as File);
+
+    expect(workflow.fileReadError()).toBe(false);
+    expect(workflow.draftJson()).toBe(serializedStone());
+  });
+
   it('owns validation and commits one undoable import transaction', async () => {
     const { workflow, workspace, history, dialogs } = configure();
     workflow.setDraft(serializedStone());

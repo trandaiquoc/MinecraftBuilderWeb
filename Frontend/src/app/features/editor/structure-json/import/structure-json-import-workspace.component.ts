@@ -81,6 +81,7 @@ export class StructureJsonImportWorkspaceComponent implements OnChanges {
   readonly closed = output<void>();
 
   protected readonly draftJson = this.workflow.draftJson;
+  protected readonly fileReadError = this.workflow.fileReadError;
   protected readonly preview = this.workflow.preview;
   protected readonly progress = this.workflow.progress;
   protected readonly checkingProgress = this.workflow.checkingProgress;

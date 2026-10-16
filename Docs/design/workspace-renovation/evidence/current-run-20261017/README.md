@@ -115,6 +115,10 @@ was not part of this browser check.
 | Import validation, 390 x 520 | [workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png](workspace-structure-json-import-validated-two-blocks-dark-en-390x520-20261017.png)               |
 | Replace confirmation         | [workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-import-confirm-replace-two-blocks-dark-en-1600x900-20261017.png) |
 | Inspector after save         | [workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png](workspace-structure-json-roundtrip-inspector-two-blocks-dark-en-1600x900-20261017.png)       |
+| Invalid JSON syntax          | [workspace-structure-json-invalid-syntax-dark-en-1600x900-20261017.png](workspace-structure-json-invalid-syntax-dark-en-1600x900-20261017.png)                                       |
+| Simulated file-read failure  | [workspace-structure-json-file-read-error-dark-en-1600x900-20261017.png](workspace-structure-json-file-read-error-dark-en-1600x900-20261017.png)                                     |
+| Valid source after error     | [workspace-structure-json-recovered-valid-source-dark-en-1600x900-20261017.png](workspace-structure-json-recovered-valid-source-dark-en-1600x900-20261017.png)                       |
+| Escape returns focus to File | [workspace-structure-json-import-focus-return-dark-en-1600x900-20261017.png](workspace-structure-json-import-focus-return-dark-en-1600x900-20261017.png)                             |
 
 The app exported a 466-byte Structure JSON file from the same isolated project,
 then imported that downloaded file through the visible file picker. Validation
@@ -126,8 +130,18 @@ confirmation to replace 2 current blocks with 2 imported blocks. After
 confirmation, the app reported Saved; the Inspector showed Oak Stairs at
 X4/Y0/Z3 with `facing=north`, `half=bottom`, `shape=straight`, and
 `waterlogged=false`. Stone remained at X4/Y0/Z4. This verifies the non-empty
-browser export/import/replace/save path for this synthetic project; malformed
-file recovery and focus return still need a separate pass.
+browser export/import/replace/save path for this synthetic project.
+
+Malformed JSON syntax showed “The text is not valid JSON.” in a `role=alert`
+region, left Apply Import unavailable, and kept the project Saved with its two
+blocks. Loading a valid file cleared the error, reported 2 valid blocks with no
+blocking issues, and enabled Apply Import; the recovery check did not apply it.
+Escape closed the dialog and returned keyboard focus to the File menu trigger
+with a visible focus ring. A simulated `Blob.text()` rejection also showed the
+localized read-error alert, left Apply Import unavailable, and preserved the
+saved two-block project. Loading a valid file afterward cleared the alert and
+restored the validation preview. The browser API override used for this
+simulation was restored immediately after the read-error check.
 
 ## Changes verified in this pass
 
@@ -140,18 +154,23 @@ file recovery and focus return still need a separate pass.
   visible and the dialog footer accessible.
 - Cancel and Escape return focus to the owning menu trigger for Settings and
   Shortcuts Help; Escape was verified at 390×520 with a visible focus ring.
+- Structure JSON parse and file-read failures appear as alerts and prevent
+  Apply Import; a valid-file retry restores the preview, and Escape returns
+  focus to File.
 - The narrow Workspace drawer and the 780×437 shell fit without document-level
   horizontal overflow.
 
-Verification for the current code: full suite passed with `--isolate=false`
-(308 files passed, 7 skipped; 1,923 tests passed, 11 skipped), production
-build, app/spec/worker TypeScript checks, tool tests (2/2), encoding, Prettier,
-and `git diff --check` passed. The default worker-isolated full-suite run
-failed with Vitest worker timeouts and IPC errors; the successful run disabled
-test isolation. This set is not whole-Workspace acceptance: trusted mod/JAR
-fixtures, External AI, diagnostics, all locales and fonts, focus return for
-remaining dialogs, and
-reduced-motion behavior still require explicit rechecks. The non-empty
+Before the file-read error fix, the Workspace suite passed with
+`--isolate=false` (308 files passed, 7 skipped; 1,923 tests passed, 11 skipped),
+along with production build, app/spec/worker TypeScript checks, tool tests (2/2),
+encoding, Prettier, and `git diff --check`. The default worker-isolated full
+suite run failed with Vitest worker timeouts and IPC errors; the successful run
+disabled test isolation. The follow-up file-read error change passed its
+focused workflow spec (1 file, 6 tests), production build, encoding check,
+Prettier, `git diff --check`, and a check that all 44 linked PNGs exist.
+Workspace acceptance remains in progress. Remaining checks cover trusted
+mod/JAR fixtures, External AI, diagnostics, all locales and fonts, focus return
+for other dialogs, and reduced-motion behavior. The non-empty
 Structure JSON browser round trip is recorded above. Both non-empty NBT
 export modes were decoded in this pass; manual loading in Minecraft remains
 pending. The repository's independent Java 1.21.1 NBT fixture is covered by

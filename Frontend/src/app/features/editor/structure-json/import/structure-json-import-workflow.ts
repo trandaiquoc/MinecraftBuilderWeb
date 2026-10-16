@@ -53,12 +53,14 @@ export class StructureJsonImportWorkflow implements OnDestroy {
   private readonly i18n = inject(I18nService);
 
   private readonly draftJsonState = signal('');
+  private readonly fileReadErrorState = signal(false);
   private readonly previewState = signal<StructureJsonValidationPreview | undefined>(undefined);
   private readonly progressState = signal<StructureJsonImportProgress>('idle');
   private readonly checkingProgressState = signal({ completed: 0, total: 0 });
   private readonly importModeState = signal<StructureJsonImportMode>('replace');
   private readonly importPlanState = signal<StructureJsonImportPlan | undefined>(undefined);
   readonly draftJson = this.draftJsonState.asReadonly();
+  readonly fileReadError = this.fileReadErrorState.asReadonly();
   readonly preview = this.previewState.asReadonly();
   readonly progress = this.progressState.asReadonly();
   readonly checkingProgress = this.checkingProgressState.asReadonly();
@@ -82,6 +84,7 @@ export class StructureJsonImportWorkflow implements OnDestroy {
     this.modePlanCache.clear();
     this.importModeState.set('replace');
     this.progressState.set('idle');
+    this.fileReadErrorState.set(false);
     this.checkingProgressState.set({ completed: 0, total: 0 });
   }
 
@@ -91,6 +94,7 @@ export class StructureJsonImportWorkflow implements OnDestroy {
 
   setDraft(value: string): void {
     this.draftJsonState.set(value);
+    this.fileReadErrorState.set(false);
     this.previewState.set(undefined);
     this.importPlanState.set(undefined);
     this.modePlanCache.clear();
@@ -102,6 +106,7 @@ export class StructureJsonImportWorkflow implements OnDestroy {
 
   async loadFile(file: File): Promise<void> {
     const generation = this.beginWork('reading');
+    this.fileReadErrorState.set(false);
     this.previewState.set(undefined);
     this.importPlanState.set(undefined);
     this.modePlanCache.clear();
@@ -113,13 +118,17 @@ export class StructureJsonImportWorkflow implements OnDestroy {
       this.draftJsonState.set(text);
       this.progressState.set('idle');
     } catch {
-      if (this.isCurrent(generation)) this.progressState.set('idle');
+      if (this.isCurrent(generation)) {
+        this.fileReadErrorState.set(true);
+        this.progressState.set('idle');
+      }
     }
   }
 
   async validate(context: StructureJsonImportValidationContext): Promise<void> {
     const project = this.currentProject;
     if (!project) return;
+    this.fileReadErrorState.set(false);
     const generation = this.beginWork('parsing');
     this.checkingProgressState.set({ completed: 0, total: 0 });
 
