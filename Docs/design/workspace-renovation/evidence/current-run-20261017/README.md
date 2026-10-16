@@ -68,20 +68,40 @@ font variations are covered by separate checks or remain open below.
 
 ## Narrow Workspace font sample
 
-The Minecraft theme was checked at 390×520 in English and Vietnamese with
-Comfortaa, Chakra Petch, and Pangolin. Each font loaded, and Chrome reported no
-document-level horizontal or vertical overflow. The Vietnamese header,
-toolbar, and status bar wrap onto additional rows to keep their labels in the
-viewport. The editor canvas, Quick Bar, and collapsed Blocks/Selection openers
-remain visible. This is a focused small-screen font sample, not a full
-four-theme/font matrix. Large-font behavior is checked separately below;
-Small-font coverage remains open.
+All four themes were checked at 390×520 with Comfortaa, Chakra Petch, and
+Pangolin in English and Vietnamese (24 states). Every font loaded; no state had
+horizontal document overflow, clipped Camera buttons, or overlap between the
+Quick Bar and mobile drawer openers. Comfortaa/Vietnamese wraps the Camera
+actions and grows the page vertically, keeping a 149 px canvas visible; the
+other states fit within the viewport. A separate 320×520 Comfortaa/Vietnamese
+capture confirms the Camera controls stay inside the narrower page. Large-font
+behavior is checked below; the Small font-size setting remains open.
 
-| Font | English | Vietnamese |
-| --- | --- | --- |
-| Comfortaa | [workspace-font-narrow-comfortaa-en-390x520-20261017.png](workspace-font-narrow-comfortaa-en-390x520-20261017.png) | [workspace-font-narrow-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-comfortaa-vi-390x520-20261017.png) |
-| Chakra Petch | [workspace-font-narrow-chakra-petch-en-390x520-20261017.png](workspace-font-narrow-chakra-petch-en-390x520-20261017.png) | [workspace-font-narrow-chakra-petch-vi-390x520-20261017.png](workspace-font-narrow-chakra-petch-vi-390x520-20261017.png) |
-| Pangolin | [workspace-font-narrow-pangolin-en-390x520-20261017.png](workspace-font-narrow-pangolin-en-390x520-20261017.png) | [workspace-font-narrow-pangolin-vi-390x520-20261017.png](workspace-font-narrow-pangolin-vi-390x520-20261017.png) |
+| Theme | Font | English | Vietnamese |
+| --- | --- | --- | --- |
+| Minecraft | Comfortaa | [workspace-font-narrow-comfortaa-en-390x520-20261017.png](workspace-font-narrow-comfortaa-en-390x520-20261017.png) | [workspace-font-narrow-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-comfortaa-vi-390x520-20261017.png) |
+| Minecraft | Chakra Petch | [workspace-font-narrow-chakra-petch-en-390x520-20261017.png](workspace-font-narrow-chakra-petch-en-390x520-20261017.png) | [workspace-font-narrow-chakra-petch-vi-390x520-20261017.png](workspace-font-narrow-chakra-petch-vi-390x520-20261017.png) |
+| Minecraft | Pangolin | [workspace-font-narrow-pangolin-en-390x520-20261017.png](workspace-font-narrow-pangolin-en-390x520-20261017.png) | [workspace-font-narrow-pangolin-vi-390x520-20261017.png](workspace-font-narrow-pangolin-vi-390x520-20261017.png) |
+| Dark | Comfortaa | [workspace-font-narrow-dark-comfortaa-en-390x520-20261017.png](workspace-font-narrow-dark-comfortaa-en-390x520-20261017.png) | [workspace-font-narrow-dark-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-dark-comfortaa-vi-390x520-20261017.png) |
+| Dark | Chakra Petch | [workspace-font-narrow-dark-chakra-petch-en-390x520-20261017.png](workspace-font-narrow-dark-chakra-petch-en-390x520-20261017.png) | [workspace-font-narrow-dark-chakra-petch-vi-390x520-20261017.png](workspace-font-narrow-dark-chakra-petch-vi-390x520-20261017.png) |
+| Dark | Pangolin | [workspace-font-narrow-dark-pangolin-en-390x520-20261017.png](workspace-font-narrow-dark-pangolin-en-390x520-20261017.png) | [workspace-font-narrow-dark-pangolin-vi-390x520-20261017.png](workspace-font-narrow-dark-pangolin-vi-390x520-20261017.png) |
+| Light | Comfortaa | [workspace-font-narrow-light-comfortaa-en-390x520-20261017.png](workspace-font-narrow-light-comfortaa-en-390x520-20261017.png) | [workspace-font-narrow-light-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-light-comfortaa-vi-390x520-20261017.png) |
+| Light | Chakra Petch | [workspace-font-narrow-light-chakra-petch-en-390x520-20261017.png](workspace-font-narrow-light-chakra-petch-en-390x520-20261017.png) | [workspace-font-narrow-light-chakra-petch-vi-390x520-20261017.png](workspace-font-narrow-light-chakra-petch-vi-390x520-20261017.png) |
+| Light | Pangolin | [workspace-font-narrow-light-pangolin-en-390x520-20261017.png](workspace-font-narrow-light-pangolin-en-390x520-20261017.png) | [workspace-font-narrow-light-pangolin-vi-390x520-20261017.png](workspace-font-narrow-light-pangolin-vi-390x520-20261017.png) |
+| Raccoon | Comfortaa | [workspace-font-narrow-raccoon-comfortaa-en-390x520-20261017.png](workspace-font-narrow-raccoon-comfortaa-en-390x520-20261017.png) | [workspace-font-narrow-raccoon-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-raccoon-comfortaa-vi-390x520-20261017.png) |
+| Raccoon | Chakra Petch | [workspace-font-narrow-raccoon-chakra-petch-en-390x520-20261017.png](workspace-font-narrow-raccoon-chakra-petch-en-390x520-20261017.png) | [workspace-font-narrow-raccoon-chakra-petch-vi-390x520-20261017.png](workspace-font-narrow-raccoon-chakra-petch-vi-390x520-20261017.png) |
+| Raccoon | Pangolin | [workspace-font-narrow-raccoon-pangolin-en-390x520-20261017.png](workspace-font-narrow-raccoon-pangolin-en-390x520-20261017.png) | [workspace-font-narrow-raccoon-pangolin-vi-390x520-20261017.png](workspace-font-narrow-raccoon-pangolin-vi-390x520-20261017.png) |
+
+The Comfortaa/Vietnamese captures before the Camera wrap change preserve the
+tight edge fit measured earlier; at 320×520 the Camera group extended about
+70 px past the viewport before the fix:
+
+| Theme | Before-change capture |
+| --- | --- |
+| Dark | [workspace-font-narrow-before-camera-wrap-dark-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-before-camera-wrap-dark-comfortaa-vi-390x520-20261017.png) |
+| Light | [workspace-font-narrow-before-camera-wrap-light-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-before-camera-wrap-light-comfortaa-vi-390x520-20261017.png) |
+| Raccoon | [workspace-font-narrow-before-camera-wrap-raccoon-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-before-camera-wrap-raccoon-comfortaa-vi-390x520-20261017.png) |
+| Dark, 320×520 after change | [workspace-font-narrow-dark-comfortaa-vi-320x520-20261017.png](workspace-font-narrow-dark-comfortaa-vi-320x520-20261017.png) |
 
 ## Large Workspace font at narrow and short viewports
 
@@ -93,12 +113,15 @@ the right edge and the empty Quick Bar hint covered the
 responsive Blocks and Selection openers, even though the document itself did
 not report overflow. The Small-font capture is included as a comparison.
 
-At widths up to 560 px, Large-font Camera controls now wrap within the toolbar.
-When the viewport is at most 700 px high, the Workspace shell grows to its
-content height and the page scrolls vertically; the editor body keeps a
-12rem minimum height. At 390 x 520 the body measured 216 px, the editor canvas
-167 px, and the Quick Bar no longer intersected the drawer openers. At 320 x
-520 all Camera controls remained inside the viewport; scrolling to the bottom
+At widths up to 560 px, Camera controls now wrap within the toolbar for all
+font sizes. At those widths, when the viewport is at most 700 px high, the
+Workspace shell grows to its content height and the page scrolls vertically;
+the editor body keeps a 12rem minimum height. At 390 x 520 with the Large font,
+the body measured 216 px, the editor canvas 167 px, and the Quick Bar no longer
+intersected the drawer openers. With normal Comfortaa/Vietnamese, the 390 x 520
+and 320 x 520 checks kept a 149 px canvas and all Camera controls inside the
+viewport. At 320 x 520 with the Large font, all Camera controls remained
+inside; scrolling to the bottom
 revealed the Quick Bar and status bar. There was no horizontal document
 overflow. At 701 px high the shell returned to the viewport-height layout with
 a 192 px editor canvas and no document overflow. In the other three themes,
