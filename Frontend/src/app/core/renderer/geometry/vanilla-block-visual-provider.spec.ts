@@ -334,6 +334,27 @@ describe('vanilla block visual provider', () => {
     expect(head).toBeDefined();
     expect(foot).not.toBe(head);
   });
+  it('does not alias delimiter-bearing BlockState values in provider caches', async () => {
+    const provider = realLikeVisualProvider();
+    const combined = block('minecraft:stone', { a: 'x,b=y' });
+    const split = block('minecraft:stone', { a: 'x', b: 'y' });
+
+    await provider.create(combined);
+    await provider.create(split);
+    expect(provider.cacheStats().resolvedModelCacheMisses).toBe(2);
+
+    const firstReusableKey = provider.reusableVisualKey!(combined);
+    const secondReusableKey = provider.reusableVisualKey!(split);
+    expect(firstReusableKey).toBeDefined();
+    expect(secondReusableKey).toBeDefined();
+    expect(firstReusableKey).not.toBe(secondReusableKey);
+
+    const resolveOcclusionClass = vi.spyOn(provider as any, 'resolveOcclusionClass');
+    provider.occlusionClass!(combined);
+    provider.occlusionClass!(split);
+    expect(resolveOcclusionClass).toHaveBeenCalledTimes(2);
+    provider.dispose();
+  });
   it('prioritizes Decorated Pot special rendering and loads all five textures', async () => {
     const json = {
       'assets/minecraft/blockstates/decorated_pot.json': {

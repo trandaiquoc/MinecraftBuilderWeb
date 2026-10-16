@@ -20,6 +20,9 @@ describe('ItemVisualService', () => {
     expect(stableVisualComponents({ value: { a: 1, b: 2 } })).toBe(
       stableVisualComponents({ value: { b: 2, a: 1 } }),
     );
+    expect(stableVisualComponents({ custom: { floats: [-0] } })).not.toBe(
+      stableVisualComponents({ custom: { floats: [0] } }),
+    );
   });
 
   function setup() {

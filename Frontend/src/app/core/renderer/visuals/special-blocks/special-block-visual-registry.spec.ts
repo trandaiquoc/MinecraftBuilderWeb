@@ -28,6 +28,18 @@ describe('special block visuals', () => {
   });
   it('does not claim generic JSON blocks as special', () =>
     expect(registry.resolve(block('minecraft:stone'))).toBeUndefined());
+  it('keeps special visual cache keys distinct for delimiter-bearing state values', () => {
+    const combined = {
+      ...block('minecraft:red_bed'),
+      state: { a: 'x,b=y' },
+    };
+    const split = {
+      ...block('minecraft:red_bed'),
+      state: { a: 'x', b: 'y' },
+    };
+
+    expect(registry.reusableVisualKey(combined)).not.toBe(registry.reusableVisualKey(split));
+  });
   it('does not fabricate a classic entity-bed texture for a new bed family', () =>
     expect(registry.resolve(block('minecraft:straw_bed'))).toBeUndefined());
   it('accepts a verified common-sign descriptor for an external namespace', () => {

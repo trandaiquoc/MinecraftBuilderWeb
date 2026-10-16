@@ -101,6 +101,20 @@ describe('project mutation hints', () => {
     ).toBe(false);
   });
 
+  it('does not collapse delimiter-bearing BlockState changes into an unchanged mutation', () => {
+    const combined = { ...before, state: { a: 'x,b=y' } };
+    const split = { ...before, state: { a: 'x', b: 'y' } };
+
+    expect(placedBlockValueEqual(combined, split)).toBe(false);
+    expect(
+      boundedProjectMutationChanges(
+        [before.position],
+        () => combined,
+        () => split,
+      ),
+    ).toEqual([{ position: before.position, before: combined, after: split }]);
+  });
+
   it('keeps a surviving neighbor out of delete inversion when its value is unchanged', () => {
     const changes = boundedProjectMutationChanges(
       [before.position],

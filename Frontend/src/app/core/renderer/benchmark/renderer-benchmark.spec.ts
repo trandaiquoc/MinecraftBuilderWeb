@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { stableValueKey } from '../../domain/stable-value-key';
 import { ThreeViewportEngine } from '../engine/three-viewport-engine';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import {
@@ -145,13 +146,7 @@ describe('renderer incremental baseline', () => {
   it('keeps a deterministic mixed-material stress scene across multiple visual signatures', () => {
     const project = rendererBenchmarkProject('stress');
     const signatures = new Set(
-      project.blocks.map(
-        (block) =>
-          `${block.id}|${Object.entries(block.state)
-            .sort()
-            .map(([key, value]) => `${key}=${value}`)
-            .join(',')}`,
-      ),
+      project.blocks.map((block) => `${block.id}|${stableValueKey(block.state)}`),
     );
     expect(project.blocks).toHaveLength(20_000);
     expect(signatures.size).toBeGreaterThanOrEqual(8);

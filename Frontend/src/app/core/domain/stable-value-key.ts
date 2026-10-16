@@ -1,7 +1,8 @@
 /**
- * Creates a deterministic identity for JSON-shaped project and render data.
- * Object key order is ignored; array order, holes, and explicit undefined
- * entries remain significant. This is not a general JavaScript serializer.
+ * Creates a deterministic identity for project and render values.
+ * Object key order is ignored; array order, holes, explicit undefined,
+ * non-finite numbers, and negative zero remain significant. This supports
+ * JSON-shaped data and those explicit cases, not arbitrary JavaScript objects.
  */
 export function stableValueKey(value: unknown): string {
   return stableValuePart(value);
@@ -9,7 +10,10 @@ export function stableValueKey(value: unknown): string {
 
 function stableValuePart(value: unknown): string {
   if (value === undefined) return 'undefined';
-  if (typeof value === 'number' && !Number.isFinite(value)) return String(value);
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return String(value);
+    if (Object.is(value, -0)) return '-0';
+  }
   if (Array.isArray(value))
     return `[${Array.from({ length: value.length }, (_, index) =>
       index in value ? stableValuePart(value[index]) : '<hole>',

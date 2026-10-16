@@ -16,10 +16,27 @@ describe('viewport render signatures', () => {
       state: { axis: 'x' },
       blockEntityData: { z: 1, a: 2 },
     };
-    expect(blockRenderSignature(block)).toContain('axis=x');
+    expect(blockRenderSignature(block)).toContain('{"axis":"x"}');
     expect(blockRenderSignature(block)).toContain('{"a":2,"z":1}');
     expect(blockRenderSignature({ ...block, blockEntityData: { a: null, z: 1 } })).not.toBe(
       blockRenderSignature({ ...block, blockEntityData: { z: 1 } }),
+    );
+  });
+
+  it('keeps arbitrary string BlockState values unambiguous', () => {
+    const block = {
+      kind: 'resolved' as const,
+      id: 'minecraft:stone',
+      namespace: 'minecraft',
+      position: { x: 1, y: 2, z: 3 },
+      state: { a: 'x,b=y' },
+    };
+
+    expect(blockRenderSignature(block)).not.toBe(
+      blockRenderSignature({ ...block, state: { a: 'x', b: 'y' } }),
+    );
+    expect(blockRenderSignature({ ...block, state: { b: 'y', a: 'x' } })).toBe(
+      blockRenderSignature({ ...block, state: { a: 'x', b: 'y' } }),
     );
   });
 

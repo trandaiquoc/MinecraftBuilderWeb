@@ -3,10 +3,7 @@ import type { ViewportRenderOptions } from '../viewport-engine-contracts';
 import { stableValueKey } from '../../../domain/stable-value-key';
 
 export function blockRenderSignature(block: ProjectDocument['blocks'][number]): string {
-  const state = Object.entries(block.state)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${value}`)
-    .join(',');
+  const state = stableValueKey(block.state);
   const entity =
     block.blockEntityData === undefined ? '' : `|entity=${stableValueKey(block.blockEntityData)}`;
   return `${block.kind}|${block.id}|${block.namespace}|${block.position.x},${block.position.y},${block.position.z}|${state}${entity}`;

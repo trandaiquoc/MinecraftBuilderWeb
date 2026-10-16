@@ -247,10 +247,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   }
 
   reusableVisualKey(block: PlacedBlock): string | undefined {
-    const stateKey = `${block.id}|${Object.entries(block.state)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, value]) => `${name}=${value}`)
-      .join(',')}`;
+    const stateKey = `${block.id}|${stableValueKey(block.state)}`;
     if (this.reusableKeyCache.has(stateKey)) return this.reusableKeyCache.get(stateKey);
     if (this.fluidRenderResolver.resolve(block)) return undefined;
     const specialKey = this.specialVisuals.reusableVisualKey(block);
@@ -267,10 +264,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   }
 
   occlusionClass(block: PlacedBlock): OcclusionClass {
-    const key = `occlusion-v1|${block.id}|${Object.entries(block.state)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([name, value]) => `${name}=${value}`)
-      .join(',')}`;
+    const key = `occlusion-v1|${block.id}|${stableValueKey(block.state)}`;
     const cached = this.occlusionClassCache.get(key);
     if (cached) return cached;
     const result = this.resolveOcclusionClass(block);
@@ -498,10 +492,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   }
 
   private resolve(blockId: string, state: Readonly<Record<string, string>>): ResolvedBlockModel {
-    const key = `${blockId}|${Object.entries(state)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, value]) => `${name}=${value}`)
-      .join(',')}`;
+    const key = `${blockId}|${stableValueKey(state)}`;
     const cached = this.resolvedCache.get(key);
     if (cached) {
       this.stats.resolvedModelCacheHits += 1;

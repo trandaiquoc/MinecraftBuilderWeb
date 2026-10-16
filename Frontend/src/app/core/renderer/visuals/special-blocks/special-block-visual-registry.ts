@@ -1,4 +1,5 @@
 import { DEFAULT_MINECRAFT_VERSION, PlacedBlock } from '../../../domain/project.types';
+import { stableValueKey } from '../../../domain/stable-value-key';
 import { resolveResourceLocation } from '../../../content/resources/resource-location';
 import { createCommonSignAdapter, SignVisualProvider } from './sign-visual-provider';
 import { BedVisualProvider } from './bed-visual-provider';
@@ -73,10 +74,7 @@ export class SpecialBlockVisualRegistry {
   reusableVisualKey(block: PlacedBlock): string | undefined {
     const adapter = this.resolveCompatible(block);
     if (!adapter?.staticBatchable) return undefined;
-    const state = Object.entries(block.state)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([name, value]) => `${name}=${value}`)
-      .join(',');
+    const state = stableValueKey(block.state);
     return `special-template-v1|${adapter.family}|${block.id}|${state}`;
   }
   resolveDiagnosticFallback(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
