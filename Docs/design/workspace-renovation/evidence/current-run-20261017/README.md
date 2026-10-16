@@ -38,6 +38,7 @@ Workspace Background tab.
 | General, 390×520                                      | [workspace-settings-general-dark-390x520-20261017.png](workspace-settings-general-dark-390x520-20261017.png)                                                 |
 | Accessibility selected by keyboard, 390×520           | [workspace-settings-accessibility-dark-390x520-keyboard-20261017.png](workspace-settings-accessibility-dark-390x520-keyboard-20261017.png)                   |
 | Focus returned to Settings trigger by Escape, 390×520 | [workspace-settings-focus-return-dark-390x520-20261017.png](workspace-settings-focus-return-dark-390x520-20261017.png)                                       |
+| Focus returned to Help trigger by Escape, 390×520     | [workspace-help-focus-return-dark-390x520-20261017.png](workspace-help-focus-return-dark-390x520-20261017.png)                                               |
 
 At 390×520 the Settings dialog stays inside the viewport and keeps its footer
 visible. Tab moved focus from General to Accessibility; Enter selected it and
@@ -70,8 +71,8 @@ data-heavy flows, menus, diagnostics, and renderer output.
   focus or danger-red emphasis.
 - Keyboard selection of Accessibility at 390×520 keeps the selected nav item
   visible and the dialog footer accessible.
-- Cancel and Escape return focus to the Settings menu trigger; Escape was
-  verified at 390×520 with a visible focus ring.
+- Cancel and Escape return focus to the owning menu trigger for Settings and
+  Shortcuts Help; Escape was verified at 390×520 with a visible focus ring.
 - The narrow Workspace drawer and the 780×437 shell fit without document-level
   horizontal overflow.
 
@@ -82,6 +83,6 @@ and `git diff --check` passed. The default worker-isolated full-suite run
 failed with Vitest worker timeouts and IPC errors; the successful run disabled
 test isolation. This set is not whole-Workspace acceptance: BlockState,
 non-empty import and export, trusted mod/JAR fixtures, External AI,
-diagnostics, all locales and fonts, focus return for other dialogs, and
+diagnostics, all locales and fonts, focus return for remaining dialogs, and
 reduced-motion behavior
 still require explicit rechecks.

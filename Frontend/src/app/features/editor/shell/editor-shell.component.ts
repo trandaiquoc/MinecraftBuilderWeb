@@ -165,7 +165,6 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');
   protected readonly deletingProject = signal(false);
   protected readonly settingsDialogOpen = signal(false);
-  private readonly editorChrome = viewChild(EditorChromeComponent);
   protected readonly controlsHelpOpen = signal(false);
   protected readonly assetManagerOpen = signal(false);
   protected readonly diagnosticsOpen = signal(false);
@@ -361,7 +360,6 @@ export class EditorShellComponent implements OnDestroy {
       ?.focus();
   }
   protected openSettingsDialog(): void {
-    this.editorChrome()?.focusSettingsTrigger();
     this.settingsDialogOpen.set(true);
   }
   protected openAssetManager(): void {

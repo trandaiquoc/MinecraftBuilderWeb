@@ -99,14 +99,10 @@ export class EditorChromeComponent {
   }
 
   protected emit(action: EditorChromeAction): void {
+    if (this.activeMenu())
+      this.host.nativeElement.querySelector<HTMLElement>('.menu-trigger.active')?.focus();
     this.activeMenu.set(undefined);
     this.action.emit(action);
-  }
-
-  focusSettingsTrigger(): void {
-    this.host.nativeElement
-      .querySelector<HTMLButtonElement>('.settings-entry > .app-menu-trigger')
-      ?.focus();
   }
 
   protected beginSegmentDrag(control: SegmentControl, event: PointerEvent): void {
