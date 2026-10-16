@@ -87,8 +87,9 @@ Small-font coverage remains open.
 
 The large font setting was checked in the Minecraft theme with Vietnamese at
 390 x 520, 390 x 600, and 320 x 520 using the temporary two-block project.
-Before the layout change, the Camera
-controls ran off the right edge and the empty Quick Bar hint covered the
+Dark, Light, and Raccoon themes were also checked in both English and
+Vietnamese at 390 x 520. Before the layout change, the Camera controls ran off
+the right edge and the empty Quick Bar hint covered the
 responsive Blocks and Selection openers, even though the document itself did
 not report overflow. The Small-font capture is included as a comparison.
 
@@ -100,7 +101,9 @@ content height and the page scrolls vertically; the editor body keeps a
 520 all Camera controls remained inside the viewport; scrolling to the bottom
 revealed the Quick Bar and status bar. There was no horizontal document
 overflow. At 701 px high the shell returned to the viewport-height layout with
-a 192 px editor canvas and no document overflow.
+a 192 px editor canvas and no document overflow. In the other three themes,
+all six 390 x 520 states kept the Camera buttons inside the viewport and had
+zero overlap between the Quick Bar and drawer openers.
 
 | State | Browser capture |
 | --- | --- |
@@ -110,6 +113,12 @@ a 192 px editor canvas and no document overflow.
 | Large font, 390 x 600 | [workspace-font-size-large-minecraft-vi-390x600-20261017.png](workspace-font-size-large-minecraft-vi-390x600-20261017.png) |
 | Large font, 320 x 520, page top | [workspace-font-size-large-minecraft-vi-320x520-20261017.png](workspace-font-size-large-minecraft-vi-320x520-20261017.png) |
 | Large font, 320 x 520, page scrolled | [workspace-font-size-large-minecraft-vi-320x520-scrolled-20261017.png](workspace-font-size-large-minecraft-vi-320x520-scrolled-20261017.png) |
+| Large font, Dark, English, 390 x 520 | [workspace-font-size-large-dark-en-390x520-20261017.png](workspace-font-size-large-dark-en-390x520-20261017.png) |
+| Large font, Dark, Vietnamese, 390 x 520 | [workspace-font-size-large-dark-vi-390x520-20261017.png](workspace-font-size-large-dark-vi-390x520-20261017.png) |
+| Large font, Light, English, 390 x 520 | [workspace-font-size-large-light-en-390x520-20261017.png](workspace-font-size-large-light-en-390x520-20261017.png) |
+| Large font, Light, Vietnamese, 390 x 520 | [workspace-font-size-large-light-vi-390x520-20261017.png](workspace-font-size-large-light-vi-390x520-20261017.png) |
+| Large font, Raccoon, English, 390 x 520 | [workspace-font-size-large-raccoon-en-390x520-20261017.png](workspace-font-size-large-raccoon-en-390x520-20261017.png) |
+| Large font, Raccoon, Vietnamese, 390 x 520 | [workspace-font-size-large-raccoon-vi-390x520-20261017.png](workspace-font-size-large-raccoon-vi-390x520-20261017.png) |
 
 ## Mobile application menus
 
