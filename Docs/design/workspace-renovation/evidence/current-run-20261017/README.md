@@ -46,22 +46,25 @@ scrolled the active item into view. The document did not overflow horizontally.
 
 ## Workspace panels and responsive shell
 
-| State / viewport                                   | Capture                                                                                                                                                              |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dark shell, 780×437                                | [workspace-editor-dark-780x437-20261017.png](workspace-editor-dark-780x437-20261017.png)                                                                             |
-| Dark shell, after resizing back to 1600×900        | [workspace-editor-dark-after-resize-1600x900-20261017.png](workspace-editor-dark-after-resize-1600x900-20261017.png)                                                 |
-| Dark shell, 390×520                                | [workspace-editor-dark-after-resize-390x520-20261017.png](workspace-editor-dark-after-resize-390x520-20261017.png)                                                   |
-| Dark shell with narrow-screen drawer open, 390×520 | [workspace-editor-dark-390x520-drawer-after-20261017.png](workspace-editor-dark-390x520-drawer-after-20261017.png)                                                   |
-| Decorations                                        | [workspace-decoration-dark-en-1600x900-20261017-final.png](workspace-decoration-dark-en-1600x900-20261017-final.png)                                                 |
-| Empty Groups state                                 | [workspace-groups-empty-dark-en-1600x900-20261017.png](workspace-groups-empty-dark-en-1600x900-20261017.png)                                                         |
-| Quick Bar with Stone added                         | [workspace-quickbar-stone-dark-en-1600x900-20261017.png](workspace-quickbar-stone-dark-en-1600x900-20261017.png)                                                     |
-| Empty Block Usage                                  | [workspace-block-usage-empty-dark-en-1600x900-20261017.png](workspace-block-usage-empty-dark-en-1600x900-20261017.png)                                               |
-| Block Usage, one Stone                             | [workspace-block-usage-one-stone-dark-en-1600x900-20261017.png](workspace-block-usage-one-stone-dark-en-1600x900-20261017.png)                                       |
-| Block Usage, Stone and Oak Stairs                  | [workspace-block-usage-two-types-dark-en-1600x900-20261017.png](workspace-block-usage-two-types-dark-en-1600x900-20261017.png)                                       |
-| Block Usage, Oak Stairs highlighted by keyboard    | [workspace-block-usage-two-types-oak-highlighted-dark-en-1600x900-20261017.png](workspace-block-usage-two-types-oak-highlighted-dark-en-1600x900-20261017.png)       |
-| Selected Stone, empty BlockState                   | [workspace-inspector-selected-stone-dark-en-1600x900-20261017.png](workspace-inspector-selected-stone-dark-en-1600x900-20261017.png)                                 |
-| Selected Oak Stairs, BlockState controls           | [workspace-inspector-oak-stairs-controls-dark-en-1600x900-20261017.png](workspace-inspector-oak-stairs-controls-dark-en-1600x900-20261017.png)                       |
-| Oak Stairs Facing edited to South                  | [workspace-inspector-oak-stairs-edited-facing-south-dark-en-1600x900-20261017.png](workspace-inspector-oak-stairs-edited-facing-south-dark-en-1600x900-20261017.png) |
+| State / viewport                                   | Capture                                                                                                                                                                |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dark shell, 780×437                                | [workspace-editor-dark-780x437-20261017.png](workspace-editor-dark-780x437-20261017.png)                                                                               |
+| Dark shell, after resizing back to 1600×900        | [workspace-editor-dark-after-resize-1600x900-20261017.png](workspace-editor-dark-after-resize-1600x900-20261017.png)                                                   |
+| Dark shell, 390×520                                | [workspace-editor-dark-after-resize-390x520-20261017.png](workspace-editor-dark-after-resize-390x520-20261017.png)                                                     |
+| Dark shell with narrow-screen drawer open, 390×520 | [workspace-editor-dark-390x520-drawer-after-20261017.png](workspace-editor-dark-390x520-drawer-after-20261017.png)                                                     |
+| Decorations                                        | [workspace-decoration-dark-en-1600x900-20261017-final.png](workspace-decoration-dark-en-1600x900-20261017-final.png)                                                   |
+| Empty Groups state                                 | [workspace-groups-empty-dark-en-1600x900-20261017.png](workspace-groups-empty-dark-en-1600x900-20261017.png)                                                           |
+| Quick Bar with Stone added                         | [workspace-quickbar-stone-dark-en-1600x900-20261017.png](workspace-quickbar-stone-dark-en-1600x900-20261017.png)                                                       |
+| Empty Block Usage                                  | [workspace-block-usage-empty-dark-en-1600x900-20261017.png](workspace-block-usage-empty-dark-en-1600x900-20261017.png)                                                 |
+| Block Usage, one Stone                             | [workspace-block-usage-one-stone-dark-en-1600x900-20261017.png](workspace-block-usage-one-stone-dark-en-1600x900-20261017.png)                                         |
+| Block Usage, Stone and Oak Stairs                  | [workspace-block-usage-two-types-dark-en-1600x900-20261017.png](workspace-block-usage-two-types-dark-en-1600x900-20261017.png)                                         |
+| Block Usage, Oak Stairs highlighted by keyboard    | [workspace-block-usage-two-types-oak-highlighted-dark-en-1600x900-20261017.png](workspace-block-usage-two-types-oak-highlighted-dark-en-1600x900-20261017.png)         |
+| Selected Stone, empty BlockState                   | [workspace-inspector-selected-stone-dark-en-1600x900-20261017.png](workspace-inspector-selected-stone-dark-en-1600x900-20261017.png)                                   |
+| Selected Oak Stairs, BlockState controls           | [workspace-inspector-oak-stairs-controls-dark-en-1600x900-20261017.png](workspace-inspector-oak-stairs-controls-dark-en-1600x900-20261017.png)                         |
+| Oak Stairs Facing edited to South                  | [workspace-inspector-oak-stairs-edited-facing-south-dark-en-1600x900-20261017.png](workspace-inspector-oak-stairs-edited-facing-south-dark-en-1600x900-20261017.png)   |
+| Oak Stairs details in the mobile inspector         | [workspace-inspector-oak-stairs-mobile-details-dark-en-390x520-20261017.png](workspace-inspector-oak-stairs-mobile-details-dark-en-390x520-20261017.png)               |
+| Oak Stairs controls in the mobile inspector        | [workspace-inspector-oak-stairs-mobile-controls-dark-en-390x520-20261017.png](workspace-inspector-oak-stairs-mobile-controls-dark-en-390x520-20261017.png)             |
+| Mobile Facing options open                         | [workspace-inspector-oak-stairs-mobile-facing-options-dark-en-390x520-20261017.png](workspace-inspector-oak-stairs-mobile-facing-options-dark-en-390x520-20261017.png) |
 
 Stone was added to and then removed from the Quick Bar through the UI. The
 project stayed at zero placed blocks for that interaction. Later inspector
@@ -83,7 +86,10 @@ inspector itself scrolls when a selected block has several state properties;
 the document viewport remains fixed without horizontal overflow. In Block
 Usage, Tab from the sort control focused Oak Stairs and Enter toggled its
 highlight button to `aria-pressed=true`; the recorded capture shows the
-highlighted row.
+highlighted row. At 390 x 520, the Inspector opens as a 340 px drawer with a
+270 px scroll viewport. Internal scrolling exposes the selected block details
+and all four state controls. The Facing option menu stays within the drawer
+and viewport, and the document has no horizontal overflow.
 
 ## Changes verified in this pass
 
