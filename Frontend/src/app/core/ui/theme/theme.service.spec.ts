@@ -32,6 +32,8 @@ const workspaceTokens: Readonly<Record<string, string>> = {
   Warning: '--workspace-warning',
   'Danger / Error': '--workspace-danger',
   Info: '--workspace-info',
+  'Destructive Button': '--workspace-danger-button-surface',
+  'Destructive Hover': '--workspace-danger-button-hover',
 };
 
 const relativeLuminance = (hex: string): number => {
@@ -77,7 +79,7 @@ describe('Workspace color palette contract', () => {
     expect(stylesheet).toContain('background: var(--control-selected);');
   });
 
-  it('matches the approved 92 colors and keeps generic tokens workspace-scoped', () => {
+  it('matches the approved 100 colors and keeps generic tokens workspace-scoped', () => {
     const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
     const designContract = String(
       readFileSync('../Docs/design/workspace-color-palette.md', 'utf8'),
@@ -101,7 +103,7 @@ describe('Workspace color palette contract', () => {
         .map((cell) => cell.trim());
       documentedPalette.set(role, colors);
     }
-    expect(documentedPalette.size).toBe(23);
+    expect(documentedPalette.size).toBe(25);
 
     for (const [themeIndex, themeName] of themeNames.entries()) {
       const themeBlock = paletteStyles.match(
@@ -314,7 +316,7 @@ describe('Workspace color palette contract', () => {
     expect(stylesheet).toContain('appearance: none;');
     expect(stylesheet).toContain('background-color: var(--workspace-raised);');
     expect(stylesheet).toContain('border-bottom-width: 2px;');
-    expect(stylesheet).toContain('--workspace-control-frame-strong: #828b7c;');
+    expect(stylesheet).toContain('--workspace-control-frame-strong: #d3b98a;');
     expect(blockStyles).toContain('border: 1px solid var(--workspace-border);');
     expect(blockStyles).toContain('.block-browser input:focus-visible');
   });
@@ -419,7 +421,9 @@ describe('Workspace color palette contract', () => {
         ['hover secondary control', text, hover],
         ['primary button', textOnPrimary, primary],
         ['primary hover', textOnPrimary, primaryHover],
-        ['danger button', textOnPrimary, value('Danger / Error')],
+        ['danger text', value('Danger / Error'), panel],
+        ['danger button', textOnPrimary, value('Destructive Button')],
+        ['danger hover button', textOnPrimary, value('Destructive Hover')],
       ] as const) {
         expect(
           contrastRatio(foreground, background),
@@ -439,14 +443,21 @@ describe('Workspace color palette contract', () => {
         const mix = statusAlias.match(/color-mix\(\s*in srgb,\s*var\([^)]*\)\s*(\d+)%/);
         const foreground = mix
           ? mixColors(value(statusRole), headerText, Number(mix[1]))
-          : value(statusRole);
+          : statusAlias.startsWith('#')
+            ? statusAlias
+            : value(statusRole);
         expect(
           contrastRatio(foreground, header),
           `${themeName} ${statusRole} on header`,
         ).toBeGreaterThanOrEqual(4.5);
+        const panelSuccessAlias = block.match(
+          /--workspace-status-panel-success:\s*(#[0-9a-fA-F]{6}|var\(--workspace-success\));/,
+        )![1];
         const panelForeground =
           themeName === 'craft' && statusRole === 'Success'
-            ? mixColors(value(statusRole), '#000000', 98)
+            ? panelSuccessAlias.startsWith('#')
+              ? panelSuccessAlias
+              : value(statusRole)
             : value(statusRole);
         expect(
           contrastRatio(panelForeground, panel),

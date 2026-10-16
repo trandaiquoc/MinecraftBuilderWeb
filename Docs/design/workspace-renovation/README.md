@@ -61,6 +61,31 @@ The Craft header pattern now uses larger, spaced pixel clusters, and the grass-t
 
 The 390 px capture in this grass-refresh set predates the Quick Bar wrapping fix below. It records a clipped English empty-state hint while the document itself stayed within the viewport.
 
+### Minecraft palette refresh and menu stacking
+
+The Craft Workspace now uses a dark soil sidebar (`#36281D`), charcoal-stone panels (`#403D37`), and a layered raised surface (`#4D4941`). Grass green remains on navigation, selection, and primary actions; the existing dirt toolbar and block visuals are unchanged. Destructive button fills have dedicated semantic tokens so panel error text stays readable. The light, Raccoon, and Dark palette values remain unchanged. The palette contract and text/control contrast checks cover all 25 roles across all four themes.
+
+The before/after Craft captures use the same live 79-block project, camera, 1600 × 900 viewport, and workspace state. The three other themes were captured from the same project and viewport. A second four-theme set keeps Block Usage selected; all four show the same 79 total blocks, 58 unique types, and 6 missing assets with the thumbnail rows, search, sort, and usage ratios intact.
+
+| Evidence                                 | Browser capture                                                                                                   |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Craft before palette refresh, 1600 × 900 | [workspace-palette-craft-before-20261016.png](evidence/workspace-palette-craft-before-20261016.png)               |
+| Craft after palette refresh, 1600 × 900  | [workspace-palette-craft-after-20261016.png](evidence/workspace-palette-craft-after-20261016.png)                 |
+| Raccoon, 1600 × 900                      | [workspace-palette-raccoon-20261016.png](evidence/workspace-palette-raccoon-20261016.png)                         |
+| Light, 1600 × 900                        | [workspace-palette-light-20261016.png](evidence/workspace-palette-light-20261016.png)                             |
+| Dark, 1600 × 900                         | [workspace-palette-dark-20261016.png](evidence/workspace-palette-dark-20261016.png)                               |
+| Block Usage, Craft                       | [workspace-palette-block-usage-craft-20261016.png](evidence/workspace-palette-block-usage-craft-20261016.png)     |
+| Block Usage, Raccoon                     | [workspace-palette-block-usage-raccoon-20261016.png](evidence/workspace-palette-block-usage-raccoon-20261016.png) |
+| Block Usage, Light                       | [workspace-palette-block-usage-light-20261016.png](evidence/workspace-palette-block-usage-light-20261016.png)     |
+| Block Usage, Dark                        | [workspace-palette-block-usage-dark-20261016.png](evidence/workspace-palette-block-usage-dark-20261016.png)       |
+
+At 545 × 900, opening View reproduced a stacking defect: `.app-menu-row` established an isolated stacking context below the following toolbar row, so the toolbar painted over the menu's first option. Giving the menu row a higher stacking level keeps the popover fully visible. A browser hit test at the first option's center resolves to the `3D Edit` menu item after the fix.
+
+| Evidence                                 | Browser capture                                                                                     |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| View menu before stacking fix, 545 × 900 | [workspace-menu-stacking-before-20261016.png](evidence/workspace-menu-stacking-before-20261016.png) |
+| View menu after stacking fix, 545 × 900  | [workspace-menu-stacking-after-20261016.png](evidence/workspace-menu-stacking-after-20261016.png)   |
+
 ### Quick Bar empty-state hint at narrow widths
 
 The empty-state hint previously kept `white-space: nowrap` inside a width-constrained slot row with hidden overflow. At 390 px, Chrome measured the hint at 374.3 px inside a 310.8 px slot row, which cut off the final words without creating document overflow. Normal text wrapping now keeps the full localized instruction visible. The duplicate `.slots`, `.slot`, `.collapse`, and `.slot-remove` style declarations were consolidated while preserving their effective dimensions, spacing, and overflow behavior. At 390 px, English and Vietnamese hints measure 310.8 x 37.3 px; at 320 px, the Vietnamese hint measures 240.8 x 37.3 px. In both cases hint `scrollWidth` equals `clientWidth`, and document `scrollWidth` equals the viewport width. At 1600 px, the English hint remains a single 374.3 x 18.7 px line. Browser clicks collapsed and restored the bar, leaving its state expanded afterward.

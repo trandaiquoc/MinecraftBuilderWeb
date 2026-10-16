@@ -253,72 +253,59 @@
 
 /* Workspace V2 palette. The Project Screen keeps its independent root tokens. */
 :root[data-theme='craft'] {
-  --workspace-color-scheme: light;
+  --workspace-color-scheme: dark;
   --workspace-segment-idle-text-mix: 100%;
-  --workspace-app-bg: #292c25;
+  --workspace-app-bg: #241b14;
   --workspace-header-bg: #315e27;
   --workspace-toolbar-bg: #76502f;
   --workspace-toolbar-hover: #8a603a;
-  --workspace-sidebar-bg: #e3e6de;
-  --workspace-panel-bg: #f3f4ef;
-  --workspace-raised: #fafbf8;
-  --workspace-muted: #e7e9e3;
-  --workspace-hover: #dfe6d9;
-  --workspace-selected: #c6d7b9;
-  --workspace-border: #a7aea1;
-  --workspace-separator: #bec4b6;
-  --workspace-text-primary: #252b25;
-  --workspace-text-secondary: #50584d;
+  --workspace-sidebar-bg: #36281d;
+  --workspace-panel-bg: #403d37;
+  --workspace-raised: #4d4941;
+  --workspace-muted: #302c26;
+  --workspace-hover: #5a5146;
+  --workspace-selected: #365a29;
+  --workspace-border: #b8a17b;
+  --workspace-separator: #85623e;
+  --workspace-text-primary: #fff3dc;
+  --workspace-text-secondary: #d8c9ae;
   --workspace-header-text: #f3f7eb;
   --workspace-toolbar-text: #fff7e7;
-  --workspace-sidebar-text: #252b25;
-  --workspace-text-disabled: #737a70;
-  --workspace-primary: #35772e;
-  --workspace-primary-hover: #2a6424;
-  --workspace-text-on-primary: #ffffff;
+  --workspace-sidebar-text: #fff1d4;
+  --workspace-text-disabled: #c9b996;
+  --workspace-primary: #3d742d;
+  --workspace-primary-hover: #316224;
+  --workspace-text-on-primary: #fffbec;
   --workspace-secondary-accent: #a7783f;
   --workspace-grass-patch-light: #427738;
   --workspace-grass-patch-mid: #3b6d2f;
   --workspace-grass-patch-dark: #2e5725;
   --workspace-grass-edge-shadow: #24451e;
   --workspace-dirt-shadow: #56351d;
-  --workspace-focus: #286c27;
+  --workspace-focus: #e3b950;
   --workspace-control-frame: var(--workspace-border);
-  --workspace-control-frame-strong: #828b7c;
+  --workspace-control-frame-strong: #d3b98a;
   --workspace-control-depth: var(--workspace-shadow-control);
-  --workspace-success: #286d3a;
-  --workspace-warning: #81551d;
-  --workspace-danger: #a33232;
-  --workspace-info: #465f6d;
+  --workspace-success: #8adb99;
+  --workspace-warning: #ffd176;
+  --workspace-danger: #ff9188;
+  --workspace-danger-button-surface: #8e352f;
+  --workspace-danger-button-hover: #a7463d;
+  --workspace-info: #b4d8ee;
   --workspace-radius-sm: 0.125rem;
   --workspace-radius-md: 0.25rem;
   --workspace-radius-lg: 0.375rem;
   --workspace-radius-xl: 0.5rem;
-  --workspace-shadow-control: 0 2px 0 rgb(102 76 48 / 0.2);
-  --workspace-shadow-control-raised: 0 4px 10px rgb(41 42 37 / 0.14);
-  --workspace-shadow-popover: 0 10px 26px rgb(28 31 25 / 0.22);
-  --workspace-shadow-dialog: 0 18px 54px rgb(28 31 25 / 0.28);
-  --workspace-status-valid: color-mix(
-    in srgb,
-    var(--workspace-success) 12%,
-    var(--workspace-header-text)
-  );
-  --workspace-status-warning: color-mix(
-    in srgb,
-    var(--workspace-warning) 12%,
-    var(--workspace-header-text)
-  );
-  --workspace-status-danger: color-mix(
-    in srgb,
-    var(--workspace-danger) 12%,
-    var(--workspace-header-text)
-  );
-  --workspace-status-info: color-mix(
-    in srgb,
-    var(--workspace-info) 12%,
-    var(--workspace-header-text)
-  );
-  --workspace-status-panel-success: color-mix(in srgb, var(--workspace-success) 98%, black);
+  --workspace-shadow-control: inset 0 1px 0 rgb(255 243 220 / 0.12), 0 2px 0 #21170f;
+  --workspace-shadow-control-raised:
+    inset 0 1px 0 rgb(255 243 220 / 0.16), 0 4px 9px rgb(11 7 4 / 0.42);
+  --workspace-shadow-popover: 0 10px 26px rgb(11 7 4 / 0.56);
+  --workspace-shadow-dialog: 0 18px 54px rgb(11 7 4 / 0.64);
+  --workspace-status-valid: #8adb99;
+  --workspace-status-warning: #ffd176;
+  --workspace-status-danger: #ffc1a8;
+  --workspace-status-info: #b4d8ee;
+  --workspace-status-panel-success: #8adb99;
 }
 :root[data-theme='light'] {
   --workspace-color-scheme: light;
@@ -348,6 +335,8 @@
   --workspace-success: #237044;
   --workspace-warning: #8a5a1b;
   --workspace-danger: #ab333c;
+  --workspace-danger-button-surface: #ab333c;
+  --workspace-danger-button-hover: #ab333c;
   --workspace-info: #424242;
   --workspace-radius-sm: 0.25rem;
   --workspace-radius-md: 0.375rem;
@@ -391,6 +380,8 @@
   --workspace-success: #8bd0a0;
   --workspace-warning: #e5b978;
   --workspace-danger: #f29ba2;
+  --workspace-danger-button-surface: #f29ba2;
+  --workspace-danger-button-hover: #f29ba2;
   --workspace-info: #98bacb;
   --workspace-radius-sm: 0.625rem;
   --workspace-radius-md: 0.875rem;
@@ -450,6 +441,8 @@
   --workspace-success: #80c89f;
   --workspace-warning: #e0b77c;
   --workspace-danger: #f08a98;
+  --workspace-danger-button-surface: #f08a98;
+  --workspace-danger-button-hover: #f08a98;
   --workspace-info: #b2c4e0;
   --workspace-radius-sm: 0.25rem;
   --workspace-radius-md: 0.375rem;
@@ -498,8 +491,8 @@
   --button-secondary-text: var(--workspace-text-primary);
   --button-selected-bg: var(--workspace-selected);
   --button-selected-text: var(--workspace-text-primary);
-  --button-danger-bg: var(--workspace-danger);
-  --button-danger-hover: var(--workspace-danger);
+  --button-danger-bg: var(--workspace-danger-button-surface);
+  --button-danger-hover: var(--workspace-danger-button-hover);
   --button-danger-hover-text: var(--workspace-text-on-primary);
   --button-danger-text: var(--workspace-text-on-primary);
   --danger: var(--workspace-danger);
