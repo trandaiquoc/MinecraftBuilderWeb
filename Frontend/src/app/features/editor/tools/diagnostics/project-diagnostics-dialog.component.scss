@@ -73,6 +73,17 @@
   border-radius: var(--radius-md);
   background: var(--surface-raised);
 }
+.diagnostic-results-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .diagnostic-summary strong {
   font-size: 1.35rem;
 }
@@ -164,6 +175,9 @@
   overflow: auto;
   overscroll-behavior: contain;
   padding: 0.15rem;
+}
+.issue-list:not(.issue-list--many) {
+  height: max-content;
 }
 .issue-list--many {
   height: min(19rem, 42vh);

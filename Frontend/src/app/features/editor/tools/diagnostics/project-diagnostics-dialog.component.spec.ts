@@ -59,6 +59,7 @@ describe('ProjectDiagnosticsDialogComponent', () => {
     compatibilityDetailsExpanded: () => boolean;
     compatibilityIssueGroupCount: () => number;
     compatibilityAffectedBlockCount: () => number;
+    filteredAffectedBlockCount: () => number;
     issueGroupCount: () => number;
     hasMoreIssues: () => boolean;
     severityGroupCounts: () => {
@@ -137,6 +138,21 @@ describe('ProjectDiagnosticsDialogComponent', () => {
     expect(component.issues().map((issue) => issue.id)).toEqual(['example:unknown']);
 
     expect(library.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('announces filtered issue and affected-block counts through a polite status', () => {
+    const status = fixture.nativeElement.querySelector('[role="status"]');
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.getAttribute('aria-atomic')).toBe('true');
+    expect(status.textContent.replace(/\s+/g, ' ').trim()).toContain(
+      '1 en:diagnosticsIssueGroup; 1 en:diagnosticsAffectedBlock',
+    );
+
+    component.setQuery({ target: { value: 'not-found' } } as unknown as Event);
+    fixture.detectChanges();
+
+    expect(component.filteredAffectedBlockCount()).toBe(0);
+    expect(status.textContent.trim()).toBe('en:diagnosticsEmpty');
   });
 
   it('updates localized issue messages without rescanning project content', () => {

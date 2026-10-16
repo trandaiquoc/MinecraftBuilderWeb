@@ -117,6 +117,9 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
       this.categoryFilter(),
     ),
   );
+  protected readonly filteredAffectedBlockCount = computed(() =>
+    this.issues().reduce((total, issue) => total + issue.affectedBlocks, 0),
+  );
   protected readonly primaryIssues = computed(() =>
     this.issues().filter((issue) => !isCompatibilityIssue(issue)),
   );

@@ -233,8 +233,30 @@ control. Afterward, focus lands on the dialog title and the close control uses
 the neutral shared color. At 390 x 520 the dialog measures 374 x 504 px; its
 body scrolls internally and the document remains 390 px wide with no horizontal
 overflow. The renderer interval label and hint explain that the value is
-smoothed and includes idle time. Browser coverage of valid, warning, and
-invalid-placement cases remains open.
+smoothed and includes idle time. A five-block browser sample also checked
+diagnostics classification using current catalog definitions: Stone had no
+finding; `minecraft:oak_fence` produced a partial-behavior warning, and
+`minecraft:trapped_chest` produced an informational unknown-behavior note. One
+missing-content block and one unresolved ID produced separate errors. The
+summary reported 4 groups / 4 affected blocks (2 errors, 1 warning, 1 info).
+Compatibility details stayed collapsed on open, then expanded with
+`aria-expanded=true` and two labeled cards. Both behavior messages say that
+coverage does not determine placement validity.
+
+Filtering to Warning changed the polite `role="status"` message to “1 Issue
+group; 1 Affected block”. At 390 x 520 in Vietnamese Raccoon, the warning card
+remained reachable by scrolling inside the dialog, the full explanation was
+visible, and the document had no horizontal overflow. Short issue lists now
+size to their contents; larger lists retain their own scroll region. These
+checks do not validate Minecraft placement rules: Project Diagnostics reports
+content, asset, visual, and behavior-coverage findings and has no
+placement-validity finding in its current contract.
+
+| State / theme / viewport                         | Screenshot                                                                                                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Mixed errors and compatibility summary, Dark EN | [workspace-diagnostics-mixed-findings-dark-en-1600x900-20261017.png](workspace-diagnostics-mixed-findings-dark-en-1600x900-20261017.png)                     |
+| Compatibility disclosure expanded, Dark EN     | [workspace-diagnostics-compatibility-expanded-dark-en-1600x900-20261017.png](workspace-diagnostics-compatibility-expanded-dark-en-1600x900-20261017.png)     |
+| Warning filter, Raccoon VI, 390 x 520           | [workspace-diagnostics-warning-raccoon-vi-390x520-20261017.png](workspace-diagnostics-warning-raccoon-vi-390x520-20261017.png)                               |
 
 ## Asset Manager tabs and empty Mods state
 
@@ -277,6 +299,11 @@ pending a trusted fixture.
   view at 390 x 520 with no document-level horizontal overflow.
 - Diagnostics starts focus at its heading, uses a neutral close control, and
   labels its render interval as smoothed with idle time included.
+- Diagnostics distinguishes missing and unresolved content errors from the
+  current oak-fence behavior warning and trapped-chest unknown-behavior info;
+  filtering announces the matching group and affected-block counts.
+- Short Diagnostics lists fit their cards; larger lists keep independent
+  scroll areas. Behavior coverage remains separate from placement validity.
 - Asset Manager starts focus on Vanilla; Arrow/Home/End navigate between its
   Vanilla and Mods tabs with one tab stop.
 - The narrow Workspace drawer and the 780×437 shell fit without document-level

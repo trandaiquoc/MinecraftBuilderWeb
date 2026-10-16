@@ -94,6 +94,24 @@
           </select>
         </label>
       </div>
+      <p class="diagnostic-results-status" role="status" aria-live="polite" aria-atomic="true">
+        @if (issues().length) {
+          {{ issues().length }}
+          {{
+            issues().length === 1
+              ? i18n.t('diagnosticsIssueGroup')
+              : i18n.t('diagnosticsIssueGroups')
+          }};
+          {{ filteredAffectedBlockCount() }}
+          {{
+            filteredAffectedBlockCount() === 1
+              ? i18n.t('diagnosticsAffectedBlock')
+              : i18n.t('diagnosticsAffectedBlocks')
+          }}
+        } @else {
+          {{ i18n.t('diagnosticsEmpty') }}
+        }
+      </p>
       @if (issues().length) {
         @if (primaryIssues().length) {
           <div
