@@ -254,6 +254,7 @@
 /* Workspace V2 palette. The Project Screen keeps its independent root tokens. */
 :root[data-theme='craft'] {
   --workspace-color-scheme: light;
+  --workspace-segment-idle-text-mix: 75%;
   --workspace-app-bg: #35372f;
   --workspace-header-bg: #416f2c;
   --workspace-toolbar-bg: #564330;
@@ -312,6 +313,7 @@
 }
 :root[data-theme='light'] {
   --workspace-color-scheme: light;
+  --workspace-segment-idle-text-mix: 70%;
   --workspace-app-bg: #f7f7f6;
   --workspace-header-bg: #ffffff;
   --workspace-toolbar-bg: #f1f1f0;
@@ -354,6 +356,7 @@
 }
 :root[data-theme='raccoon'] {
   --workspace-color-scheme: dark;
+  --workspace-segment-idle-text-mix: 63%;
   --workspace-app-bg: #181a1c;
   --workspace-header-bg: #202326;
   --workspace-toolbar-bg: #292d30;
@@ -412,6 +415,7 @@
 }
 :root[data-theme='dark'] {
   --workspace-color-scheme: dark;
+  --workspace-segment-idle-text-mix: 56%;
   --workspace-app-bg: #08090c;
   --workspace-header-bg: #050608;
   --workspace-toolbar-bg: #0f1115;
