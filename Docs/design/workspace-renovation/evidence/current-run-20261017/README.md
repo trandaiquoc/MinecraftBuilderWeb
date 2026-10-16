@@ -255,8 +255,14 @@ placement-validity finding in its current contract.
 | State / theme / viewport                         | Screenshot                                                                                                                                                   |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Mixed errors and compatibility summary, Dark EN | [workspace-diagnostics-mixed-findings-dark-en-1600x900-20261017.png](workspace-diagnostics-mixed-findings-dark-en-1600x900-20261017.png)                     |
-| Compatibility disclosure expanded, Dark EN     | [workspace-diagnostics-compatibility-expanded-dark-en-1600x900-20261017.png](workspace-diagnostics-compatibility-expanded-dark-en-1600x900-20261017.png)     |
+| Compatibility expanded, Minecraft EN           | [workspace-diagnostics-compatibility-expanded-craft-en-1600x900-20261017.png](workspace-diagnostics-compatibility-expanded-craft-en-1600x900-20261017.png)     |
+| Compatibility expanded, Raccoon EN             | [workspace-diagnostics-compatibility-expanded-raccoon-en-1600x900-20261017.png](workspace-diagnostics-compatibility-expanded-raccoon-en-1600x900-20261017.png) |
+| Compatibility expanded, Light EN               | [workspace-diagnostics-compatibility-expanded-light-en-1600x900-20261017.png](workspace-diagnostics-compatibility-expanded-light-en-1600x900-20261017.png)     |
+| Compatibility expanded, Dark EN                | [workspace-diagnostics-compatibility-expanded-dark-en-1600x900-20261017.png](workspace-diagnostics-compatibility-expanded-dark-en-1600x900-20261017.png)       |
 | Warning filter, Raccoon VI, 390 x 520           | [workspace-diagnostics-warning-raccoon-vi-390x520-20261017.png](workspace-diagnostics-warning-raccoon-vi-390x520-20261017.png)                               |
+
+The expanded mixed report retained the same error/warning/info order and
+readable issue-card contrast across Minecraft, Raccoon, Light, and Dark.
 
 ## Asset Manager tabs and empty Mods state
 
