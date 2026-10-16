@@ -1,5 +1,7 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
+import { By } from '@angular/platform-browser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
@@ -38,16 +40,37 @@ const usageEntries = [
   },
 ];
 
+let resizeCallbacks: (() => void)[] = [];
+let disconnectObserver = vi.fn();
+
+class ResizeObserverStub {
+  constructor(private readonly callback: ResizeObserverCallback) {}
+
+  observe(): void {
+    resizeCallbacks.push(() => this.callback([], this as unknown as ResizeObserver));
+  }
+
+  unobserve(): void {}
+
+  disconnect(): void {
+    disconnectObserver();
+  }
+}
+
 describe('BlockUsagePanelComponent', () => {
   let fixture: ComponentFixture<BlockUsagePanelComponent> | undefined;
 
   afterEach(() => {
     fixture?.destroy();
     fixture = undefined;
+    vi.unstubAllGlobals();
     TestBed.resetTestingModule();
   });
 
   it('presents compact project metrics and selectable usage rows', async () => {
+    resizeCallbacks = [];
+    disconnectObserver = vi.fn();
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     const highlightedBlockId = signal<string | undefined>(undefined);
     const toggleHighlight = vi.fn();
     const clearHighlight = vi.fn();
@@ -98,6 +121,13 @@ describe('BlockUsagePanelComponent', () => {
 
     fixture = TestBed.createComponent(BlockUsagePanelComponent);
     fixture.detectChanges();
+    await fixture.whenStable();
+    const viewport = fixture.debugElement.query(By.directive(CdkVirtualScrollViewport))
+      .componentInstance as CdkVirtualScrollViewport;
+    const checkViewportSize = vi.spyOn(viewport, 'checkViewportSize');
+    resizeCallbacks[0]?.();
+    expect(resizeCallbacks).toHaveLength(1);
+    expect(checkViewportSize).toHaveBeenCalled();
 
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('.usage-metrics')?.textContent).toContain('17');
@@ -112,6 +142,7 @@ describe('BlockUsagePanelComponent', () => {
     const presentation = fixture.componentInstance as unknown as {
       usageRows: () => readonly { entry: { id: string; count: number } }[];
       toggleHighlight: (id: string) => void;
+      usageShare: (count: number) => number;
     };
     expect(presentation.usageRows()).toEqual(
       expect.arrayContaining([
@@ -120,8 +151,14 @@ describe('BlockUsagePanelComponent', () => {
         }),
       ]),
     );
+    expect(presentation.usageShare(12)).toBeCloseTo((12 / 17) * 100);
+    expect(presentation.usageShare(20)).toBe(100);
+    expect(presentation.usageShare(-1)).toBe(0);
     presentation.toggleHighlight('example:missing_block');
     expect(toggleHighlight).toHaveBeenCalledWith('example:missing_block');
     expect(clearHighlight).not.toHaveBeenCalled();
+    fixture.destroy();
+    fixture = undefined;
+    expect(disconnectObserver).toHaveBeenCalledOnce();
   });
 });

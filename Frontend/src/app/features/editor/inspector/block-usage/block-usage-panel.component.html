@@ -52,7 +52,7 @@
   @if (usageRows().length) {
     <cdk-virtual-scroll-viewport
       class="usage-list"
-      itemSize="64"
+      itemSize="74"
       role="list"
       [attr.aria-label]="i18n.t('blockUsage')"
     >
@@ -101,6 +101,9 @@
           <span class="usage-count" aria-hidden="true">
             <strong>{{ formatCount(row.entry.count) }}</strong>
             <small>{{ percentage(row.entry.count) }}</small>
+          </span>
+          <span class="usage-frequency" aria-hidden="true">
+            <span [style.width.%]="usageShare(row.entry.count)"></span>
           </span>
         </button>
       </article>

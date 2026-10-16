@@ -1,5 +1,5 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { ScrollingModule } from '@angular/cdk/scrolling';
+import { Component, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling';
 import { LucideSearch } from '@lucide/angular';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
@@ -38,6 +38,21 @@ export class BlockUsagePanelComponent {
   protected readonly highlight = inject(BlockUsageHighlightService);
   protected readonly query = signal('');
   protected readonly sort = signal<UsageSort>('count-desc');
+  private readonly usageViewport = viewChild(CdkVirtualScrollViewport);
+  private readonly viewportSizing = effect((onCleanup) => {
+    const viewport = this.usageViewport();
+    const element = viewport?.elementRef.nativeElement;
+    if (!viewport || !element) return;
+
+    if (typeof ResizeObserver === 'undefined') {
+      viewport.checkViewportSize();
+      return;
+    }
+
+    const observer = new ResizeObserver(() => viewport.checkViewportSize());
+    observer.observe(element);
+    onCleanup(() => observer.disconnect());
+  });
 
   constructor() {
     const project = this.workspace.project();
@@ -102,6 +117,10 @@ export class BlockUsagePanelComponent {
     if (!total) return '0%';
     const value = (count / total) * 100;
     return value > 0 && value < 0.1 ? '<0.1%' : `${value.toFixed(value >= 10 ? 1 : 1)}%`;
+  }
+  protected usageShare(count: number): number {
+    const total = this.totalBlocks();
+    return total > 0 ? Math.min(100, Math.max(0, (count / total) * 100)) : 0;
   }
   protected formatCount(value: number): string {
     return new Intl.NumberFormat(this.i18n.locale()).format(value);
