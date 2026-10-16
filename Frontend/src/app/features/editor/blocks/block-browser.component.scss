@@ -320,6 +320,10 @@
   width: 0.85rem;
   height: 0.85rem;
 }
+.results .block-row:last-child .quick-add-action::after {
+  top: auto;
+  bottom: calc(100% + 0.35rem);
+}
 .quick-add-wrapper {
   position: absolute;
   top: 0.3rem;

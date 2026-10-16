@@ -91,6 +91,7 @@
                 ><button
                   type="button"
                   class="quick-add-action"
+                  [class.ui-tooltip-align-end]="isCompact()"
                   uiTooltip="{{ quickAddLabel(block) }}"
                   (click)="addToQuickBar($event, block)"
                   [disabled]="!canAddToQuickBar(block)"

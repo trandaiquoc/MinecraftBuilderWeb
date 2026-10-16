@@ -49,24 +49,32 @@ scrolled the active item into view. The document did not overflow horizontally.
 The empty search state is a bordered, centered panel announced as a polite
 status. When a query has no matches, its Clear search button is keyboard
 reachable; activating it restores all 906 results and returns focus to the
-search input. At 390×520, the sidebar drawer covers the viewport and keeps the
-search field and empty state inside the visible panel. The document stayed at
-390 px wide. Captures use the same two-block audit project.
+search input. Native Tab traversed the catalog through the final Zombie Head
+entry; Shift+Tab returned to its Quick Bar action. The quick-add tooltip now
+flips above and aligns inside the last compact row. At 390×520, the sidebar
+drawer covers the viewport and keeps the search field and empty state inside
+the visible panel. The document stayed at 390 px wide. Captures use the same
+two-block audit project.
 
-| State / theme / viewport                    | Capture                                                                                                                                |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Before empty-state recovery, Dark, 1600×900 | [workspace-block-search-empty-before-dark-en-1600x900-20261017.png](workspace-block-search-empty-before-dark-en-1600x900-20261017.png) |
-| After recovery, Minecraft, 1600×900         | [workspace-block-search-empty-craft-en-1600x900-20261017.png](workspace-block-search-empty-craft-en-1600x900-20261017.png)             |
-| After recovery, Raccoon, 1600×900           | [workspace-block-search-empty-raccoon-en-1600x900-20261017.png](workspace-block-search-empty-raccoon-en-1600x900-20261017.png)         |
-| After recovery, Light, 1600×900             | [workspace-block-search-empty-light-en-1600x900-20261017.png](workspace-block-search-empty-light-en-1600x900-20261017.png)             |
-| After recovery, Dark, 1600×900              | [workspace-block-search-empty-dark-en-1600x900-20261017.png](workspace-block-search-empty-dark-en-1600x900-20261017.png)               |
-| Cleared by keyboard, Dark, 1600×900         | [workspace-block-search-cleared-dark-en-1600x900-20261017.png](workspace-block-search-cleared-dark-en-1600x900-20261017.png)           |
-| Empty state, Vietnamese, Raccoon, 390×520   | [workspace-block-search-empty-raccoon-vi-390x520-20261017.png](workspace-block-search-empty-raccoon-vi-390x520-20261017.png)           |
+| State / theme / viewport                    | Capture                                                                                                                                                                                  |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Before empty-state recovery, Dark, 1600×900 | [workspace-block-search-empty-before-dark-en-1600x900-20261017.png](workspace-block-search-empty-before-dark-en-1600x900-20261017.png)                                                   |
+| After recovery, Minecraft, 1600×900         | [workspace-block-search-empty-craft-en-1600x900-20261017.png](workspace-block-search-empty-craft-en-1600x900-20261017.png)                                                               |
+| After recovery, Raccoon, 1600×900           | [workspace-block-search-empty-raccoon-en-1600x900-20261017.png](workspace-block-search-empty-raccoon-en-1600x900-20261017.png)                                                           |
+| After recovery, Light, 1600×900             | [workspace-block-search-empty-light-en-1600x900-20261017.png](workspace-block-search-empty-light-en-1600x900-20261017.png)                                                               |
+| After recovery, Dark, 1600×900              | [workspace-block-search-empty-dark-en-1600x900-20261017.png](workspace-block-search-empty-dark-en-1600x900-20261017.png)                                                                 |
+| Cleared by keyboard, Dark, 1600×900         | [workspace-block-search-cleared-dark-en-1600x900-20261017.png](workspace-block-search-cleared-dark-en-1600x900-20261017.png)                                                             |
+| Empty state, Vietnamese, Raccoon, 390×520   | [workspace-block-search-empty-raccoon-vi-390x520-20261017.png](workspace-block-search-empty-raccoon-vi-390x520-20261017.png)                                                             |
+| Last virtual row before tooltip fix         | [workspace-block-browser-keyboard-last-item-dark-en-1600x900-20261017.png](workspace-block-browser-keyboard-last-item-dark-en-1600x900-20261017.png)                                     |
+| Last virtual row after tooltip fix          | [workspace-block-browser-keyboard-last-item-dark-en-1600x900-20261017-after-tooltip-fix.png](workspace-block-browser-keyboard-last-item-dark-en-1600x900-20261017-after-tooltip-fix.png) |
 
 The narrow drawer measured 340×520 at x=0 with no document overflow. Both the
 search input and empty panel remained inside its bounds. Chrome's native Tab
 and Enter activated Clear search; the query became empty, all 906 blocks
-returned, and `#block-search` regained focus.
+returned, and `#block-search` regained focus. The native Tab pass reached the
+last virtual row and then left the list; Shift+Tab returned to the final row's
+Quick Bar action. The screenshot pair shows the tooltip clipping before the
+row-aware flip and its corrected placement afterward.
 
 ## Workspace panels and responsive shell
 
