@@ -7,6 +7,8 @@ export interface ThemedSelectOption {
   readonly label: string;
 }
 
+let nextThemedSelectId = 0;
+
 @Component({
   selector: 'app-themed-select',
   imports: [LucideCheck, LucideChevronDown, CdkConnectedOverlay, CdkOverlayOrigin],
@@ -21,43 +23,72 @@ export class ThemedSelectComponent {
   @Output() readonly selectionChange = new EventEmitter<string>();
   protected readonly open = signal(false);
   protected readonly activeIndex = signal(0);
+  protected readonly listboxId = `themed-select-listbox-${++nextThemedSelectId}`;
 
   protected get selectedLabel(): string {
     return this.options.find((option) => option.id === this.selectedId)?.label ?? '';
   }
+  protected optionId(index: number): string {
+    return `${this.listboxId}-option-${index}`;
+  }
+  protected activeOptionId(): string | null {
+    return this.open() && this.options[this.activeIndex()]
+      ? this.optionId(this.activeIndex())
+      : null;
+  }
   protected toggle(): void {
     if (this.disabled) return;
-    this.open.update((open) => !open);
-    this.activeIndex.set(
-      Math.max(
-        0,
-        this.options.findIndex((option) => option.id === this.selectedId),
-      ),
-    );
+    const opening = !this.open();
+    this.open.set(opening);
+    if (opening) this.activeIndex.set(this.selectedOptionIndex());
+  }
+  protected close(): void {
+    this.open.set(false);
+  }
+  protected preserveTriggerFocus(event: MouseEvent): void {
+    event.preventDefault();
   }
   protected choose(id: string): void {
     this.selectionChange.emit(id);
-    this.open.set(false);
+    this.close();
   }
   protected onTriggerKeydown(event: KeyboardEvent): void {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
-      this.open.set(true);
+      if (!this.open()) {
+        this.activeIndex.set(this.selectedOptionIndex(event.key));
+        this.open.set(true);
+        return;
+      }
+      const optionCount = this.options.length;
       this.activeIndex.update(
         (index) =>
-          (index + (event.key === 'ArrowDown' ? 1 : -1) + this.options.length) %
-          Math.max(1, this.options.length),
+          (index + (event.key === 'ArrowDown' ? 1 : -1) + optionCount) % Math.max(1, optionCount),
       );
       return;
     }
     if (event.key === 'Escape') {
+      if (!this.open()) return;
       event.preventDefault();
-      this.open.set(false);
+      event.stopPropagation();
+      this.close();
+      return;
     }
-    if (event.key === 'Enter' && this.open()) {
+    if (this.open() && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       const option = this.options[this.activeIndex()];
       if (option) this.choose(option.id);
+      return;
     }
+    if (this.open() && (event.key === 'Home' || event.key === 'End')) {
+      event.preventDefault();
+      this.activeIndex.set(event.key === 'Home' ? 0 : Math.max(0, this.options.length - 1));
+      return;
+    }
+  }
+  private selectedOptionIndex(openingKey?: string): number {
+    const selectedIndex = this.options.findIndex((option) => option.id === this.selectedId);
+    if (selectedIndex >= 0) return selectedIndex;
+    return openingKey === 'ArrowUp' ? Math.max(0, this.options.length - 1) : 0;
   }
 }

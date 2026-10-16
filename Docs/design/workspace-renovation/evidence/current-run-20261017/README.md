@@ -391,6 +391,31 @@ imported; the Mods list remains empty.
 | Escape closes help and keeps Asset Manager open         | [workspace-overlay-09-help-dismissed-by-escape-dark-en-1600x900-20261017.png](workspace-overlay-09-help-dismissed-by-escape-dark-en-1600x900-20261017.png) |
 | Outside click closes help and keeps Asset Manager open  | [workspace-overlay-10-help-dismissed-by-backdrop-dark-en-1600x900-20261017.png](workspace-overlay-10-help-dismissed-by-backdrop-dark-en-1600x900-20261017.png) |
 
+## Select-only combobox focus and dismissal
+
+The shared themed select previously left its popup open after Tab moved focus
+to the next control. Escape also bubbled to the Settings document listener and
+closed the entire Settings dialog. The select now gives its listbox and options
+unique IDs, links the open combobox to the listbox and active option, and keeps
+popup options out of the page Tab order. Arrow keys move the announced active
+option; Enter or Space selects it; Escape dismisses only the popup. Moving focus
+away closes the popup while allowing Tab to continue. Pointer selection keeps
+focus on the combobox trigger. Settings and Oak Stairs Facing were checked in
+Chrome; the Facing BlockState remained `north`. The active option focus ring
+was checked for all four themes and both English and Vietnamese. Theme and
+locale were restored to Dark/English after the matrix.
+
+| Step / state                                                              | Screenshot                                                                                                                                                                |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Before fix: Settings Language popup open                                  | [workspace-select-settings-escape-before-dark-en-1600x900-20261017.png](workspace-select-settings-escape-before-dark-en-1600x900-20261017.png)                             |
+| Before fix: Escape closed Settings                                       | [workspace-select-settings-escape-after-dark-en-1600x900-20261017.png](workspace-select-settings-escape-after-dark-en-1600x900-20261017.png)                               |
+| After fix: active Language option is exposed                              | [workspace-select-active-option-dark-en-1600x900-20261017.png](workspace-select-active-option-dark-en-1600x900-20261017.png)                                              |
+| After fix: Tab closes popup and leaves Settings open                      | [workspace-select-dismissed-by-tab-dark-en-1600x900-20261017.png](workspace-select-dismissed-by-tab-dark-en-1600x900-20261017.png)                                        |
+| After fix: Escape closes popup and leaves Settings open                   | [workspace-select-dismissed-by-escape-dark-en-1600x900-20261017.png](workspace-select-dismissed-by-escape-dark-en-1600x900-20261017.png)                                  |
+| Oak Stairs Facing listbox with active option                              | [workspace-inspector-select-active-option-dark-en-1600x900-20261017.png](workspace-inspector-select-active-option-dark-en-1600x900-20261017.png)                           |
+| Tab closes Facing popup and focuses the Half combobox                     | [workspace-inspector-select-tab-dark-en-1600x900-20261017.png](workspace-inspector-select-tab-dark-en-1600x900-20261017.png)                                               |
+| Escape closes Facing popup and preserves `facing=north`                    | [workspace-inspector-select-escape-dark-en-1600x900-20261017.png](workspace-inspector-select-escape-dark-en-1600x900-20261017.png)                                         |
+
 ## Changes verified in this pass
 
 - Resizing the viewport 1600→390→1600 kept saved sidebar preferences at
@@ -418,6 +443,9 @@ imported; the Mods list remains empty.
   scroll areas. Behavior coverage remains separate from placement validity.
 - Asset Manager starts focus on Vanilla; Arrow/Home/End navigate between its
   Vanilla and Mods tabs with one tab stop.
+- Themed selects announce the active listbox option and keep popup options out
+  of the page Tab sequence. Escape closes a select popup without closing its
+  owning Settings dialog; Tab closes it and continues to the next control.
 - The narrow Workspace drawer and the 780×437 shell fit without document-level
   horizontal overflow.
 

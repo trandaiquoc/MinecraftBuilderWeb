@@ -63,6 +63,9 @@
 .themed-select-option.active-option:not(.selected) {
   background: var(--control-hover);
 }
+.themed-select-option.active-option {
+  box-shadow: inset 0 0 0 2px var(--focus-color);
+}
 .themed-select-option.selected {
   background: var(--control-selected);
   color: var(--control-selected-text);
