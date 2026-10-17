@@ -156,11 +156,12 @@ openers.
 
 ## Small Workspace font at narrow viewports
 
-The Small font-size setting with Comfortaa was checked at 390×520 in all four
-themes and both locales. All eight states had no document overflow, every
-Camera button remained inside the viewport, and the Quick Bar did not overlap
-the drawer openers. The editor canvas ranged from 243 to 283 px. Small-size
-checks with Chakra Petch and Pangolin remain open.
+The Small font-size setting was checked at 390×520 with all three fonts in all
+four themes and both locales (24 states). The existing Comfortaa captures and
+the Chakra Petch/Pangolin captures below had no document overflow; every Camera
+button remained inside the viewport, and the Quick Bar did not overlap the
+drawer openers. The editor canvas ranged from 243 to 285 px across the three
+font families.
 
 | Theme | English | Vietnamese |
 | --- | --- | --- |
@@ -168,6 +169,24 @@ checks with Chakra Petch and Pangolin remain open.
 | Dark | [workspace-font-size-small-dark-en-390x520-20261017.png](workspace-font-size-small-dark-en-390x520-20261017.png) | [workspace-font-size-small-dark-vi-390x520-20261017.png](workspace-font-size-small-dark-vi-390x520-20261017.png) |
 | Light | [workspace-font-size-small-light-en-390x520-20261017.png](workspace-font-size-small-light-en-390x520-20261017.png) | [workspace-font-size-small-light-vi-390x520-20261017.png](workspace-font-size-small-light-vi-390x520-20261017.png) |
 | Raccoon | [workspace-font-size-small-raccoon-en-390x520-20261017.png](workspace-font-size-small-raccoon-en-390x520-20261017.png) | [workspace-font-size-small-raccoon-vi-390x520-20261017.png](workspace-font-size-small-raccoon-vi-390x520-20261017.png) |
+
+### Chakra Petch and Pangolin at Small size
+
+Chrome reported the selected font family for all 16 states. The document width
+stayed at 390 px, all Camera controls fit, and the Quick Bar and drawer opener
+rectangles did not intersect. The 16 captures are stored alongside this
+evidence so the matrix can be updated in place.
+
+| Font | Theme | English | Vietnamese |
+| --- | --- | --- | --- |
+| Chakra Petch | Minecraft | [Capture](workspace-font-size-small-chakra-petch-craft-en-390x520-20261017.png) | [Capture](workspace-font-size-small-chakra-petch-craft-vi-390x520-20261017.png) |
+| Chakra Petch | Dark | [Capture](workspace-font-size-small-chakra-petch-dark-en-390x520-20261017.png) | [Capture](workspace-font-size-small-chakra-petch-dark-vi-390x520-20261017.png) |
+| Chakra Petch | Light | [Capture](workspace-font-size-small-chakra-petch-light-en-390x520-20261017.png) | [Capture](workspace-font-size-small-chakra-petch-light-vi-390x520-20261017.png) |
+| Chakra Petch | Raccoon | [Capture](workspace-font-size-small-chakra-petch-raccoon-en-390x520-20261017.png) | [Capture](workspace-font-size-small-chakra-petch-raccoon-vi-390x520-20261017.png) |
+| Pangolin | Minecraft | [Capture](workspace-font-size-small-pangolin-craft-en-390x520-20261017.png) | [Capture](workspace-font-size-small-pangolin-craft-vi-390x520-20261017.png) |
+| Pangolin | Dark | [Capture](workspace-font-size-small-pangolin-dark-en-390x520-20261017.png) | [Capture](workspace-font-size-small-pangolin-dark-vi-390x520-20261017.png) |
+| Pangolin | Light | [Capture](workspace-font-size-small-pangolin-light-en-390x520-20261017.png) | [Capture](workspace-font-size-small-pangolin-light-vi-390x520-20261017.png) |
+| Pangolin | Raccoon | [Capture](workspace-font-size-small-pangolin-raccoon-en-390x520-20261017.png) | [Capture](workspace-font-size-small-pangolin-raccoon-vi-390x520-20261017.png) |
 
 ## Workspace text contrast across themes
 
