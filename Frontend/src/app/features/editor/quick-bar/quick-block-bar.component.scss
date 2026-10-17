@@ -9,10 +9,15 @@
   align-items: center;
   max-width: calc(100% - 1.6rem);
   padding: 0.45rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--workspace-toolbar-text) 20%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--workspace-toolbar-bg) 94%, transparent);
+  color: var(--workspace-toolbar-text);
   box-shadow: var(--shadow-popover);
+  transition:
+    background-color var(--motion-duration-ui) var(--motion-easing-standard),
+    border-color var(--motion-duration-ui) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-ui) var(--motion-easing-standard);
 }
 .slots {
   display: flex;
@@ -31,12 +36,25 @@
   height: 50px;
   flex: 0 0 clamp(42px, 5vw, 50px);
   box-sizing: border-box;
-  border: 2px solid transparent;
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--workspace-control-frame);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-md);
   background: var(--surface-raised);
   color: var(--text);
   cursor: pointer;
   box-shadow: var(--shadow-control);
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.slot:hover:not(.active),
+.slot:focus-within:not(.active) {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+  box-shadow: var(--shadow-control-raised);
+  transform: translateY(-1px);
 }
 .slot.active {
   border-color: var(--control-selected-text);
@@ -45,7 +63,54 @@
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--control-selected) 42%, transparent),
     inset 0 -3px 0 color-mix(in srgb, var(--control-selected-text) 18%, transparent),
-    0 4px 9px rgb(0 0 0 / 0.3);
+    var(--shadow-control-raised);
+}
+
+:host-context([data-theme='craft']) .quick-block-bar {
+  border-color: var(--workspace-control-frame-strong);
+  border-bottom: 3px solid var(--workspace-secondary-accent);
+  border-radius: var(--workspace-radius-sm);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--workspace-toolbar-text) 12%, transparent),
+    var(--shadow-popover);
+}
+:host-context([data-theme='craft']) .slot {
+  border-radius: var(--workspace-radius-sm);
+}
+
+:host-context([data-theme='raccoon']) .quick-block-bar {
+  border-radius: var(--workspace-radius-xl);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--workspace-toolbar-text) 12%, transparent),
+    var(--shadow-popover);
+}
+:host-context([data-theme='raccoon']) .slot {
+  border-radius: var(--workspace-radius-lg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--workspace-toolbar-text) 10%, transparent),
+    var(--shadow-control-raised);
+}
+
+:host-context([data-theme='light']) .quick-block-bar {
+  border-color: color-mix(in srgb, var(--workspace-toolbar-text) 14%, transparent);
+  background: var(--workspace-toolbar-bg);
+}
+:host-context([data-theme='light']) .slot {
+  border-bottom-width: 1px;
+  box-shadow: var(--workspace-shadow-control);
+}
+
+:host-context([data-theme='dark']) .quick-block-bar {
+  border-color: var(--workspace-border);
+  background: var(--workspace-toolbar-bg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--workspace-toolbar-text) 6%, transparent),
+    var(--shadow-popover);
+}
+:host-context([data-theme='dark']) .slot {
+  border-color: color-mix(in srgb, var(--workspace-border) 64%, var(--surface-muted));
+  border-bottom-width: 1px;
+  background: var(--surface-muted);
 }
 .slot-selected-indicator {
   position: absolute;
@@ -103,13 +168,28 @@
   font: inherit;
   line-height: 1;
   cursor: pointer;
+  opacity: 0;
+  transform: scale(0.9);
+  pointer-events: none;
+  transition:
+    opacity var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.slot:hover .slot-remove,
+.slot:focus-within .slot-remove {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
 }
 .slot-remove:focus-visible {
-  outline: 2px solid var(--accent);
+  opacity: 1;
+  transform: scale(1);
+  outline: 2px solid var(--focus-color, var(--accent));
   outline-offset: 1px;
 }
 .slot-select:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-color, var(--accent));
   outline-offset: -2px;
 }
 .collapse {
@@ -123,6 +203,19 @@
   color: var(--text);
   cursor: pointer;
   box-shadow: var(--shadow-control);
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.collapse:hover {
+  background: var(--surface-hover);
+}
+.collapse:active {
+  transform: translateY(1px);
+}
+.collapse:focus-visible {
+  outline: 2px solid var(--focus-color, var(--accent));
+  outline-offset: 2px;
 }
 .empty {
   padding: 0 0.4rem;
@@ -145,6 +238,13 @@
 }
 .slot-select small {
   pointer-events: none;
+}
+@media (hover: none), (pointer: coarse) {
+  .slot-remove {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
 }
 @media (max-width: 620px) {
   .slots {

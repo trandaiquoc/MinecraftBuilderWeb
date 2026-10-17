@@ -10,6 +10,13 @@ import { QuickBlockBarComponent } from './quick-block-bar.component';
 describe('QuickBlockBarComponent disclosure', () => {
   it('exposes the expanded state while retaining an actionable button name', async () => {
     const collapsed = signal(false);
+    const entry = {
+      id: 'minecraft:stone',
+      itemId: 'minecraft:stone',
+      displayName: 'Stone',
+      state: {},
+      support: 'full',
+    } as const;
     await TestBed.configureTestingModule({
       imports: [QuickBlockBarComponent],
       providers: [
@@ -17,7 +24,7 @@ describe('QuickBlockBarComponent disclosure', () => {
           provide: QuickBlockBarService,
           useValue: {
             active: signal(undefined),
-            entries: signal([]),
+            entries: signal([entry]),
             collapsed,
             toggleCollapsed: () => collapsed.update((value) => !value),
           },
@@ -45,6 +52,9 @@ describe('QuickBlockBarComponent disclosure', () => {
     expect(button.getAttribute('aria-label')).toBe('collapse');
     expect(button.getAttribute('aria-expanded')).toBe('true');
     expect(fixture.nativeElement.querySelector('.slots')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.slot-select')?.getAttribute('aria-label')).toBe(
+      '1: Stone, minecraft:stone',
+    );
 
     button.click();
     fixture.detectChanges();

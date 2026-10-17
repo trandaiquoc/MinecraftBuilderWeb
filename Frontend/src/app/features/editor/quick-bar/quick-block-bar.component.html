@@ -26,6 +26,9 @@
             class="slot-select"
             [attr.aria-pressed]="entry.active"
             (click)="quick.select(entry)"
+            [attr.aria-label]="
+              (index === 9 ? 0 : index + 1) + ': ' + entry.displayName + ', ' + entry.id
+            "
             [attr.title]="entry.displayName + ' · ' + entry.id"
           >
             <span>
