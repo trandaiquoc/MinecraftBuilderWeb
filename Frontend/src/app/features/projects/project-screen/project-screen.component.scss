@@ -400,7 +400,7 @@
 
 .project-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr));
   align-content: start;
   gap: 0.4rem;
   min-height: 0;
@@ -566,6 +566,11 @@
   color: var(--text-muted);
   text-align: center;
   box-shadow: var(--shadow-control);
+}
+
+.project-list-empty {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
 }
 
 .board-error,

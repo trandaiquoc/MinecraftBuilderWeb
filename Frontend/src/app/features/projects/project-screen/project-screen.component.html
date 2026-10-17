@@ -90,14 +90,16 @@
               <h1 id="project-board-title">{{ i18n.t('recent') }}</h1>
             </div>
             <div class="board-actions">
-              <button
-                class="ui-button ui-button--primary ui-button--sm"
-                type="button"
-                [disabled]="creating() || !!openingId()"
-                (click)="openCreateDialog()"
-              >
-                {{ i18n.t('create') }}
-              </button>
+              @if (selectedProject()) {
+                <button
+                  class="ui-button ui-button--primary ui-button--sm"
+                  type="button"
+                  [disabled]="creating() || !!openingId()"
+                  (click)="openCreateDialog()"
+                >
+                  {{ i18n.t('create') }}
+                </button>
+              }
               <input
                 #structureJsonFile
                 type="file"

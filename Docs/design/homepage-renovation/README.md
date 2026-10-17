@@ -63,6 +63,9 @@ captures predate the wide-screen logo placement, project-card layout, and local
 search/sorting controls. The [selected project card review](evidence/20261017-project-selection/README.md)
 captures the current populated board in all four themes and at a narrow width.
 It also records a selected-state correction found in the current Dark theme.
+The [project board polish review](evidence/20261018-project-board-polish/README.md)
+compares the empty-state action and populated card layout before and after the
+latest refinement, with a narrow-screen check.
 The [project creation focus review](evidence/20261017-project-create-focus/README.md)
 checks the narrow dialog's initial focus target and confirms the page has no
 horizontal overflow.

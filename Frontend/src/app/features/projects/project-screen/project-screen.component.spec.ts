@@ -168,6 +168,12 @@ describe('ProjectScreenComponent', () => {
     fixture.detectChanges();
     expect(cardNames()).toEqual(['Garden Study', 'Lakeside Cabin', 'Tower 2']);
     expect(root.querySelectorAll('.project-row app-project-screen-preview')).toHaveLength(3);
+    expect(root.querySelectorAll('.board-actions .ui-button--primary')).toHaveLength(1);
+
+    workflow.projects.set([]);
+    fixture.detectChanges();
+    expect(root.querySelector('.board-actions .ui-button--primary')).toBeNull();
+    expect(root.querySelector('.washer-open-action')?.textContent).toContain('Create project');
     fixture.destroy();
   });
 });

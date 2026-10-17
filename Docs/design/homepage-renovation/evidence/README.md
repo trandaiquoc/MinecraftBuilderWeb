@@ -2,6 +2,10 @@
 
 ## Current review
 
+The [project board polish review](20261018-project-board-polish/README.md)
+checks the empty-state create action, pinned-card density, populated board, and
+narrow layout after the latest Project Screen update.
+
 The [2026-10-17 laundromat scene review](20261017-laundromat-scene/README.md)
 documents the current Project Screen composition, all four theme scenes, the
 creation dialog, and a narrow Vietnamese layout. Its browser workflow checks
