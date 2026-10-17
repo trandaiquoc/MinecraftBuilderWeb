@@ -16,6 +16,9 @@ The current desktop sidebar composition has a focused before/after capture in
 Browser list composition has its own [four-theme and narrow viewport evidence](20261017-block-browser-list/README.md).
 The [Selection inspector hierarchy comparison](20261017-selection-inspector-hierarchy/README.md)
 checks its reading order in all four themes and in the narrow right drawer.
+The [viewport empty-state review](20261017-viewport-empty-starter/README.md)
+covers the 3D and Y-Layer starter card in all four themes and at a narrow
+viewport.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The

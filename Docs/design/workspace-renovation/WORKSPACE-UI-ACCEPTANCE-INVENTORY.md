@@ -8,7 +8,6 @@ not a list of completed implementation tasks.
 | Area                      | Status                                                                                                                                                                   | Required evidence                                                                                                                             |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Workspace visual fidelity | Pending. The Block Browser and Selection inspector hierarchy now have current evidence, but the remaining Workspace surfaces and recurring states still need assessment. | Audit the remaining common Workspace surfaces and interaction states against all four approved compositions; capture verified gaps and fixes. |
-| Viewport starter card     | The current four-theme desktop captures show the 3D starter card. Visual acceptance remains pending for Y-Layer and narrow states.                                       | Capture and review the Y-Layer empty state across Minecraft, Raccoon, Light, and Dark, including a narrow viewport.                           |
 | Project Screen / Homepage | Controls are implemented; its visual concept remains separate from Workspace acceptance.                                                                                 | Track its acceptance in the [Homepage renovation notes](../homepage-renovation/README.md).                                                    |
 
 ## Technical checkpoint
@@ -20,8 +19,9 @@ technical evidence only.
 
 ## Evidence rules
 
-- The [browser evidence index](evidence/README.md) points to historical captures.
-  They predate ed7b1a5 and cannot close the open visual acceptance items above.
+- The [browser evidence index](evidence/README.md) lists both historical archives
+  and current evidence groups. Historical captures predate ed7b1a5 and cannot
+  close the open visual acceptance items above.
 - The four files in references/ are approved Workspace design sources.
 - Keep Block Usage in its reviewed state; no redesign is requested here.
 - Add new browser evidence only for a meaningful before/after change, a
