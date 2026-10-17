@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it } from 'vitest';
+import { InteractivityChecker } from '@angular/cdk/a11y';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ProjectDocument } from '../../../../core/domain/project.types';
 import { StructureJsonExportDialogComponent } from './structure-json-export-dialog.component';
@@ -16,6 +17,8 @@ const project: ProjectDocument = {
 };
 
 describe('StructureJsonExportDialogComponent', () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it('exposes the export actions without adding an import action', async () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonExportDialogComponent],
@@ -92,5 +95,41 @@ describe('StructureJsonExportDialogComponent', () => {
     instance.setDraftJson(`${initial} `);
     instance.download();
     expect(instance.downloadGuardOpen()).toBe(true);
+  });
+
+  it('moves focus into the dirty-download guard and restores it when canceled', async () => {
+    await TestBed.configureTestingModule({
+      imports: [StructureJsonExportDialogComponent],
+      providers: [{ provide: I18nService, useValue: { t: (key: string) => key } }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(StructureJsonExportDialogComponent);
+    fixture.componentRef.setInput('project', project);
+    fixture.detectChanges();
+    vi.spyOn(TestBed.inject(InteractivityChecker), 'isVisible').mockReturnValue(true);
+
+    const instance = fixture.componentInstance as unknown as {
+      draftJson: () => string;
+      setDraftJson: (value: string) => void;
+      download: () => void;
+    };
+    const download = fixture.nativeElement.querySelector(
+      '.structure-json-footer .ui-button--primary',
+    ) as HTMLButtonElement;
+    download.focus();
+    instance.setDraftJson(`${instance.draftJson()} `);
+    instance.download();
+    fixture.detectChanges();
+
+    const guard = fixture.nativeElement.querySelector('.download-guard') as HTMLElement;
+    const cancel = guard.querySelector('button') as HTMLButtonElement;
+    expect(guard.getAttribute('aria-modal')).toBe('true');
+    expect(document.activeElement).toBe(cancel);
+
+    cancel.click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.download-guard')).toBeNull();
+    expect(document.activeElement).toBe(download);
+    fixture.destroy();
   });
 });

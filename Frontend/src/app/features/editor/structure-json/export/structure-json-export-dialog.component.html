@@ -166,6 +166,8 @@
           class="download-guard"
           animate.enter="workspace-dialog-enter"
           animate.leave="workspace-dialog-exit"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
           role="alertdialog"
           aria-modal="true"
           [attr.aria-label]="i18n.t('structureJsonDownloadGuardTitle')"
@@ -176,6 +178,7 @@
             <button
               type="button"
               class="ui-button ui-button--ghost"
+              cdkFocusInitial
               (click)="downloadGuardOpen.set(false)"
             >
               {{ i18n.t('structureJsonDownloadCancel') }}</button
