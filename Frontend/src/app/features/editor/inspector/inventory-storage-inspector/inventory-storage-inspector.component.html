@@ -10,7 +10,7 @@
         class="inventory-slot"
         [class.selected]="slot.slot === selectedSlot()"
         [attr.aria-pressed]="slot.slot === selectedSlot()"
-        [attr.aria-label]="i18n.t('inventorySlot') + ' ' + (slot.slot + 1)"
+        [attr.aria-label]="slotAriaLabel(slot)"
         [title]="
           slot.stack ? displayName(slot.stack) + ' (' + slot.stack.id + ')' : i18n.t('emptySlot')
         "

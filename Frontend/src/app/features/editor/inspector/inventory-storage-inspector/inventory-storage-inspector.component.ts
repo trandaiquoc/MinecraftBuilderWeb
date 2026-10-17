@@ -60,6 +60,11 @@ export class InventoryStorageInspectorComponent implements OnChanges {
   protected displayName(stack: ItemStackData | undefined): string {
     return stack ? (this.catalog.get(stack.id)?.displayName ?? stack.id) : this.i18n.t('emptySlot');
   }
+  protected slotAriaLabel(slot: ItemSlotData): string {
+    const label = `${this.i18n.t('inventorySlot')} ${slot.slot + 1}`;
+    if (!slot.stack) return `${label}, ${this.i18n.t('emptySlot')}`;
+    return `${label}, ${this.displayName(slot.stack)}, ${this.i18n.t('itemCount')} ${slot.stack.count}`;
+  }
   protected selectSlot(slot: number): void {
     this.selectedSlot.set(slot);
     this.countFeedback.set('');
