@@ -14,8 +14,10 @@ not a list of completed implementation tasks.
 
 The existing viewport captures cover the empty starter state. Review a real
 placed block and the surrounding controls at 320 px in the isolated audit
-project. This browser review remains pending because the isolated Chrome launch
-was rejected by execution policy on 2026-10-18.
+project. Source review found that placement feedback could cover the empty
+starter card; both 3D and Y-Layer now stack those overlays in one flow. The
+populated-canvas browser review remains pending because the isolated Chrome
+launch was rejected by execution policy on 2026-10-18.
 
 ## Fixture checkpoint
 
