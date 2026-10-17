@@ -79,6 +79,7 @@ acceptance remains tracked separately in the
 
 - [Canonical four-theme palette](../workspace-color-palette.md)
 - [Design foundation and approved direction](../../design-foundation-branding.md)
+- [Interaction design principles](INTERACTION-DESIGN-PRINCIPLES.md)
 - [Current acceptance gaps](WORKSPACE-UI-ACCEPTANCE-INVENTORY.md)
 - [Homepage and Project Screen status](../homepage-renovation/README.md)
 
