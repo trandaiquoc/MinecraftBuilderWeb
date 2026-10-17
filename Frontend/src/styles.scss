@@ -928,14 +928,19 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
 .workspace-dialog-exit {
   animation: workspace-dialog-out 120ms var(--motion-easing-standard) both;
 }
+.workspace-dialog-overlay-enter {
+  animation: workspace-overlay-fade-in var(--motion-duration-ui) var(--motion-easing-standard) both;
+}
+.workspace-dialog-overlay-exit {
+  animation: workspace-overlay-fade-out 120ms var(--motion-easing-standard) both;
+}
 .workspace-drawer-backdrop-enter,
 .workspace-dialog-backdrop-enter {
-  animation: workspace-drawer-backdrop-in var(--motion-duration-ui) var(--motion-easing-standard)
-    both;
+  animation: workspace-overlay-fade-in var(--motion-duration-ui) var(--motion-easing-standard) both;
 }
 .workspace-drawer-backdrop-exit,
 .workspace-dialog-backdrop-exit {
-  animation: workspace-drawer-backdrop-out 120ms var(--motion-easing-standard) both;
+  animation: workspace-overlay-fade-out 120ms var(--motion-easing-standard) both;
 }
 @keyframes workspace-popover-in {
   from {
@@ -969,7 +974,7 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
     transform: translateY(2px) scale(0.995);
   }
 }
-@keyframes workspace-drawer-backdrop-in {
+@keyframes workspace-overlay-fade-in {
   from {
     opacity: 0;
   }
@@ -977,7 +982,7 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
     opacity: 1;
   }
 }
-@keyframes workspace-drawer-backdrop-out {
+@keyframes workspace-overlay-fade-out {
   to {
     opacity: 0;
   }

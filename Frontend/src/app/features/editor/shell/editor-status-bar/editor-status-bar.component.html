@@ -109,5 +109,10 @@
   </div>
 </footer>
 @if (missingDialogOpen()) {
-  <app-missing-assets-dialog [summary]="missingSummary()" (closed)="missingDialogOpen.set(false)" />
+  <app-missing-assets-dialog
+    animate.enter="workspace-dialog-overlay-enter"
+    animate.leave="workspace-dialog-overlay-exit"
+    [summary]="missingSummary()"
+    (closed)="missingDialogOpen.set(false)"
+  />
 }

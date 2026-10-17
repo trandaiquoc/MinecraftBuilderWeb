@@ -2,7 +2,6 @@
   <section
     class="structure-json-dialog"
     animate.enter="workspace-dialog-enter"
-    animate.leave="workspace-dialog-exit"
     cdkTrapFocus
     [cdkTrapFocusAutoCapture]="true"
     role="dialog"
@@ -157,9 +156,16 @@
       </div>
     </footer>
     @if (downloadGuardOpen()) {
-      <div class="download-guard-backdrop" role="presentation">
+      <div
+        class="download-guard-backdrop"
+        animate.enter="workspace-dialog-backdrop-enter"
+        animate.leave="workspace-dialog-backdrop-exit"
+        role="presentation"
+      >
         <section
           class="download-guard"
+          animate.enter="workspace-dialog-enter"
+          animate.leave="workspace-dialog-exit"
           role="alertdialog"
           aria-modal="true"
           [attr.aria-label]="i18n.t('structureJsonDownloadGuardTitle')"

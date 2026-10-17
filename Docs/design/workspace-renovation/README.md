@@ -30,6 +30,9 @@ entry paths, plus the Tools-menu collision with the narrow project-name chip.
 The [shared alert dialog motion review](evidence/20261017-alert-dialog-motion/README.md)
 checks confirm/notice overlay entry and exit, all four theme surfaces, reduced
 motion, and the narrow dialog layout.
+The [Workspace dialog host transition review](evidence/20261017-dialog-host-motion/README.md)
+checks that conditionally mounted Workspace dialogs fade out before their
+component hosts are removed.
 The [Quick Bar review](evidence/20261017-quick-bar-responsive/README.md)
 confirms all ten slots remain reachable at a narrow viewport. The
 [active BlockState and Help review](evidence/20261017-selection-state-help/README.md)

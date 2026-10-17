@@ -48,6 +48,9 @@ viewport.
 The [shared alert dialog motion review](20261017-alert-dialog-motion/README.md)
 checks the confirmation portal's enter/exit lifecycle in all four themes,
 including reduced motion and a 390 px layout.
+The [Workspace dialog host transition review](20261017-dialog-host-motion/README.md)
+checks conditional modal entry/exit at desktop and narrow widths, including the
+reduced-motion path.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The

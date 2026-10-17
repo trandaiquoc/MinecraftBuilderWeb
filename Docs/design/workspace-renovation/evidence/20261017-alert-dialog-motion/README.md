@@ -16,7 +16,7 @@ confirmation at 1600 × 1000. The narrow capture shows the same confirmation at
 ## Browser checks
 
 - At desktop size, the dialog host used `workspace-dialog-in` at 180 ms and the
-  backdrop used `workspace-drawer-backdrop-in`. On cancel, the host used
+  backdrop used the shared fade-in. On cancel, the host used
   `workspace-dialog-out`; its `animationend` event arrived after 128 ms and the
   overlay was then disposed.
 - Theme palette sampling retained the same motion and showed each theme's
