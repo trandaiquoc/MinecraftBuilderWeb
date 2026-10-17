@@ -8,7 +8,7 @@
   container-type: inline-size;
   display: grid;
   gap: 0;
-  margin: 0 0 0.85rem;
+  margin: 0.85rem 0 0;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -16,7 +16,8 @@
   box-shadow: var(--shadow-control);
 }
 
-:host-context([data-theme='craft']) .structure-overview {
+:host-context([data-theme='craft']) .structure-overview,
+:host-context([data-theme='craft']) .overview-actions {
   color: var(--workspace-text-primary);
   border-color: var(--workspace-control-frame-strong);
   border-bottom: 2px solid var(--workspace-secondary-accent);
@@ -55,12 +56,12 @@
 .overview-actions {
   display: grid;
   gap: 0.55rem;
-  margin: 0.25rem 0 0;
-  padding: 0.65rem 0.75rem;
-  border-top: 1px solid var(--border);
-  border-bottom-left-radius: inherit;
-  border-bottom-right-radius: inherit;
-  background: var(--surface-muted);
+  margin: 0.85rem 0 0;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-control);
 }
 .overview-actions h3 {
   margin: 0;
@@ -114,18 +115,19 @@
   overflow-wrap: anywhere;
 }
 
-:host-context([data-theme='raccoon']) .structure-overview {
+:host-context([data-theme='raccoon']) .structure-overview,
+:host-context([data-theme='raccoon']) .overview-actions {
   border-radius: var(--workspace-radius-xl);
   box-shadow: var(--shadow-control-raised);
 }
-:host-context([data-theme='raccoon']) .overview-metrics > div,
-:host-context([data-theme='raccoon']) .overview-actions {
+:host-context([data-theme='raccoon']) .overview-metrics > div {
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--workspace-sidebar-text) 9%, transparent),
     var(--shadow-control);
 }
 
-:host-context([data-theme='light']) .structure-overview {
+:host-context([data-theme='light']) .structure-overview,
+:host-context([data-theme='light']) .overview-actions {
   border-color: color-mix(in srgb, var(--workspace-border) 78%, transparent);
   box-shadow: var(--shadow-control-raised);
 }
@@ -134,7 +136,7 @@
   background: var(--surface);
 }
 :host-context([data-theme='dark']) .overview-actions {
-  border-color: color-mix(in srgb, var(--workspace-border) 74%, transparent);
+  border-color: var(--workspace-border);
   background: var(--surface-muted);
 }
 

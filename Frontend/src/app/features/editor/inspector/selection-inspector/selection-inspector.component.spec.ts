@@ -46,7 +46,7 @@ describe('SelectionInspectorComponent marquee summary', () => {
     fixture.destroy();
   });
 
-  it('shows project dimensions and only the selection-specific quick actions', async () => {
+  it('leads with selection context, followed by quick actions and the structure summary', async () => {
     const base = rendererBenchmarkProject('small');
     const project = {
       ...base,
@@ -67,9 +67,27 @@ describe('SelectionInspectorComponent marquee summary', () => {
       '16 × 32 × 24',
     );
     expect(fixture.nativeElement.querySelector('.overview-metrics').textContent).toContain('2');
+    const emptySelection = fixture.nativeElement.querySelector(
+      '[data-empty-selection]',
+    ) as HTMLElement | null;
+    const quickActions = fixture.nativeElement.querySelector(
+      '.overview-actions',
+    ) as HTMLElement | null;
+    const structureOverview = fixture.nativeElement.querySelector(
+      '.structure-overview',
+    ) as HTMLElement | null;
+    if (!emptySelection || !quickActions || !structureOverview)
+      throw new Error('Selection inspector summary is missing.');
+    expect(quickActions?.closest('.structure-overview')).toBeNull();
     expect(
-      fixture.nativeElement.querySelector('.structure-overview .overview-actions'),
-    ).not.toBeNull();
+      (emptySelection.compareDocumentPosition(quickActions) & Node.DOCUMENT_POSITION_FOLLOWING) !==
+        0,
+    ).toBe(true);
+    expect(
+      (quickActions.compareDocumentPosition(structureOverview) &
+        Node.DOCUMENT_POSITION_FOLLOWING) !==
+        0,
+    ).toBe(true);
 
     let selectAllRequests = 0;
     let clearSelectionRequests = 0;

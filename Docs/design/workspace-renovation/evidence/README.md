@@ -14,6 +14,8 @@ acceptance for later changes.
 The current desktop sidebar composition has a focused before/after capture in
 [the 2026-10-17 comparison](20261017-sidebar-composition/README.md). The Block
 Browser list composition has its own [four-theme and narrow viewport evidence](20261017-block-browser-list/README.md).
+The [Selection inspector hierarchy comparison](20261017-selection-inspector-hierarchy/README.md)
+checks its reading order in all four themes and in the narrow right drawer.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The

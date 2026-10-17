@@ -1,50 +1,3 @@
-@if (workspace.project(); as project) {
-  <section class="structure-overview" aria-labelledby="structure-overview-title">
-    <div class="overview-heading">
-      <div>
-        <p>{{ i18n.t('structureOverview') }}</p>
-        <h2 id="structure-overview-title">{{ project.metadata.name }}</h2>
-      </div>
-    </div>
-    <dl class="overview-metrics">
-      <div>
-        <dt>{{ i18n.t('structureSize') }}</dt>
-        <dd data-overview-size>
-          {{ project.size.x.toLocaleString(i18n.locale()) }} ×
-          {{ project.size.y.toLocaleString(i18n.locale()) }} ×
-          {{ project.size.z.toLocaleString(i18n.locale()) }}
-        </dd>
-      </div>
-      <div>
-        <dt>{{ i18n.t('totalBlocks') }}</dt>
-        <dd>{{ project.blocks.length.toLocaleString(i18n.locale()) }}</dd>
-      </div>
-    </dl>
-    <section class="overview-actions" aria-labelledby="quick-actions-title">
-      <h3 id="quick-actions-title">{{ i18n.t('quickActions') }}</h3>
-      <div class="overview-action-grid">
-        <button
-          type="button"
-          class="ui-button ui-button--secondary ui-button--sm"
-          data-action="select-all"
-          [disabled]="project.blocks.length === 0"
-          (click)="selectAllRequested.emit()"
-        >
-          <svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('selectAll') }}
-        </button>
-        <button
-          type="button"
-          class="ui-button ui-button--secondary ui-button--sm"
-          data-action="clear-selection"
-          [disabled]="!hasAnySelection()"
-          (click)="clearSelectionRequested.emit()"
-        >
-          <svg lucideX aria-hidden="true"></svg>{{ i18n.t('clearSelection') }}
-        </button>
-      </div>
-    </section>
-  </section>
-}
 @if (selectedDecoration()) {
   <app-decoration-inspector></app-decoration-inspector>
 } @else if (selectedBlock(); as selected) {
@@ -200,4 +153,51 @@
     <h3>{{ i18n.t('noBlockSelected') }}</h3>
     <p>{{ i18n.t('selectionEmptyHint') }}</p>
   </div>
+}
+@if (workspace.project(); as project) {
+  <section class="overview-actions" aria-labelledby="quick-actions-title">
+    <h3 id="quick-actions-title">{{ i18n.t('quickActions') }}</h3>
+    <div class="overview-action-grid">
+      <button
+        type="button"
+        class="ui-button ui-button--secondary ui-button--sm"
+        data-action="select-all"
+        [disabled]="project.blocks.length === 0"
+        (click)="selectAllRequested.emit()"
+      >
+        <svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('selectAll') }}
+      </button>
+      <button
+        type="button"
+        class="ui-button ui-button--secondary ui-button--sm"
+        data-action="clear-selection"
+        [disabled]="!hasAnySelection()"
+        (click)="clearSelectionRequested.emit()"
+      >
+        <svg lucideX aria-hidden="true"></svg>{{ i18n.t('clearSelection') }}
+      </button>
+    </div>
+  </section>
+  <section class="structure-overview" aria-labelledby="structure-overview-title">
+    <div class="overview-heading">
+      <div>
+        <p>{{ i18n.t('structureOverview') }}</p>
+        <h2 id="structure-overview-title">{{ project.metadata.name }}</h2>
+      </div>
+    </div>
+    <dl class="overview-metrics">
+      <div>
+        <dt>{{ i18n.t('structureSize') }}</dt>
+        <dd data-overview-size>
+          {{ project.size.x.toLocaleString(i18n.locale()) }} ×
+          {{ project.size.y.toLocaleString(i18n.locale()) }} ×
+          {{ project.size.z.toLocaleString(i18n.locale()) }}
+        </dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('totalBlocks') }}</dt>
+        <dd>{{ project.blocks.length.toLocaleString(i18n.locale()) }}</dd>
+      </div>
+    </dl>
+  </section>
 }
