@@ -6,7 +6,8 @@ Workspace visual acceptance is still pending. Current browser captures show
 the sidebar composition, Block Browser list, Selection inspector hierarchy, and
 the viewport starter card in 3D and Y-Layer across all four themes. The
 [starter-card review](evidence/20261017-viewport-empty-starter/README.md) also
-checks both modes at a narrow viewport. The remaining Workspace surfaces and
+checks both modes at a narrow viewport. Current browser review also covers the
+Settings dialog at a narrow viewport. The remaining Workspace surfaces and
 states still need visual review. Automated tests, keyboard checks, and contrast
 checks do not establish that the full interface matches the approved
 compositions.

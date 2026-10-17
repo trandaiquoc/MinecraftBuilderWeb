@@ -121,6 +121,66 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
     fixture.destroy();
   });
 
+  it('keeps a newly opened menu active while the previous menu exits', () => {
+    const fixture = TestBed.createComponent(EditorChromeComponent);
+    fixture.componentRef.setInput('state', state);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const trigger = (name: string) =>
+      Array.from(root.querySelectorAll<HTMLButtonElement>('.app-menu-trigger')).find(
+        (button) => button.textContent?.trim() === `${name}Menu`,
+      )!;
+    const fileTrigger = trigger('file');
+    const viewTrigger = trigger('view');
+
+    fileTrigger.click();
+    fixture.detectChanges();
+    flushAnimationFrames(fixture, frameCallbacks);
+
+    const filePopover = fileTrigger
+      .closest('.menu-entry')!
+      .querySelector<HTMLElement>('.menu-popover');
+    expect(filePopover).not.toBeNull();
+    const leavingPopover = document.createElement('div');
+    leavingPopover.className = 'menu-popover workspace-popover-exit';
+    leavingPopover.setAttribute('role', 'menu');
+    leavingPopover.innerHTML = filePopover!.innerHTML;
+    fileTrigger.closest('.menu-entry')!.append(leavingPopover);
+
+    viewTrigger.focus();
+    fixture.detectChanges();
+    viewTrigger.click();
+    fixture.detectChanges();
+    flushAnimationFrames(fixture, frameCallbacks);
+
+    const viewPopover = viewTrigger
+      .closest('.menu-entry')!
+      .querySelector<HTMLElement>('.menu-popover');
+    expect(leavingPopover.isConnected).toBe(true);
+    expect(viewTrigger.getAttribute('aria-expanded')).toBe('true');
+    expect(viewPopover).not.toBeNull();
+    expect(document.activeElement).toBe(
+      viewPopover?.querySelector<HTMLButtonElement>('button[role^="menuitem"]'),
+    );
+
+    fileTrigger.focus();
+    fixture.detectChanges();
+    fileTrigger.click();
+    fixture.detectChanges();
+    flushAnimationFrames(fixture, frameCallbacks);
+
+    const reopenedFilePopover = fileTrigger
+      .closest('.menu-entry')!
+      .querySelector<HTMLElement>('.menu-popover:not(.workspace-popover-exit)');
+    expect(fileTrigger.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(
+      reopenedFilePopover?.querySelector<HTMLButtonElement>('button[role^="menuitem"]'),
+    );
+
+    fixture.destroy();
+  });
+
   it('opens at the last item with ArrowUp and closes when focus leaves the menu', () => {
     const fixture = TestBed.createComponent(EditorChromeComponent);
     fixture.componentRef.setInput('state', state);

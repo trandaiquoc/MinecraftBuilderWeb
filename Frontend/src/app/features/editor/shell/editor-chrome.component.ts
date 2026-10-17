@@ -116,7 +116,7 @@ export class EditorChromeComponent {
     if (!this.activeMenu()) return;
     const view = this.host.nativeElement.ownerDocument.defaultView;
     view?.requestAnimationFrame(() => {
-      const popover = this.host.nativeElement.querySelector<HTMLElement>('.menu-popover');
+      const popover = this.activeMenuPopover();
       const entry = popover?.closest<HTMLElement>('.menu-entry');
       if (!popover || !entry || !view) return;
 
@@ -223,7 +223,7 @@ export class EditorChromeComponent {
 
   protected handleDocumentClick(event: MouseEvent): void {
     if (!this.activeMenu()) return;
-    const menu = this.host.nativeElement.querySelector<HTMLElement>('.menu-popover[role="menu"]');
+    const menu = this.activeMenuPopover();
     if (event.target instanceof Node && menu?.contains(event.target)) return;
     this.closeMenus();
   }
@@ -249,7 +249,7 @@ export class EditorChromeComponent {
     }
 
     const menu = target?.closest<HTMLElement>('[role="menu"]');
-    if (!menu || !this.activeMenu()) return;
+    if (!menu || menu !== this.activeMenuPopover()) return;
 
     const items = Array.from(menu.querySelectorAll<HTMLButtonElement>('button[role^="menuitem"]'));
     const currentItem = target?.closest<HTMLButtonElement>('button[role^="menuitem"]');
@@ -278,9 +278,20 @@ export class EditorChromeComponent {
 
   protected handleDocumentFocusin(event: FocusEvent): void {
     if (!this.activeMenu()) return;
-    const menu = this.host.nativeElement.querySelector<HTMLElement>('.menu-popover[role="menu"]');
+    const menu = this.activeMenuPopover();
     if (event.target instanceof Node && menu?.contains(event.target)) return;
     this.closeMenus();
+  }
+
+  private activeMenuPopover(): HTMLElement | null {
+    const activeTrigger =
+      this.host.nativeElement.querySelector<HTMLElement>('.menu-trigger.active');
+    return (
+      activeTrigger
+        ?.closest<HTMLElement>('.menu-entry')
+        ?.querySelector<HTMLElement>('.menu-popover[role="menu"]:not(.workspace-popover-exit)') ??
+      null
+    );
   }
 
   private focusMenuItem(
