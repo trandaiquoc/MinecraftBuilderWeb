@@ -279,7 +279,9 @@ export class EditorChromeComponent {
 
     event.preventDefault();
     event.stopPropagation();
-    items[nextIndex]?.focus();
+    const nextItem = items[nextIndex];
+    nextItem?.focus();
+    nextItem?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }
 
   protected handleDocumentKeydown(event: KeyboardEvent): void {

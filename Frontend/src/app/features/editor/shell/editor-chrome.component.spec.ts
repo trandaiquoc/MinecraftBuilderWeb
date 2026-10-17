@@ -153,6 +153,13 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
     expect(items?.length).toBe(2);
     expect([...items!].every((item) => item.tabIndex === -1)).toBe(true);
     expect(document.activeElement).toBe(items?.[0]);
+    const scrollIntoView = [...items!].map(() => vi.fn());
+    items!.forEach((item, index) => {
+      Object.defineProperty(item, 'scrollIntoView', {
+        configurable: true,
+        value: scrollIntoView[index],
+      });
+    });
 
     press(items![0], 'ArrowDown');
     expect(document.activeElement).toBe(items?.[1]);
@@ -164,6 +171,7 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
     expect(document.activeElement).toBe(items?.[0]);
     press(items![0], 'End');
     expect(document.activeElement).toBe(items?.[1]);
+    expect(scrollIntoView[1]).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
 
     press(items![1], 'Escape');
     fixture.detectChanges();

@@ -39,6 +39,10 @@ component hosts are removed.
 The [shared tab surface review](evidence/20261017-tab-surface-interaction/README.md)
 checks that each selected tab owns its theme-aware surface across all four
 themes, while the toolbar's segmented controls keep their separate track.
+The [Workspace presentation audit](evidence/20261017-workspace-presentation-audit/README.md)
+compares the current shell against the approved frames in all four themes and
+checks the Settings menu at 320 px in English and Vietnamese. It fixed the
+clipped End-key focus target.
 The [Workspace menu feedback review](evidence/20261017-menu-feedback/README.md)
 checks persistent checked states, hover, and press feedback in all four themes.
 The [Quick Bar review](evidence/20261017-quick-bar-responsive/README.md)

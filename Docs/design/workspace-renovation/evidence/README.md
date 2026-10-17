@@ -59,6 +59,10 @@ including reduced motion.
 The [Workspace menu feedback review](20261017-menu-feedback/README.md) checks
 checked-item hover and press feedback in all four themes, including reduced
 motion.
+The [Workspace presentation audit](20261017-workspace-presentation-audit/README.md)
+compares the current shell across all four themes and verifies narrow Settings
+menu navigation in English and Vietnamese. It records and fixes the clipped
+End-key focus target.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The
