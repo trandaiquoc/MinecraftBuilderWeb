@@ -1197,19 +1197,23 @@ animated-state and locale matrix remains open. All 491 distinct PNG captures
 in this archive are linked to files in this folder (492 link occurrences, with
 no missing targets or unlinked captures).
 
-## Source checkpoint: Block Usage keyboard navigation
+## Block Usage keyboard navigation: implementation checkpoint
 
-Source inspection confirms that the Block Usage list uses
-`CdkVirtualScrollViewport` and `*cdkVirtualFor`, with each rendered row
-containing a native button. The component does not define key-to-index
-navigation, focus transfer, `scrollToIndex`, or list-position metadata such as
-`aria-posinset` and `aria-setsize`. This confirms there is no component-managed
-keyboard navigation across the virtualized range or explicit announcement of
-a row's position. The source does not establish whether native viewport
-scrolling exposes all rows to keyboard users; that needs a browser check with
-enough distinct block types to exceed the rendered range.
+The source audit found that the original virtualized list had no component-
+managed way to move its active item across rendered ranges. The list now uses a
+single-tab-stop listbox. Arrow Up/Down and Home/End move its active descendant;
+when the target is outside the rendered range, `scrollToIndex` moves the CDK
+viewport and the active descendant updates after that option is rendered.
+Enter and Space retain the existing highlight toggle. Search and sort return
+the active option to the first result. Options expose their filtered position,
+total result count, selected state, and a name containing the exact block ID.
+Keyboard instructions are available in English and Vietnamese.
 
-The next pass should keep virtualization and verify first, middle, and last
-row traversal after sorting and filtering, including focus and assistive
-technology output. No new browser capture was taken for this source-only
-checkpoint: the isolated Chrome launch was rejected by policy in this run.
+The focused `BlockUsagePanelComponent` spec passes and covers navigation to the
+last virtual range, Enter/Space toggling, positional metadata, and search/sort
+reset. The production build, Frontend encoding check, Prettier check for changed
+Frontend files, and `git diff --check` also pass. These checks do not establish
+browser focus-ring, long-list, or assistive-technology behavior. No fresh
+browser capture was taken because the isolated Chrome launch was rejected by
+policy in this run; verify first/middle/last navigation after sorting and
+filtering when browser capture is available.

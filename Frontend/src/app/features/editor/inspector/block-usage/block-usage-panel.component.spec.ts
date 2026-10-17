@@ -72,7 +72,9 @@ describe('BlockUsagePanelComponent', () => {
     disconnectObserver = vi.fn();
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     const highlightedBlockId = signal<string | undefined>(undefined);
-    const toggleHighlight = vi.fn();
+    const toggleHighlight = vi.fn((id: string) => {
+      highlightedBlockId.set(highlightedBlockId() === id ? undefined : id);
+    });
     const clearHighlight = vi.fn();
 
     await TestBed.configureTestingModule({
@@ -138,7 +140,108 @@ describe('BlockUsagePanelComponent', () => {
       'searchBlockUsage',
     );
     expect(root.querySelectorAll('.usage-sort option')).toHaveLength(4);
-    expect(root.querySelector('.usage-list')?.getAttribute('role')).toBe('list');
+    const usageList = root.querySelector<HTMLElement>('.usage-list');
+    expect(usageList?.getAttribute('role')).toBe('listbox');
+    expect(usageList?.getAttribute('tabindex')).toBe('0');
+    expect(usageList?.getAttribute('aria-activedescendant')).toBe('block-usage-option-0');
+    expect(usageList?.getAttribute('aria-keyshortcuts')).toBe(
+      'ArrowDown ArrowUp Home End Enter Space',
+    );
+    expect(root.querySelector('#block-usage-keyboard-hint')?.textContent).toContain(
+      'blockUsageKeyboardHint',
+    );
+
+    viewport.setRenderedRange({ start: 0, end: 1 });
+    fixture.detectChanges();
+    vi.spyOn(viewport, 'getRenderedRange').mockReturnValue({ start: 0, end: 1 });
+    const scrollToIndex = vi.spyOn(viewport, 'scrollToIndex').mockImplementation((index) => {
+      viewport.setRenderedRange({ start: index, end: index + 1 });
+    });
+    const endKey = new KeyboardEvent('keydown', {
+      key: 'End',
+      bubbles: true,
+      cancelable: true,
+    });
+    usageList?.dispatchEvent(endKey);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(endKey.defaultPrevented).toBe(true);
+    expect(scrollToIndex).toHaveBeenCalledWith(1);
+    expect(usageList?.getAttribute('aria-activedescendant')).toBe('block-usage-option-1');
+    const activeOption = root.querySelector<HTMLElement>('#block-usage-option-1');
+    expect(activeOption?.getAttribute('role')).toBe('option');
+    expect(activeOption?.getAttribute('aria-posinset')).toBe('2');
+    expect(activeOption?.getAttribute('aria-setsize')).toBe('2');
+    expect(activeOption?.getAttribute('aria-label')).toContain('example:missing_block');
+
+    const enterKey = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
+    usageList?.dispatchEvent(enterKey);
+    expect(enterKey.defaultPrevented).toBe(true);
+    expect(toggleHighlight).toHaveBeenCalledWith('example:missing_block');
+    fixture.detectChanges();
+    expect(activeOption?.getAttribute('aria-selected')).toBe('true');
+
+    const spaceKey = new KeyboardEvent('keydown', {
+      key: ' ',
+      bubbles: true,
+      cancelable: true,
+    });
+    usageList?.dispatchEvent(spaceKey);
+    fixture.detectChanges();
+    expect(spaceKey.defaultPrevented).toBe(true);
+    expect(activeOption?.getAttribute('aria-selected')).toBe('false');
+
+    const homeKey = new KeyboardEvent('keydown', {
+      key: 'Home',
+      bubbles: true,
+      cancelable: true,
+    });
+    usageList?.dispatchEvent(homeKey);
+    fixture.detectChanges();
+    expect(usageList?.getAttribute('aria-activedescendant')).toBe('block-usage-option-0');
+
+    const arrowUpKey = new KeyboardEvent('keydown', {
+      key: 'ArrowUp',
+      bubbles: true,
+      cancelable: true,
+    });
+    usageList?.dispatchEvent(arrowUpKey);
+    fixture.detectChanges();
+    expect(arrowUpKey.defaultPrevented).toBe(true);
+    expect(usageList?.getAttribute('aria-activedescendant')).toBe('block-usage-option-0');
+
+    const arrowDownKey = new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      bubbles: true,
+      cancelable: true,
+    });
+    usageList?.dispatchEvent(arrowDownKey);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(arrowDownKey.defaultPrevented).toBe(true);
+    expect(usageList?.getAttribute('aria-activedescendant')).toBe('block-usage-option-1');
+
+    const search = root.querySelector<HTMLInputElement>('input[type="search"]');
+    if (!search) throw new Error('Block Usage search field was not rendered.');
+    search.value = 'missing';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    expect(usageList?.getAttribute('aria-activedescendant')).toBe('block-usage-option-0');
+    expect(root.querySelector('#block-usage-option-0')?.getAttribute('aria-setsize')).toBe('1');
+
+    search.value = '';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    const sort = root.querySelector<HTMLSelectElement>('.usage-sort select');
+    if (!sort) throw new Error('Block Usage sort control was not rendered.');
+    sort.value = 'name-asc';
+    sort.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    expect(usageList?.getAttribute('aria-activedescendant')).toBe('block-usage-option-0');
 
     const presentation = fixture.componentInstance as unknown as {
       usageRows: () => readonly { entry: { id: string; count: number } }[];

@@ -1,6 +1,9 @@
-import { Component, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling';
 import { LucideSearch } from '@lucide/angular';
+import { filter, take } from 'rxjs';
+import type { Subscription } from 'rxjs';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import {
@@ -32,12 +35,16 @@ interface UsageRow {
 export class BlockUsagePanelComponent {
   protected readonly i18n = inject(I18nService);
   private readonly workspace = inject(WorkspaceStateService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly runtimeIndex = inject(ProjectBlockRuntimeIndex);
   private readonly library = inject(BlockLibraryService);
   protected readonly assets = inject(ContentAssetRuntimeService);
   protected readonly highlight = inject(BlockUsageHighlightService);
   protected readonly query = signal('');
   protected readonly sort = signal<UsageSort>('count-desc');
+  protected readonly activeUsageIndex = signal(0);
+  private readonly pendingUsageIndex = signal<number | undefined>(undefined);
+  private pendingRangeSubscription: Subscription | undefined;
   private readonly usageViewport = viewChild(CdkVirtualScrollViewport);
   private readonly viewportSizing = effect((onCleanup) => {
     const viewport = this.usageViewport();
@@ -108,9 +115,77 @@ export class BlockUsagePanelComponent {
 
   protected search(event: Event): void {
     this.query.set((event.target as HTMLInputElement).value);
+    this.resetUsageNavigation();
   }
   protected setSort(event: Event): void {
     this.sort.set((event.target as HTMLSelectElement).value as UsageSort);
+    this.resetUsageNavigation();
+  }
+  protected readonly activeUsageOptionId = computed(() => {
+    const rows = this.usageRows();
+    if (!rows.length) return null;
+    return this.usageOptionId(Math.min(this.activeUsageIndex(), rows.length - 1));
+  });
+  protected usageOptionId(index: number): string {
+    return `block-usage-option-${index}`;
+  }
+  protected usageOptionLabel(row: UsageRow): string {
+    const parts = [
+      this.i18n.t('highlightBlockUsage'),
+      row.displayName,
+      row.entry.id,
+      this.formatCount(row.entry.count),
+      this.percentage(row.entry.count),
+    ];
+    if (row.entry.missingCount) {
+      parts.push(`${this.formatCount(row.entry.missingCount)} ${this.i18n.t('missingShort')}`);
+    }
+    return parts.join(', ');
+  }
+  protected activateUsageRow(index: number): void {
+    const row = this.usageRows()[index];
+    if (!row) return;
+
+    this.cancelPendingNavigation();
+    this.pendingUsageIndex.set(undefined);
+    this.activeUsageIndex.set(index);
+    this.usageViewport()?.elementRef.nativeElement.focus({ preventScroll: true });
+    this.toggleHighlight(row.entry.id);
+  }
+  protected handleUsageListKeydown(event: KeyboardEvent): void {
+    const rows = this.usageRows();
+    if (!rows.length) return;
+
+    const currentIndex = Math.min(
+      this.pendingUsageIndex() ?? this.activeUsageIndex(),
+      rows.length - 1,
+    );
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.toggleHighlight(rows[currentIndex].entry.id);
+      return;
+    }
+
+    let nextIndex: number;
+    switch (event.key) {
+      case 'ArrowDown':
+        nextIndex = Math.min(currentIndex + 1, rows.length - 1);
+        break;
+      case 'ArrowUp':
+        nextIndex = Math.max(currentIndex - 1, 0);
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = rows.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    this.moveActiveUsageIndex(nextIndex);
   }
   protected percentage(count: number): string {
     const total = this.totalBlocks();
@@ -142,5 +217,49 @@ export class BlockUsagePanelComponent {
   }
   protected trackRow(_: number, row: UsageRow): string {
     return row.entry.id;
+  }
+
+  private resetUsageNavigation(): void {
+    this.cancelPendingNavigation();
+    this.pendingUsageIndex.set(undefined);
+    this.activeUsageIndex.set(0);
+    this.usageViewport()?.scrollToIndex(0);
+  }
+
+  private moveActiveUsageIndex(index: number): void {
+    const viewport = this.usageViewport();
+    if (!viewport) {
+      this.activeUsageIndex.set(index);
+      return;
+    }
+
+    this.cancelPendingNavigation();
+    const range = viewport.getRenderedRange();
+    if (index >= range.start && index < range.end) {
+      this.pendingUsageIndex.set(undefined);
+      this.activeUsageIndex.set(index);
+      return;
+    }
+
+    this.pendingUsageIndex.set(index);
+    this.pendingRangeSubscription = viewport.renderedRangeStream
+      .pipe(
+        filter((renderedRange) => index >= renderedRange.start && index < renderedRange.end),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.pendingRangeSubscription = undefined;
+        if (this.pendingUsageIndex() !== index) return;
+        this.pendingUsageIndex.set(undefined);
+        this.activeUsageIndex.set(index);
+      });
+    viewport.scrollToIndex(index);
+  }
+
+  private cancelPendingNavigation(): void {
+    this.pendingRangeSubscription?.unsubscribe();
+    this.pendingRangeSubscription = undefined;
+    this.pendingUsageIndex.set(undefined);
   }
 }

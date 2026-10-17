@@ -137,13 +137,24 @@ h2 {
   flex: 1 1 0;
   scrollbar-gutter: stable;
 }
+.usage-keyboard-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .usage-row {
   height: 84px;
   min-height: 84px;
   box-sizing: border-box;
   padding: 0;
 }
-.usage-row-button {
+.usage-row-option {
   display: grid;
   grid-template-columns: 2.75rem minmax(0, 1fr) auto;
   grid-template-rows: minmax(0, 1fr) 3px;
@@ -167,17 +178,15 @@ h2 {
     border-color var(--motion-duration-fast) var(--motion-easing-standard),
     box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
-.usage-row-button:hover {
+.usage-row-option:hover {
   background: var(--workspace-hover);
   box-shadow: var(--shadow-control);
 }
-.usage-row-button:focus-visible {
-  position: relative;
-  z-index: 1;
+.usage-list:focus-visible .usage-row.active .usage-row-option {
   outline: 2px solid var(--workspace-focus);
   outline-offset: -2px;
 }
-.usage-row.highlighted .usage-row-button {
+.usage-row.highlighted .usage-row-option {
   border-inline-start-color: var(--workspace-primary);
   background: var(--workspace-selected);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-primary) 18%, transparent);
@@ -270,7 +279,7 @@ h2 {
 }
 
 @container (max-width: 220px) {
-  .usage-row-button {
+  .usage-row-option {
     grid-template-columns: 2.5rem minmax(0, 1fr) auto;
     column-gap: 0.38rem;
     padding-inline: 0.38rem;

@@ -209,6 +209,8 @@ export const translations = {
     groupsPanel: 'Groups',
     blockUsage: 'Block Usage',
     blockUsageHint: 'Usage by exact block ID',
+    blockUsageKeyboardHint:
+      'Use Up and Down to move through block types; Home and End move to the first or last type. Press Enter or Space to toggle highlighting.',
     structureOverview: 'Structure overview',
     totalBlocks: 'Total blocks',
     uniqueTypes: 'Unique types',
@@ -943,6 +945,8 @@ export const translations = {
     groupsPanel: 'Nhóm',
     blockUsage: 'Sử dụng khối',
     blockUsageHint: 'Thống kê theo ID khối chính xác',
+    blockUsageKeyboardHint:
+      'Dùng phím Mũi tên lên/xuống để di chuyển giữa các loại khối; Home và End đến loại đầu/cuối. Nhấn Enter hoặc Phím cách để bật/tắt làm nổi bật.',
     structureOverview: 'Tổng quan cấu trúc',
     totalBlocks: 'Tổng số khối',
     uniqueTypes: 'Loại duy nhất',

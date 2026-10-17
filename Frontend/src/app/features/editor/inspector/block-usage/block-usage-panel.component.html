@@ -49,38 +49,39 @@
       </select>
     </label>
   </div>
+  <p id="block-usage-keyboard-hint" class="usage-keyboard-hint">
+    {{ i18n.t('blockUsageKeyboardHint') }}
+  </p>
   @if (usageRows().length) {
     <cdk-virtual-scroll-viewport
       class="usage-list"
       itemSize="84"
-      role="list"
+      role="listbox"
+      tabindex="0"
       [attr.aria-label]="i18n.t('blockUsage')"
+      [attr.aria-describedby]="'block-usage-keyboard-hint'"
+      [attr.aria-activedescendant]="activeUsageOptionId()"
+      aria-keyshortcuts="ArrowDown ArrowUp Home End Enter Space"
+      (keydown)="handleUsageListKeydown($event)"
     >
       <article
-        *cdkVirtualFor="let row of usageRows(); trackBy: trackRow"
+        *cdkVirtualFor="let row of usageRows(); let index = index; trackBy: trackRow"
         class="usage-row"
-        role="listitem"
+        [id]="usageOptionId(index)"
+        role="option"
+        [attr.aria-label]="usageOptionLabel(row)"
+        [attr.aria-posinset]="index + 1"
+        [attr.aria-selected]="isHighlighted(row.entry.id)"
+        [attr.aria-setsize]="usageRows().length"
+        [class.active]="activeUsageIndex() === index"
         [class.highlighted]="isHighlighted(row.entry.id)"
         [class.missing]="row.entry.missingCount > 0"
         thumbnailVisibility
         [thumbnailVisibilityEpoch]="assets.thumbnailEpoch()"
         (thumbnailVisible)="requestThumbnail(row, $event)"
+        (click)="activateUsageRow(index)"
       >
-        <button
-          type="button"
-          class="usage-row-button"
-          [attr.aria-pressed]="isHighlighted(row.entry.id)"
-          [attr.aria-label]="
-            i18n.t('highlightBlockUsage') +
-            ': ' +
-            row.displayName +
-            ', ' +
-            formatCount(row.entry.count) +
-            ', ' +
-            percentage(row.entry.count)
-          "
-          (click)="toggleHighlight(row.entry.id)"
-        >
+        <div class="usage-row-option">
           <span class="usage-thumbnail">
             @if (row.item && assets.thumbnailUrlForItem(row.item); as thumbnail) {
               <img [src]="thumbnail" alt="" />
@@ -105,7 +106,7 @@
           <span class="usage-frequency" aria-hidden="true">
             <span [style.width.%]="usageShare(row.entry.count)"></span>
           </span>
-        </button>
+        </div>
       </article>
     </cdk-virtual-scroll-viewport>
   } @else {
