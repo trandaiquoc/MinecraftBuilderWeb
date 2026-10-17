@@ -3,7 +3,8 @@
 This is the current product-facing brand and visual-direction reference. The
 four approved Workspace designs establish visual treatment only; Angular
 components and current application behavior remain authoritative. The
-Project Screen/Homepage is outside the Workspace redesign scope.
+Project Screen/Homepage is now part of the active application renovation, with
+its own approved concept references and local-first workflow contract.
 
 ## Brand
 
@@ -72,20 +73,26 @@ both. Reality sky preset colors are shared through the editor background
 contract so the renderer and Settings previews agree; ground previews use the
 corresponding texture resource.
 
-## Homepage Concept
+## Homepage Concept and Current Controls
 
 The future homepage direction is a layered 2D/2.5D laundromat: a large outdoor
 door and daylight on the left, a central washer that can display a project
 thumbnail, project-management board and large rectangular window on the right,
 two independently animated gray raccoons, wood flooring, and laundromat props.
-Account controls belong at bottom left; language, theme, and settings stay
-independent of the artwork at top right.
+Account status belongs at bottom left; language, theme, and settings stay
+independent of the artwork at top right. The Project Screen currently renders
+real English/Vietnamese and four-theme controls at the top, opens the existing
+Settings dialog, and shows an honest local guest status at the bottom. Theme
+and locale changes use the existing persisted preference services. No sign-in,
+profile, subscription, or cloud-sync behavior is implied.
 
 Layered, reusable artwork could later support seasonal events. On first project
 selection the raccoons may inspect the washer thumbnail; leaving the workspace
-may capture and cache a project preview. These are future concepts only: this
-step does not implement the homepage, artwork system, thumbnail cache,
-animation, weather, or event behavior.
+may capture and cache a project preview. The laundromat artwork, project board
+composition, project creation dialog, actual project thumbnails, and scene
+animations remain under implementation. The current Project Screen still uses
+its real creation and recent-project workflows; no sample account or project
+preview data is shown.
 
 ## References
 
@@ -96,7 +103,9 @@ The source images are preserved byte-for-byte in [design references](design/refe
 3. [Raccoon](design/references/03-raccoon.png)
 4. [Dark](design/references/04-dark.png)
 
-They are documentation-only and are not loaded by the application.
+They are documentation-only and are not loaded by the application. Current
+Project Screen implementation status is tracked in the [Homepage renovation
+notes](design/homepage-renovation/README.md).
 
 ## Compatibility and Scope
 
@@ -120,5 +129,5 @@ remain active rather than copying potentially large projects/assets into a
 second database while retaining the originals. The checked-in public schema
 keeps its established `$id`; no new public domain has been assigned.
 
-This foundation documents the current branding and compatibility boundaries. It
-does not redesign the homepage or add account/backend behavior.
+This foundation documents the current branding and compatibility boundaries.
+Homepage work does not add account or backend behavior.

@@ -1,0 +1,52 @@
+<nav class="screen-control-bar" [attr.aria-label]="i18n.t('projectScreenControls')">
+  <div
+    class="screen-control-group locale-options"
+    role="group"
+    [attr.aria-label]="i18n.t('language')"
+  >
+    <svg lucideGlobe aria-hidden="true"></svg>
+    @for (option of localeOptions; track option.id) {
+      <button
+        type="button"
+        class="screen-control-button locale-button"
+        [class.selected]="i18n.locale() === option.id"
+        [attr.data-locale]="option.id"
+        [attr.aria-label]="i18n.t(option.labelKey)"
+        [attr.aria-pressed]="i18n.locale() === option.id"
+        (click)="setLocale(option.id)"
+      >
+        {{ option.shortLabel }}
+      </button>
+    }
+  </div>
+
+  <span class="screen-control-separator" aria-hidden="true"></span>
+
+  <div class="screen-control-group theme-options" role="group" [attr.aria-label]="i18n.t('theme')">
+    @for (option of themeOptions; track option.id) {
+      <button
+        type="button"
+        class="screen-control-button theme-button"
+        [class.selected]="themeService.theme() === option.id"
+        [attr.data-theme]="option.id"
+        [attr.aria-pressed]="themeService.theme() === option.id"
+        (click)="setTheme(option.id)"
+      >
+        {{ i18n.t(option.labelKey) }}
+      </button>
+    }
+  </div>
+
+  <span class="screen-control-separator" aria-hidden="true"></span>
+
+  <button
+    type="button"
+    class="screen-control-button settings-button"
+    [attr.aria-label]="i18n.t('settingsMenu')"
+    [attr.title]="i18n.t('settingsMenu')"
+    (click)="settingsRequested.emit()"
+  >
+    <svg lucideSettings aria-hidden="true"></svg>
+    <span>{{ i18n.t('settingsMenu') }}</span>
+  </button>
+</nav>

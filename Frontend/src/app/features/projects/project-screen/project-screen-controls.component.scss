@@ -1,0 +1,127 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.screen-control-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-control-raised);
+}
+
+.screen-control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.12rem;
+}
+
+.screen-control-group > svg,
+.settings-button svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.screen-control-group > svg {
+  margin-inline: 0.4rem 0.15rem;
+  color: var(--text-muted);
+}
+
+.screen-control-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.2rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 650;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.screen-control-button:hover:not(.selected) {
+  background: var(--control-hover);
+  color: var(--text);
+}
+
+.screen-control-button.selected,
+.screen-control-button[aria-pressed='true'] {
+  border-color: var(--border-strong);
+  background: var(--control-selected);
+  color: var(--control-selected-text);
+  box-shadow: var(--shadow-control);
+}
+
+.screen-control-button:active {
+  transform: translateY(1px);
+}
+
+.screen-control-button:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--focus-color, var(--accent));
+  outline-offset: 2px;
+}
+
+.screen-control-separator {
+  width: 1px;
+  height: 1.35rem;
+  margin-inline: 0.12rem;
+  background: var(--border);
+}
+
+.locale-button {
+  min-width: 2.25rem;
+  padding-inline: 0.4rem;
+}
+
+.settings-button {
+  padding-inline: 0.7rem;
+}
+
+@media (max-width: 620px) {
+  :host {
+    width: 100%;
+  }
+
+  .screen-control-bar {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 360px) {
+  .theme-options {
+    flex-wrap: wrap;
+  }
+
+  .screen-control-separator {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-control-button {
+    transition: none;
+  }
+}
