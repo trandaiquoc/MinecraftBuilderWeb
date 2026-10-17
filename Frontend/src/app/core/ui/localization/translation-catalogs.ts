@@ -1791,7 +1791,7 @@ const supplementalTranslationSource = {
     structureJsonAffectedDuplicateBlocks: 'Affected blocks',
     structureJsonAffectedBlocksShort: 'blocks',
     structureJsonShowMoreIssues: 'Show next {count}',
-    structureJsonImportReadOnly: 'Validation only. The current project is not changed.',
+    structureJsonImportReadOnly: 'Your project changes only after you apply a validated import.',
     structureJsonProgressReading: 'Reading',
     structureJsonProgressParsing: 'Parsing',
     structureJsonProgressChecking: 'Checking blocks',
@@ -2127,7 +2127,8 @@ const supplementalTranslationSource = {
     structureJsonAffectedDuplicateBlocks: 'Khối bị ảnh hưởng',
     structureJsonAffectedBlocksShort: 'khối',
     structureJsonShowMoreIssues: 'Xem tiếp {count} mục',
-    structureJsonImportReadOnly: 'Chỉ kiểm tra. Dự án hiện tại không bị thay đổi.',
+    structureJsonImportReadOnly:
+      'Dự án chỉ thay đổi sau khi bạn áp dụng bản nhập đã được kiểm tra.',
     structureJsonProgressReading: 'Đang đọc',
     structureJsonProgressParsing: 'Đang phân tích',
     structureJsonProgressChecking: 'Đang kiểm tra khối',
@@ -2306,6 +2307,8 @@ export const structureJsonProjectUiTranslations = {
       'The project changed while this import was waiting. Validate again before applying.',
     structureJsonImportDescription:
       'Paste or load the current Structure JSON format to inspect it before any project changes.',
+    structureJsonAiImportDescription:
+      'Build a prompt for an external AI, then validate its JSON in the Import JSON tab.',
     structureJsonValidationShape: 'The document does not match the current Structure JSON shape.',
   },
   vi: {
@@ -2316,6 +2319,8 @@ export const structureJsonProjectUiTranslations = {
       'Dự án đã thay đổi trong khi chờ nhập. Hãy kiểm tra lại trước khi áp dụng.',
     structureJsonImportDescription:
       'Dán hoặc tải Structure JSON hiện tại để kiểm tra trước khi thay đổi dự án.',
+    structureJsonAiImportDescription:
+      'Tạo prompt cho AI bên ngoài, rồi kiểm tra JSON trả về trong tab Nhập JSON.',
     structureJsonValidationShape: 'Tai lieu khong dung cau truc Structure JSON hien tai.',
   },
 } as const;

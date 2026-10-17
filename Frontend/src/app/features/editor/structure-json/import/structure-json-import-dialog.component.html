@@ -6,7 +6,9 @@
     [cdkTrapFocusAutoCapture]="true"
     role="dialog"
     aria-modal="true"
-    [attr.aria-label]="i18n.t('importStructureJson')"
+    [attr.aria-label]="
+      i18n.t(activeTab() === 'ai' ? 'structureJsonImportAiTab' : 'importStructureJson')
+    "
     tabindex="-1"
     autofocus
   >
@@ -19,8 +21,18 @@
           height="112"
           [alt]="i18n.t('appName')"
         />
-        <h2>{{ i18n.t('importStructureJson') }}</h2>
-        <p>{{ i18n.t('structureJsonImportDescription') }}</p>
+        <h2>
+          {{ i18n.t(activeTab() === 'ai' ? 'structureJsonImportAiTab' : 'importStructureJson') }}
+        </h2>
+        <p>
+          {{
+            i18n.t(
+              activeTab() === 'ai'
+                ? 'structureJsonAiImportDescription'
+                : 'structureJsonImportDescription'
+            )
+          }}
+        </p>
       </div>
       <button
         type="button"

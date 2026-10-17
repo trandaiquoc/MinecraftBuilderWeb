@@ -76,6 +76,9 @@ ahead of the long renderer metrics grid.
 The [Create with AI desktop inset review](20261017-ai-workspace-desktop-inset/README.md)
 aligns the prompt workspace with the import dialog's other surfaces and checks
 its desktop and narrow layouts.
+The [External AI dialog mode review](20261017-external-ai-mode-context/README.md)
+aligns the import dialog title, instructions, and project-change note with its
+selected top-level tab in English and Vietnamese.
 The [Asset Manager empty-state review](20261017-asset-manager-empty-state/README.md)
 adds local Fabric import guidance to the empty Mods tab and checks the state at
 desktop and narrow widths.

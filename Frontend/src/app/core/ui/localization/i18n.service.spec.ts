@@ -131,6 +131,12 @@ describe('translation dictionaries', () => {
     expect(service.t('structureJsonImportDescription')).toBe(
       'Paste or load the current Structure JSON format to inspect it before any project changes.',
     );
+    expect(service.t('structureJsonAiImportDescription')).toBe(
+      'Build a prompt for an external AI, then validate its JSON in the Import JSON tab.',
+    );
+    expect(service.t('structureJsonImportReadOnly')).toBe(
+      'Your project changes only after you apply a validated import.',
+    );
     expect(service.t('structureJsonValidationShape')).toBe(
       'The document does not match the current Structure JSON shape.',
     );
@@ -140,6 +146,12 @@ describe('translation dictionaries', () => {
     );
     expect(service.t('structureJsonImportDescription')).toBe(
       'Dán hoặc tải Structure JSON hiện tại để kiểm tra trước khi thay đổi dự án.',
+    );
+    expect(service.t('structureJsonAiImportDescription')).toBe(
+      'Tạo prompt cho AI bên ngoài, rồi kiểm tra JSON trả về trong tab Nhập JSON.',
+    );
+    expect(service.t('structureJsonImportReadOnly')).toBe(
+      'Dự án chỉ thay đổi sau khi bạn áp dụng bản nhập đã được kiểm tra.',
     );
     service.setLocale('en');
   });

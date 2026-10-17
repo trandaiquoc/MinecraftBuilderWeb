@@ -105,6 +105,15 @@ describe('StructureJsonImportDialogComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     clientRects.mockRestore();
+    const dialog = fixture.nativeElement.querySelector('.structure-json-dialog') as HTMLElement;
+    const dialogTitle = dialog.querySelector('.structure-json-header h2') as HTMLElement;
+    const dialogDescription = dialog.querySelector('.structure-json-header p') as HTMLElement;
+    expect(dialog.getAttribute('aria-label')).toBe('importStructureJson');
+    expect(dialogTitle.textContent?.trim()).toBe('importStructureJson');
+    expect(dialogDescription.textContent?.trim()).toBe('structureJsonImportDescription');
+    expect(dialog.querySelector('.structure-json-footer .muted')?.textContent?.trim()).toBe(
+      'structureJsonImportReadOnly',
+    );
     const tabs = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
         '.structure-json-tabs [role="tab"]',
@@ -124,9 +133,14 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(document.activeElement).toBe(tabs[1]);
     expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['false', 'true']);
     expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, 0]);
+    expect(dialog.getAttribute('aria-label')).toBe('structureJsonImportAiTab');
+    expect(dialogTitle.textContent?.trim()).toBe('structureJsonImportAiTab');
+    expect(dialogDescription.textContent?.trim()).toBe('structureJsonAiImportDescription');
 
     press(1, 'ArrowRight');
     expect(document.activeElement).toBe(tabs[0]);
+    expect(dialog.getAttribute('aria-label')).toBe('importStructureJson');
+    expect(dialogTitle.textContent?.trim()).toBe('importStructureJson');
     press(0, 'ArrowLeft');
     expect(document.activeElement).toBe(tabs[1]);
     press(1, 'Home');

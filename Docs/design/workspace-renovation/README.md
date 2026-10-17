@@ -56,6 +56,9 @@ action appears before the long renderer metrics section.
 The [Create with AI desktop inset review](evidence/20261017-ai-workspace-desktop-inset/README.md)
 aligns the prompt workspace with the import dialog's other content surfaces
 and checks its 390 px and 320 px layouts.
+The [External AI dialog mode review](evidence/20261017-external-ai-mode-context/README.md)
+keeps the dialog title, instructions, and project-change note aligned with the
+selected Import JSON or Create with AI tab in English and Vietnamese.
 The [Asset Manager empty-state review](evidence/20261017-asset-manager-empty-state/README.md)
 adds import guidance to the empty Mods tab and checks its desktop and narrow
 layouts.
