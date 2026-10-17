@@ -10,6 +10,13 @@ not a list of completed implementation tasks.
 | Workspace visual fidelity | Pending. Current evidence covers four-theme shell reviews, bilingual narrow Settings navigation, the saved Minecraft version in the header, Dark Quick Actions contrast, Diagnostics audit placement, Create with AI layout and mode context, Asset Manager's mod-library empty state and Missing Assets handoff, real renderer thumbnails in populated inventory slots, and the 320 px Status Bar label and Workspace menu fixes checked across four themes and both locales. Full acceptance remains open. | Audit remaining common Workspace surfaces and interaction states against the approved compositions; capture verified gaps and fixes. |
 | Project Screen / Homepage | Current visual review covers four themed scenes and mascot layers, project selection and creation, import, the narrow layout, reduced-motion behavior, the zero-project board controls, and a populated 320 px Vietnamese card; full concept acceptance remains open.                                                                                                                                                                                                                                        | Continue its visual acceptance and track remaining work in the [Homepage renovation notes](../homepage-renovation/README.md).        |
 
+## Populated viewport checkpoint
+
+The existing viewport captures cover the empty starter state. Review a real
+placed block and the surrounding controls at 320 px in the isolated audit
+project. This browser review remains pending because the isolated Chrome launch
+was rejected by execution policy on 2026-10-18.
+
 ## Fixture checkpoint
 
 The Asset Manager's empty Mods state and the Mod JAR Import menu destination
