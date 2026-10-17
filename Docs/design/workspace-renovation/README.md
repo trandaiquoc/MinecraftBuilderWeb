@@ -18,6 +18,9 @@ reducing toolbar height. The
 [Status Bar responsive review](evidence/20261017-statusbar-responsive/README.md)
 checks its two-row hierarchy at 390 and 320 px, pairing editor context and save
 state separately from project metrics and asset readiness. The
+[Vietnamese Status Bar label review](evidence/20261018-statusbar-vietnamese-label/README.md)
+fixes the clipped leading words in the 320 px asset-readiness label and checks
+the layout across all themes and locales. The
 [Create with AI mobile review](evidence/20261017-ai-workspace-responsive/README.md)
 checks the five-section prompt workspace and its Vietnamese labels at narrow
 widths. The [starter-card review](evidence/20261017-viewport-empty-starter/README.md)

@@ -62,6 +62,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.asset-status-copy {
+  min-width: 0;
+  max-width: 100%;
+}
 .status-save {
   display: inline-flex;
   flex: 0 0 auto;

@@ -27,6 +27,9 @@ two-row 390 px layout and checks that every toolbar action remains reachable at
 320 px.
 The [Status Bar responsive review](20261017-statusbar-responsive/README.md)
 checks the compact two-row status hierarchy at 390 and 320 px.
+The [Vietnamese Status Bar label review](20261018-statusbar-vietnamese-label/README.md)
+fixes clipped leading text at 320 px and verifies the narrow label in all four
+themes and both locales.
 The [Create with AI mobile review](20261017-ai-workspace-responsive/README.md)
 checks the five-section prompt workspace at 390 and 320 px, including its
 Vietnamese tab labels.
