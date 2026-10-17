@@ -62,10 +62,10 @@ transitions, fallbacks, and projection voxel visits separately.
 
 ## Legend
 
-- `[x]` Already implemented or explicitly adopted.
-- `[~]` Partially implemented / adopted but still needs polish.
-- `[ ]` Decision exists, but the requirements document still needs to be updated.
-- `PENDING` means the original requirement still stands and has simply not been implemented yet.
+- `[x]`, `[~]`, `[ ]`, and `PENDING` preserve the status recorded when each
+  historical entry was written. They are not current implementation status or
+  an active task list; check the canonical documents in `Docs/README.md` and
+  the current source and tests for present behavior and open work.
 
 ---
 

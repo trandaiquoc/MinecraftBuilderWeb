@@ -32,8 +32,9 @@ historical evidence, and reproducible local audit output.
 
 - [Original prompt roadmap](MinecraftBuilder_Codex_Gemini_Prompt_Roadmap_VI.docx)
   is retained as planning history. Its old prompts are not an active task list.
-- [Change history](history/changed.md) is a chronological decision log; current
-  facts belong in the canonical documents above.
+- [Change history](history/changed.md) is a chronological decision log. Its
+  status markers are historical snapshots, not current tasks; present facts and
+  open work belong in the canonical documents above.
 - [Workspace visual QA snapshot](history/workspace-design-qa-2026-10-16.md)
   records a dated, superseded assessment. It does not define current status.
 - [Workspace browser evidence](design/workspace-renovation/evidence/README.md)
