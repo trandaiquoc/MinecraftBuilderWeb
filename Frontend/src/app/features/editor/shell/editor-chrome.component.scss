@@ -117,6 +117,10 @@
   white-space: nowrap;
 }
 
+.chrome-project-status--redundant {
+  display: none;
+}
+
 .editor-toolbar-row {
   position: relative;
   z-index: 1;

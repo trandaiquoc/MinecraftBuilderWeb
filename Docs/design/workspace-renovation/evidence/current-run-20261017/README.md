@@ -1246,12 +1246,12 @@ claimed for this source-only change.
 ## Workspace save status announcement ownership
 
 The header and footer both display the same autosave label. When the footer
-status bar is visible, it remains the single polite status region and the
-header copy is visual only. When the user hides the footer status bar, the
-header becomes the live status source. At viewports where the header status is
-visually hidden for space, its standalone status remains available to
-assistive technology. This avoids duplicate “Saving”/“Saved” announcements
-without making autosave state depend on the footer preference.
+status bar is visible, it is the only visible and polite status region; the
+duplicate header label is suppressed. When the user hides the footer status
+bar, the header becomes the live status source. At viewports where the header
+status is visually hidden for space, its standalone status remains available
+to assistive technology. This avoids duplicate “Saving”/“Saved” text and
+announcements without making autosave state depend on the footer preference.
 
 The Editor Chrome spec verifies both preference states, and the production
 build passes. Browser/screen-reader behavior has not been rechecked in this

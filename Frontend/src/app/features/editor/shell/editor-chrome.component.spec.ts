@@ -217,6 +217,7 @@ describe('EditorChromeComponent save status announcements', () => {
     ) as HTMLElement;
     expect(status.getAttribute('role')).toBeNull();
     expect(status.getAttribute('aria-live')).toBeNull();
+    expect(status.classList.contains('chrome-project-status--redundant')).toBe(true);
 
     fixture.componentRef.setInput('state', {
       ...state,
@@ -229,6 +230,7 @@ describe('EditorChromeComponent save status announcements', () => {
     ) as HTMLElement;
     expect(status.getAttribute('role')).toBe('status');
     expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.classList.contains('chrome-project-status--redundant')).toBe(false);
     expect(status.classList.contains('chrome-project-status--standalone')).toBe(true);
     fixture.destroy();
   });

@@ -565,6 +565,7 @@
     </nav>
     <div
       class="chrome-project-status"
+      [class.chrome-project-status--redundant]="state().layout.statusBarVisible"
       [class.chrome-project-status--standalone]="!state().layout.statusBarVisible"
       [attr.role]="state().layout.statusBarVisible ? null : 'status'"
       [attr.aria-live]="state().layout.statusBarVisible ? null : 'polite'"
