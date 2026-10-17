@@ -31,7 +31,6 @@ staggered start.
 - [Dark mobile, 390 px](05-dark-mobile-390x844.png)
 - [Dark desktop with reduced motion](06-dark-reduced-motion-1600x900.png)
 
-Project Screen visual acceptance remains open while project cards lack real
-structure previews. The current project summary store has no cached capture,
-and rendering every full structure during board load would compromise initial
-performance. No preview is fabricated.
+At the time of this mascot review, the project preview cache had not yet been
+implemented. The follow-up [real project preview review](../20261017-project-preview/README.md)
+documents the selected washer capture and current metadata-only project board.

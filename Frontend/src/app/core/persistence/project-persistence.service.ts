@@ -70,6 +70,10 @@ export class ProjectPersistenceService {
     return this.store.list();
   }
 
+  openPreview(projectId: string, expectedUpdatedAt: string): Promise<Blob | undefined> {
+    return this.store.openPreview(projectId, expectedUpdatedAt);
+  }
+
   delete(id: string): Promise<void> {
     return this.store.delete(id);
   }

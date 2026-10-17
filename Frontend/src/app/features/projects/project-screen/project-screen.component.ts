@@ -1,6 +1,6 @@
 import { DatePipe, NgOptimizedImage } from '@angular/common';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, ErrorHandler, computed, effect, inject, signal } from '@angular/core';
 import type { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
 import {
   DEFAULT_MINECRAFT_VERSION,
@@ -67,6 +67,7 @@ import type { ProjectScreenProjectOrder } from './project-screen-project-list';
   styleUrl: './project-screen.component.scss',
 })
 export class ProjectScreenComponent {
+  private readonly errorHandler = inject(ErrorHandler);
   protected readonly i18n = inject(I18nService);
   private readonly preferences = inject(UiPreferencesService);
   protected readonly theme = inject(ThemeService);
@@ -91,6 +92,7 @@ export class ProjectScreenComponent {
       projects.find((project) => project.id === this.selectedProjectId()) ?? projects[0] ?? null
     );
   });
+  protected readonly selectedProjectPreviewUrl = signal<string | undefined>(undefined);
   protected readonly createDialogOpen = signal(false);
   protected readonly name = signal(this.i18n.t('untitledStructure'));
   protected readonly defaultMinecraftVersion = DEFAULT_MINECRAFT_VERSION;
@@ -161,6 +163,29 @@ export class ProjectScreenComponent {
   constructor() {
     void this.workflow.loadProjects();
     void this.loadVersions();
+    effect((onCleanup) => {
+      const project = this.selectedProject();
+      const projectId = project?.id;
+      const updatedAt = project?.updatedAt;
+      let active = true;
+      let objectUrl: string | undefined;
+      this.selectedProjectPreviewUrl.set(undefined);
+      onCleanup(() => {
+        active = false;
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+      });
+      if (!projectId || !updatedAt) return;
+      void this.workflow
+        .loadProjectPreview(projectId, updatedAt)
+        .then((preview) => {
+          if (!active || !preview) return;
+          objectUrl = URL.createObjectURL(preview);
+          this.selectedProjectPreviewUrl.set(objectUrl);
+        })
+        .catch((error: unknown) => {
+          if (active) this.errorHandler.handleError(error);
+        });
+    });
   }
 
   protected updateName(value: string): void {

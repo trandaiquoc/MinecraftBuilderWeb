@@ -116,6 +116,7 @@ describe('ProjectScreenComponent', () => {
       deletingProjectIds: signal<ReadonlySet<string>>(new Set()),
       deleteError: signal<string | undefined>(undefined),
       loadProjects: vi.fn(async () => undefined),
+      loadProjectPreview: vi.fn(async () => undefined),
     };
 
     TestBed.configureTestingModule({

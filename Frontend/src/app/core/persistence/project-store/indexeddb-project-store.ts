@@ -13,11 +13,12 @@ import {
 } from './project-store.port';
 
 const DATABASE_NAME = 'minecraft-builder';
-const DATABASE_VERSION = 6;
+const DATABASE_VERSION = 7;
 const PROJECTS_STORE = 'projects';
 const PROJECT_SUMMARIES_STORE = 'project-summaries';
 const RECOVERY_STORE = 'recovery-snapshots';
 const EDITOR_SETTINGS_STORE = 'project-editor-settings';
+const PROJECT_PREVIEWS_STORE = 'project-previews';
 
 type StoredProjectDocument = Omit<ProjectDocument, 'editorSettings'> & {
   readonly editorSettings?: EditorSettings;
@@ -34,6 +35,11 @@ interface StoredProject {
 interface StoredEditorSettings {
   readonly id: string;
   readonly settings: EditorSettings;
+}
+interface StoredProjectPreview {
+  readonly id: string;
+  readonly updatedAt: string;
+  readonly blob: Blob;
 }
 
 export function projectSummaryFromStoredRecord(
@@ -88,6 +94,63 @@ export class IndexedDbProjectStore implements ProjectStore {
   async save(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void> {
     await this.writeProject(project, false, metadata);
   }
+  async savePreview(projectId: string, updatedAt: string, preview: Blob): Promise<void> {
+    assertProjectPreview(preview);
+    const database = await this.database;
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(
+        [PROJECT_SUMMARIES_STORE, PROJECT_PREVIEWS_STORE],
+        'readwrite',
+      );
+      const request = transaction.objectStore(PROJECT_SUMMARIES_STORE).get(projectId);
+      request.onsuccess = () => {
+        const summary = request.result as ProjectSummary | undefined;
+        if (summary?.updatedAt === updatedAt) {
+          transaction.objectStore(PROJECT_PREVIEWS_STORE).put({
+            id: projectId,
+            updatedAt,
+            blob: preview,
+          } satisfies StoredProjectPreview);
+        }
+      };
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () =>
+        reject(transaction.error ?? new Error('Unable to save project preview'));
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error('Project preview save was aborted'));
+      request.onerror = () =>
+        reject(request.error ?? new Error('Unable to check project before saving preview'));
+    });
+  }
+  async openPreview(projectId: string, expectedUpdatedAt: string): Promise<Blob | undefined> {
+    const database = await this.database;
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(
+        [PROJECT_SUMMARIES_STORE, PROJECT_PREVIEWS_STORE],
+        'readonly',
+      );
+      const summaryRequest = transaction.objectStore(PROJECT_SUMMARIES_STORE).get(projectId);
+      const previewRequest = transaction.objectStore(PROJECT_PREVIEWS_STORE).get(projectId);
+      let summary: ProjectSummary | undefined;
+      let preview: StoredProjectPreview | undefined;
+      summaryRequest.onsuccess = () => {
+        summary = summaryRequest.result as ProjectSummary | undefined;
+      };
+      previewRequest.onsuccess = () => {
+        preview = previewRequest.result as StoredProjectPreview | undefined;
+      };
+      transaction.oncomplete = () =>
+        resolve(
+          summary?.updatedAt === expectedUpdatedAt && preview?.updatedAt === expectedUpdatedAt
+            ? preview.blob
+            : undefined,
+        );
+      transaction.onerror = () =>
+        reject(transaction.error ?? new Error('Unable to open project preview'));
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error('Project preview read was aborted'));
+    });
+  }
   async saveEditorSettings(projectId: string, settings: EditorSettings): Promise<void> {
     const database = await this.database;
     await runRequest(database, EDITOR_SETTINGS_STORE, 'readwrite', (store) =>
@@ -98,13 +161,20 @@ export class IndexedDbProjectStore implements ProjectStore {
     const database = await this.database;
     await runTransaction(
       database,
-      [PROJECTS_STORE, PROJECT_SUMMARIES_STORE, RECOVERY_STORE, EDITOR_SETTINGS_STORE],
+      [
+        PROJECTS_STORE,
+        PROJECT_SUMMARIES_STORE,
+        RECOVERY_STORE,
+        EDITOR_SETTINGS_STORE,
+        PROJECT_PREVIEWS_STORE,
+      ],
       'readwrite',
       (transaction) => {
         transaction.objectStore(PROJECTS_STORE).delete(id);
         transaction.objectStore(PROJECT_SUMMARIES_STORE).delete(id);
         transaction.objectStore(RECOVERY_STORE).delete(id);
         transaction.objectStore(EDITOR_SETTINGS_STORE).delete(id);
+        transaction.objectStore(PROJECT_PREVIEWS_STORE).delete(id);
       },
     );
   }
@@ -149,7 +219,7 @@ export class IndexedDbProjectStore implements ProjectStore {
     const document = toStoredProject(normalized, metadata);
     await runTransaction(
       database,
-      [PROJECTS_STORE, PROJECT_SUMMARIES_STORE, EDITOR_SETTINGS_STORE],
+      [PROJECTS_STORE, PROJECT_SUMMARIES_STORE, EDITOR_SETTINGS_STORE, PROJECT_PREVIEWS_STORE],
       'readwrite',
       (transaction) => {
         const projects = transaction.objectStore(PROJECTS_STORE);
@@ -157,6 +227,7 @@ export class IndexedDbProjectStore implements ProjectStore {
         else projects.put(document);
         transaction.objectStore(PROJECT_SUMMARIES_STORE).put(toSummary(normalized));
         transaction.objectStore(EDITOR_SETTINGS_STORE).put(toStoredEditorSettings(normalized));
+        transaction.objectStore(PROJECT_PREVIEWS_STORE).delete(normalized.id);
       },
     );
   }
@@ -238,6 +309,8 @@ function openDatabase(name: string): Promise<IDBDatabase> {
       const editorSettings = database.objectStoreNames.contains(EDITOR_SETTINGS_STORE)
         ? request.transaction?.objectStore(EDITOR_SETTINGS_STORE)
         : database.createObjectStore(EDITOR_SETTINGS_STORE, { keyPath: 'id' });
+      if (!database.objectStoreNames.contains(PROJECT_PREVIEWS_STORE))
+        database.createObjectStore(PROJECT_PREVIEWS_STORE, { keyPath: 'id' });
       if (projects && summaries) {
         projects.openCursor().onsuccess = (event) => {
           const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
@@ -268,6 +341,15 @@ function openDatabase(name: string): Promise<IDBDatabase> {
     };
     request.onsuccess = () => resolve(request.result);
   });
+}
+
+function assertProjectPreview(preview: Blob): void {
+  if (
+    (preview.type !== 'image/webp' && preview.type !== 'image/png') ||
+    preview.size === 0 ||
+    preview.size > 2 * 1024 * 1024
+  )
+    throw new Error('Project preview must be a WebP or PNG image no larger than 2 MB');
 }
 
 function normalizeStoredProject(record: StoredProject): StoredProject {

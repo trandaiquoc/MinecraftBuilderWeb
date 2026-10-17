@@ -230,6 +230,7 @@ import { applyBlockRenderRole } from '../presentation/block-render-role';
 import { projectPointerToAxisPlane } from '../interaction/viewport-pointer-projection';
 import { ViewportHoverController } from '../interaction/viewport-hover-controller';
 import { disposeObject } from '../presentation/renderer-resource-disposal';
+import { renderTargetPixelsToBlob } from './project-preview-image';
 import { BlockGhostPresenter } from '../presentation/block-ghost-presenter';
 import { DecorationGhostPresenter } from '../presentation/decoration-ghost-presenter';
 import { MovePreviewPresenter } from '../presentation/move-preview-presenter';
@@ -4218,6 +4219,92 @@ export class ThreeViewportEngine {
 
   resetCamera(): void {
     this.cameraFraming.resetCamera();
+  }
+
+  async captureProjectPreview(): Promise<Blob | undefined> {
+    const renderer = this.renderer;
+    const project = this.project;
+    if (
+      !renderer ||
+      !project ||
+      (project.blocks.length === 0 && (project.decorations?.length ?? 0) === 0)
+    )
+      return undefined;
+
+    const width = 256;
+    const height = 144;
+    const bounds = new THREE.Box3();
+    for (const block of project.blocks) {
+      const { x, y, z } = block.position;
+      bounds.expandByPoint(new THREE.Vector3(x, y, z));
+      bounds.expandByPoint(new THREE.Vector3(x + 1, y + 1, z + 1));
+    }
+    for (const decoration of project.decorations ?? []) {
+      const { x, y, z } = decoration.anchor;
+      bounds.expandByPoint(new THREE.Vector3(x - 1, y - 1, z - 1));
+      bounds.expandByPoint(new THREE.Vector3(x + 2, y + 2, z + 2));
+    }
+    if (bounds.isEmpty()) return undefined;
+
+    const center = bounds.getCenter(new THREE.Vector3());
+    const radius = Math.max(bounds.getSize(new THREE.Vector3()).length() / 2, 0.5);
+    const viewHeight = radius * 2.5;
+    const camera = new THREE.OrthographicCamera(
+      (-viewHeight * (width / height)) / 2,
+      (viewHeight * (width / height)) / 2,
+      viewHeight / 2,
+      -viewHeight / 2,
+      0.1,
+      radius * 10,
+    );
+    camera.position
+      .copy(center)
+      .add(new THREE.Vector3(1, 0.85, 1).normalize().multiplyScalar(radius * 4));
+    camera.lookAt(center);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+
+    const target = new THREE.WebGLRenderTarget(width, height, {
+      depthBuffer: true,
+      stencilBuffer: false,
+    });
+    target.texture.colorSpace = THREE.SRGBColorSpace;
+    const previousTarget = renderer.getRenderTarget();
+    const previousViewport = renderer.getViewport(new THREE.Vector4());
+    const previousScissor = renderer.getScissor(new THREE.Vector4());
+    const previousScissorTest = renderer.getScissorTest();
+    const previousClearColor = renderer.getClearColor(new THREE.Color());
+    const previousClearAlpha = renderer.getClearAlpha();
+    const previousBackground = this.scene.background;
+    const visibleStates = this.scene.children.map((child) => [child, child.visible] as const);
+    let pixels: Uint8Array | undefined;
+
+    try {
+      for (const [child] of visibleStates) {
+        child.visible =
+          child === this.canonicalRoot || child === this.hemisphereLight || child === this.keyLight;
+      }
+      this.scene.background = null;
+      renderer.setRenderTarget(target);
+      renderer.setViewport(0, 0, width, height);
+      renderer.setScissorTest(false);
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear(true, true, true);
+      renderer.render(this.scene, camera);
+      pixels = new Uint8Array(width * height * 4);
+      renderer.readRenderTargetPixels(target, 0, 0, width, height, pixels);
+    } finally {
+      for (const [child, visible] of visibleStates) child.visible = visible;
+      this.scene.background = previousBackground;
+      renderer.setRenderTarget(previousTarget);
+      renderer.setViewport(previousViewport);
+      renderer.setScissor(previousScissor);
+      renderer.setScissorTest(previousScissorTest);
+      renderer.setClearColor(previousClearColor, previousClearAlpha);
+      target.dispose();
+    }
+
+    return pixels ? renderTargetPixelsToBlob(pixels, width, height) : undefined;
   }
 
   setCameraPreset(preset: CameraPreset): void {

@@ -86,13 +86,14 @@ Settings dialog, and shows an honest local guest status at the bottom. Theme
 and locale changes use the existing persisted preference services. No sign-in,
 profile, subscription, or cloud-sync behavior is implied.
 
-Layered, reusable artwork could later support seasonal events. On first project
-selection the raccoons may inspect the washer thumbnail; leaving the workspace
-may capture and cache a project preview. The laundromat artwork, project board
-composition, project creation dialog, actual project thumbnails, and scene
-animations remain under implementation. The current Project Screen still uses
-its real creation and recent-project workflows; no sample account or project
-preview data is shown.
+Layered, reusable artwork could later support seasonal events. The laundromat
+artwork, project board composition, creation dialog, and independent raccoon
+animations are implemented. Leaving the 3D workspace after route approval
+captures the project from the mounted renderer and stores the image in a
+separate IndexedDB preview cache. The washer displays only a timestamp-matched
+capture; project saves invalidate that cache. Empty projects, Y-Layer exits, and
+failed captures show no image. Project list cards remain metadata-only, and no
+sample account or fabricated project preview data is shown.
 
 ## References
 

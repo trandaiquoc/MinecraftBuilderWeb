@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { ErrorHandler, Injectable, inject } from '@angular/core';
 import { CanDeactivateFn } from '@angular/router';
 import { AssetActivityService } from '../assets/asset-activity.service';
 import { DialogService } from '../ui/dialog/dialog.service';
@@ -7,11 +7,20 @@ import { ProjectAutosaveService } from './autosave/project-autosave.service';
 
 @Injectable({ providedIn: 'root' })
 export class EditorLeaveCoordinator {
+  private readonly errorHandler = inject(ErrorHandler);
   private readonly autosave = inject(ProjectAutosaveService);
   private readonly activity = inject(AssetActivityService);
   private readonly dialogs = inject(DialogService);
   private readonly i18n = inject(I18nService);
   private inFlight?: Promise<boolean>;
+  private projectPreviewCapture?: () => Promise<void>;
+
+  registerProjectPreviewCapture(capture: () => Promise<void>): () => void {
+    this.projectPreviewCapture = capture;
+    return () => {
+      if (this.projectPreviewCapture === capture) this.projectPreviewCapture = undefined;
+    };
+  }
 
   canLeave(): Promise<boolean> {
     if (this.inFlight) return this.inFlight;
@@ -45,7 +54,7 @@ export class EditorLeaveCoordinator {
       if (!leave) return false;
     }
     if (this.activity.hasProtectedOperation()) {
-      return this.dialogs.confirm({
+      const leave = await this.dialogs.confirm({
         title: this.i18n.t('assetOperationLeaveTitle'),
         text: this.i18n.t('assetOperationLeaveText'),
         confirmButtonText: this.i18n.t('leave'),
@@ -53,6 +62,13 @@ export class EditorLeaveCoordinator {
         icon: 'warning',
         destructive: true,
       });
+      if (!leave) return false;
+    }
+
+    try {
+      await this.projectPreviewCapture?.();
+    } catch (error) {
+      this.errorHandler.handleError(error);
     }
     return true;
   }

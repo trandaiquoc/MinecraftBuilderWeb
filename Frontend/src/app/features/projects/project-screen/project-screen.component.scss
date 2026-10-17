@@ -189,6 +189,21 @@
   backdrop-filter: blur(3px);
 }
 
+.washer-project-preview {
+  position: absolute;
+  z-index: 0;
+  inset: 8%;
+  display: block;
+  object-fit: contain;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.washer-project > :not(.washer-project-preview) {
+  position: relative;
+  z-index: 1;
+}
+
 .washer-project-label {
   color: rgb(255 255 255 / 0.76);
   font-size: clamp(0.56rem, 0.72vw, 0.75rem);
@@ -1113,6 +1128,12 @@
     text-align: left;
     box-shadow: var(--shadow-control-raised);
     backdrop-filter: none;
+  }
+
+  .washer-project-preview {
+    inset: 5% 2% 5% 48%;
+    max-width: 50%;
+    opacity: 0.38;
   }
 
   .washer-project-label,

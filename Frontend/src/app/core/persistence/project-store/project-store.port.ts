@@ -30,6 +30,8 @@ export interface ProjectStore {
   open(id: string): Promise<ProjectDocument | undefined>;
   openRecord?(id: string): Promise<ProjectRecord | undefined>;
   save(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void>;
+  savePreview(projectId: string, updatedAt: string, preview: Blob): Promise<void>;
+  openPreview(projectId: string, expectedUpdatedAt: string): Promise<Blob | undefined>;
   saveEditorSettings?(projectId: string, settings: EditorSettings): Promise<void>;
   delete(id: string): Promise<void>;
   list(): Promise<readonly ProjectSummary[]>;

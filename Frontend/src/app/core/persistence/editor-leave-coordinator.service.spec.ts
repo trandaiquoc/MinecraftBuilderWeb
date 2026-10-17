@@ -1,3 +1,4 @@
+import { ErrorHandler } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssetActivityService } from '../assets/asset-activity.service';
@@ -18,12 +19,14 @@ describe('EditorLeaveCoordinator', () => {
   };
   const activity = { hasProtectedOperation: vi.fn(() => false) };
   const dialogs = { confirm: vi.fn(async () => true) };
+  const errorHandler = { handleError: vi.fn() };
 
   beforeEach(() => {
     state.dirty = false;
     autosave.flush.mockClear();
     activity.hasProtectedOperation.mockReturnValue(false);
     dialogs.confirm.mockClear();
+    errorHandler.handleError.mockReset();
     TestBed.configureTestingModule({
       providers: [
         EditorLeaveCoordinator,
@@ -31,6 +34,7 @@ describe('EditorLeaveCoordinator', () => {
         { provide: AssetActivityService, useValue: activity },
         { provide: DialogService, useValue: dialogs },
         { provide: I18nService, useValue: { t: (key: string) => key } },
+        { provide: ErrorHandler, useValue: errorHandler },
       ],
     });
   });
@@ -82,5 +86,34 @@ describe('EditorLeaveCoordinator', () => {
     activity.hasProtectedOperation.mockReturnValue(true);
     await expect(TestBed.inject(EditorLeaveCoordinator).canLeave()).resolves.toBe(true);
     expect(dialogs.confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('captures a project preview after route leave checks allow navigation', async () => {
+    const coordinator = TestBed.inject(EditorLeaveCoordinator);
+    const capture = vi.fn(async () => undefined);
+    coordinator.registerProjectPreviewCapture(capture);
+
+    await expect(coordinator.canLeave()).resolves.toBe(true);
+    expect(capture).toHaveBeenCalledOnce();
+  });
+
+  it('does not capture when the user stays during a protected operation', async () => {
+    activity.hasProtectedOperation.mockReturnValue(true);
+    dialogs.confirm.mockResolvedValue(false);
+    const coordinator = TestBed.inject(EditorLeaveCoordinator);
+    const capture = vi.fn(async () => undefined);
+    coordinator.registerProjectPreviewCapture(capture);
+
+    await expect(coordinator.canLeave()).resolves.toBe(false);
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('reports capture failures without blocking route leave', async () => {
+    const error = new Error('capture failed');
+    const coordinator = TestBed.inject(EditorLeaveCoordinator);
+    coordinator.registerProjectPreviewCapture(() => Promise.reject(error));
+
+    await expect(coordinator.canLeave()).resolves.toBe(true);
+    expect(errorHandler.handleError).toHaveBeenCalledWith(error);
   });
 });

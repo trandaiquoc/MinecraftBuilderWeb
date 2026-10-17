@@ -336,6 +336,10 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   fitStructure(): void {
     this.engine.fitStructure();
   }
+  captureProjectPreview(): Promise<Blob | undefined> {
+    if (!this.viewportMounted || !this.viewportActive()) return Promise.resolve(undefined);
+    return this.engine.captureProjectPreview();
+  }
   rendererDiagnostics(): ViewportOwnershipDiagnostics {
     return this.engine.rendererOwnershipDiagnostics();
   }

@@ -11,7 +11,7 @@ remaining scope; it is not a full application acceptance report.
   the language/theme/settings controls and local status rendered as real DOM.
 - Recent projects appear as real selectable entries on the wooden board. The
   washer shows the selected project's name, Minecraft version, structure mode,
-  dimensions, and Open action. It does not imply a project screenshot.
+  dimensions, and Open action, with a cached capture when one is available.
 - On wide desktop, the unchanged official logo sits above the washer in the
   scene's open wall area. The board arranges real project summaries as cards;
   the layout reduces to one column when the board is narrow. Local search
@@ -42,11 +42,15 @@ Dark uses cool-lit versions of the same characters so their lighting fits the
 moonlit scene.
 
 The project board reads lightweight summary records while full structure data
-stays in separate project records. No cached project-capture source exists, and
-generating thumbnails would need a preview pipeline that avoids opening and
-rendering every full structure during list load. The board and washer therefore
-show real project metadata and no fabricated preview. Revisit real thumbnails
-when a suitable capture pipeline exists.
+stays in separate project records. On an approved route leave from the 3D
+workspace, the already-mounted viewport captures a 256 x 144 image and stores it
+in a separate IndexedDB preview store. Home loads only the selected project's
+preview and shows it in the washer when its project timestamp still matches.
+Saving the canonical project invalidates its preview in the same transaction;
+previews do not enter project JSON, backups, exports, or summary records. Empty
+projects, Y-Layer exits, stale captures, and unavailable captures show no image.
+The project board remains metadata-only and never opens or renders every full
+structure during list load.
 
 ## Browser Evidence
 
@@ -68,16 +72,17 @@ checks that the narrow import preview opens with its heading focused before
 the create and cancel actions.
 
 Visual review covers the current empty and populated board compositions, the
-selected card in four themes, and the narrow selected state. Full Homepage
-acceptance remains open while the project cards lack real structure previews;
-the project summary store has no cached capture, and rendering every full
-structure during board load would compromise initial performance. No preview is
-fabricated. Search/sort, project creation, and opening a saved project have
-also been exercised in the local browser profile.
+selected card in four themes, the narrow selected state, and the actual selected
+project preview. Search/sort, project creation, and opening a saved project
+have also been exercised in the local browser profile.
 
 The [independent mascot motion review](evidence/20261017-project-screen-mascots/README.md)
 checks the two separate character layers across the four themes, at a narrow
 viewport, and with reduced motion enabled.
+
+The [real project preview review](evidence/20261017-project-preview/README.md)
+checks the selected washer preview captured from the mounted 3D workspace, its
+timestamp-matched IndexedDB record, and its desktop and narrow-screen display.
 
 ## Interaction Research
 

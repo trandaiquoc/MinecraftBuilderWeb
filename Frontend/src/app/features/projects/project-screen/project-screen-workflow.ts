@@ -77,6 +77,10 @@ export class ProjectScreenWorkflow {
     }
   }
 
+  loadProjectPreview(projectId: string, updatedAt: string): Promise<Blob | undefined> {
+    return this.persistence.openPreview(projectId, updatedAt);
+  }
+
   async createProject(input: NewProjectInput): Promise<void> {
     const guard = projectCreationGuard(
       this.projectCreationInProgress(),

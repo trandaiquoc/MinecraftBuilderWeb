@@ -39,6 +39,7 @@ import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block
 import { PROJECT_STORE } from '../../../core/persistence/project-store/project-store.token';
 import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
 import { ProjectDeletionService } from '../../../core/persistence/project-deletion.service';
+import { EditorLeaveCoordinator } from '../../../core/persistence/editor-leave-coordinator.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/editor-layout-preferences.service';
 import { EditorSidebarResizeSession } from './editor-sidebar-resize-session';
@@ -133,10 +134,14 @@ export class EditorShellComponent implements OnDestroy {
   private readonly dialogs = inject(DialogService);
   private readonly editor = inject(StructureEditorService);
   private readonly router = inject(Router);
+  private readonly leaveCoordinator = inject(EditorLeaveCoordinator);
   private readonly library = inject(BlockLibraryService);
   private readonly projectDeletion = inject(ProjectDeletionService);
   private readonly threeDViewport = viewChild(ViewportComponent);
   private readonly yLayerViewport = viewChild(YLayerComponent);
+  private readonly unregisterPreviewCapture = this.leaveCoordinator.registerProjectPreviewCapture(
+    () => this.captureProjectPreviewBeforeLeaving(),
+  );
   protected readonly selectedDecoration = this.decorations.selected;
   protected readonly logicalSelectionCount = computed(() =>
     this.selection.count(this.workspace.project()),
@@ -209,6 +214,7 @@ export class EditorShellComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.sidebarResize.end();
     this.clearPressedMovementActions();
+    this.unregisterPreviewCapture();
     void this.autosave.flush().catch(() => undefined);
   }
 
@@ -445,6 +451,30 @@ export class EditorShellComponent implements OnDestroy {
   }
   protected async navigateToProjects(): Promise<void> {
     await this.router.navigateByUrl('/');
+  }
+
+  private async captureProjectPreviewBeforeLeaving(): Promise<void> {
+    const projectId = this.workspace.project()?.id;
+    const project = this.workspace.project();
+    if (
+      !projectId ||
+      this.mode.mode() !== '3d' ||
+      project?.id !== projectId ||
+      this.autosave.dirty()
+    )
+      return;
+
+    const preview = await this.threeDViewport()?.captureProjectPreview();
+    const currentProject = this.workspace.project();
+    if (
+      !preview ||
+      this.mode.mode() !== '3d' ||
+      currentProject?.id !== projectId ||
+      this.autosave.dirty()
+    )
+      return;
+
+    await this.projectStore.savePreview(projectId, currentProject.metadata.updatedAt, preview);
   }
   protected async saveProject(): Promise<void> {
     try {

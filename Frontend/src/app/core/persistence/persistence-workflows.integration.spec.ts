@@ -130,6 +130,25 @@ describe('local persistence helpers', () => {
     expect(await persistence.exists('missing')).toBe(false);
   });
 
+  it('keeps project previews separate from project data and rejects stale captures', async () => {
+    const store = new MemoryProjectStore();
+    await store.create(project);
+    const preview = new Blob(['preview'], { type: 'image/webp' });
+
+    await store.savePreview(project.id, project.metadata.updatedAt, preview);
+    expect(await store.openPreview(project.id, project.metadata.updatedAt)).toBe(preview);
+    expect(await store.openPreview(project.id, 'older-revision')).toBeUndefined();
+
+    const changed = {
+      ...project,
+      metadata: { ...project.metadata, updatedAt: '2026-01-02T00:00:00Z' },
+    };
+    await store.save(changed);
+    expect(await store.openPreview(project.id, changed.metadata.updatedAt)).toBeUndefined();
+    await store.savePreview(project.id, project.metadata.updatedAt, preview);
+    expect(await store.openPreview(project.id, changed.metadata.updatedAt)).toBeUndefined();
+  });
+
   it('keeps summary migration independent from full project documents', () => {
     expect(
       projectSummaryFromStoredRecord({
@@ -599,11 +618,16 @@ class MemoryProjectStore implements ProjectStore {
   protected readonly projects = new Map<string, ProjectDocument>();
   private readonly recovery = new Map<string, ProjectDocument>();
   private readonly editorSettings = new Map<string, ProjectDocument['editorSettings']>();
+  private readonly previews = new Map<
+    string,
+    { readonly updatedAt: string; readonly blob: Blob }
+  >();
   editorSettingsSaves = 0;
   fullProjectSaves = 0;
   async create(value: ProjectDocument): Promise<void> {
     this.projects.set(value.id, structuredClone(value));
     this.editorSettings.set(value.id, structuredClone(value.editorSettings));
+    this.previews.delete(value.id);
   }
   async exists(id: string): Promise<boolean> {
     return this.projects.has(id);
@@ -621,6 +645,15 @@ class MemoryProjectStore implements ProjectStore {
     this.fullProjectSaves += 1;
     this.projects.set(value.id, structuredClone(value));
     this.editorSettings.set(value.id, structuredClone(value.editorSettings));
+    this.previews.delete(value.id);
+  }
+  async savePreview(id: string, updatedAt: string, blob: Blob): Promise<void> {
+    if (this.projects.get(id)?.metadata.updatedAt === updatedAt)
+      this.previews.set(id, { updatedAt, blob });
+  }
+  async openPreview(id: string, expectedUpdatedAt: string): Promise<Blob | undefined> {
+    const preview = this.previews.get(id);
+    return preview?.updatedAt === expectedUpdatedAt ? preview.blob : undefined;
   }
   async saveEditorSettings(id: string, settings: ProjectDocument['editorSettings']): Promise<void> {
     this.editorSettingsSaves += 1;
@@ -630,6 +663,7 @@ class MemoryProjectStore implements ProjectStore {
     this.projects.delete(id);
     this.editorSettings.delete(id);
     this.recovery.delete(id);
+    this.previews.delete(id);
   }
   async list(): Promise<readonly ProjectSummary[]> {
     return [...this.projects.values()].map((value) => ({
