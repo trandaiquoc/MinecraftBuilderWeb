@@ -14,6 +14,9 @@ acceptance for later changes.
 The current desktop sidebar composition has a focused before/after capture in
 [the 2026-10-17 comparison](20261017-sidebar-composition/README.md). The Block
 Browser list composition has its own [four-theme and narrow viewport evidence](20261017-block-browser-list/README.md).
+The [Decorations picker review](20261017-decoration-picker/README.md) compares
+the painting picker before and after removing its repeated selected preview,
+and records selected feedback, a no-results search, and the narrow drawer.
 The [Groups panel review](20261017-groups-panel/README.md) covers empty and
 populated states, the Minecraft and Dark themes, and the narrow drawer.
 The [Selection inspector hierarchy comparison](20261017-selection-inspector-hierarchy/README.md)

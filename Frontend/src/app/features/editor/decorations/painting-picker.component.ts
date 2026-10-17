@@ -36,21 +36,15 @@ export class PaintingPickerComponent {
       `${entry.width}x${entry.height}`,
     ]);
   });
-  protected selectedVariant(): PaintingVariant | undefined {
-    const selected = this.catalog.get(this.selectedId());
-    return selected &&
-      (this.sourceId() === ALL_CONTENT_SOURCE ||
-        (selected.sourceId ?? 'vanilla') === this.sourceId())
-      ? selected
-      : undefined;
-  }
-  protected imageSize(
-    variant: PaintingVariant,
-    stage: 'card' | 'selected',
-  ): { readonly width: number; readonly height: number } {
+  protected imageSize(variant: PaintingVariant): {
+    readonly width: number;
+    readonly height: number;
+  } {
     const sourceWidth = variant.width * 16;
     const sourceHeight = variant.height * 16;
-    const [stageWidth, stageHeight, maxScale] = stage === 'selected' ? [160, 160, 8] : [112, 72, 4];
+    const stageWidth = 112;
+    const stageHeight = 72;
+    const maxScale = 4;
     const scale = Math.max(
       1,
       Math.min(

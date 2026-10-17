@@ -5,7 +5,9 @@
 Workspace visual acceptance is still pending. Current browser captures show
 the sidebar composition, Block Browser list, Groups panel, Selection inspector
 hierarchy, and the viewport starter card in 3D and Y-Layer across all four
-themes. The [Groups panel review](evidence/20261017-groups-panel/README.md)
+themes. The [Decorations picker review](evidence/20261017-decoration-picker/README.md)
+checks the painting catalog, selected-state feedback, no-results message, and
+narrow drawer. The [Groups panel review](evidence/20261017-groups-panel/README.md)
 records the empty state, a selected two-block group in Dark and Minecraft, and
 the narrow Dark drawer. The
 [starter-card review](evidence/20261017-viewport-empty-starter/README.md) also

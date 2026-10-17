@@ -13,24 +13,10 @@
           type="search"
           [value]="query()"
           [placeholder]="i18n.t('searchPaintings')"
+          [attr.aria-label]="i18n.t('searchPaintings')"
           (input)="updateQuery($event)"
         />
       </div>
-      @if (selectedVariant(); as selected) {
-        <div class="selected-painting-preview">
-          <span class="selected-painting-stage"
-            ><img
-              [src]="imageUrl(selected)"
-              [alt]="label(selected.id)"
-              [style.width.px]="imageSize(selected, 'selected').width"
-              [style.height.px]="imageSize(selected, 'selected').height"
-          /></span>
-          <span
-            ><strong>{{ label(selected.id) }}</strong
-            ><small>{{ selected.width }} &times; {{ selected.height }}</small></span
-          >
-        </div>
-      }
       <div class="painting-grid" role="group" [attr.aria-label]="i18n.t('paintingVariants')">
         @for (variant of filteredVariants(); track variant.id) {
           <button
@@ -44,8 +30,8 @@
               ><img
                 [src]="imageUrl(variant)"
                 [alt]="label(variant.id)"
-                [style.width.px]="imageSize(variant, 'card').width"
-                [style.height.px]="imageSize(variant, 'card').height"
+                [style.width.px]="imageSize(variant).width"
+                [style.height.px]="imageSize(variant).height"
                 loading="lazy"
             /></span>
             @if (variant.id === selectedId()) {
@@ -60,6 +46,8 @@
               ><small>{{ variant.width }} &times; {{ variant.height }}</small></span
             >
           </button>
+        } @empty {
+          <p class="painting-empty-state">{{ i18n.t('noPaintingMatches') }}</p>
         }
       </div>
     </div>
@@ -71,23 +59,9 @@
       type="search"
       [value]="query()"
       [placeholder]="i18n.t('searchPaintings')"
+      [attr.aria-label]="i18n.t('searchPaintings')"
       (input)="updateQuery($event)"
   /></label>
-  @if (selectedVariant(); as selected) {
-    <div class="selected-painting-preview">
-      <span class="selected-painting-stage"
-        ><img
-          [src]="imageUrl(selected)"
-          [alt]="label(selected.id)"
-          [style.width.px]="imageSize(selected, 'selected').width"
-          [style.height.px]="imageSize(selected, 'selected').height"
-      /></span>
-      <span
-        ><strong>{{ label(selected.id) }}</strong
-        ><small>{{ selected.width }} &times; {{ selected.height }}</small></span
-      >
-    </div>
-  }
   <div class="painting-grid" role="group" [attr.aria-label]="i18n.t('paintingVariants')">
     @for (variant of filteredVariants(); track variant.id) {
       <button
@@ -101,8 +75,8 @@
           ><img
             [src]="imageUrl(variant)"
             [alt]="label(variant.id)"
-            [style.width.px]="imageSize(variant, 'card').width"
-            [style.height.px]="imageSize(variant, 'card').height"
+            [style.width.px]="imageSize(variant).width"
+            [style.height.px]="imageSize(variant).height"
             loading="lazy"
         /></span>
         @if (variant.id === selectedId()) {
@@ -115,6 +89,8 @@
           ><small>{{ variant.width }} &times; {{ variant.height }}</small></span
         >
       </button>
+    } @empty {
+      <p class="painting-empty-state">{{ i18n.t('noPaintingMatches') }}</p>
     }
   </div>
 }
