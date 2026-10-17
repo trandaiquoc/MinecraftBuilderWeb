@@ -23,10 +23,10 @@ The earlier screenshots in `evidence/` were captured from the running Angular Wo
 
 | File                               | Theme               |
 | ---------------------------------- | ------------------- |
-| `evidence/workspace-minecraft.png` | Minecraft (`craft`) |
-| `evidence/workspace-raccoon.png`   | Raccoon             |
-| `evidence/workspace-light.png`     | Light               |
-| `evidence/workspace-dark.png`      | Dark                |
+| [workspace-minecraft.png](evidence/workspace-minecraft.png) | Minecraft (`craft`) |
+| [workspace-raccoon.png](evidence/workspace-raccoon.png)     | Raccoon             |
+| [workspace-light.png](evidence/workspace-light.png)         | Light               |
+| [workspace-dark.png](evidence/workspace-dark.png)           | Dark                |
 
 The latest navigation pass has a separate 1600 x 1200 set; all four captures use identical viewport dimensions and application state. The approved source frames are 1600 x 1280. The captures use the same 16 x 16 x 16 Java 1.21.1 project, single placed Stone block, camera, Comfortaa/Normal font, 230/230 px sidebars, English locale, and selected Blocks tab. They are browser output, not design references.
 
@@ -141,10 +141,10 @@ The narrow-sidebar empty-state captures use the same new 16 x 16 x 16 project, e
 
 | File                                            | Theme               |
 | ----------------------------------------------- | ------------------- |
-| `evidence/workspace-empty-narrow-minecraft.png` | Minecraft (`craft`) |
-| `evidence/workspace-empty-narrow-light.png`     | Light               |
-| `evidence/workspace-empty-narrow-raccoon.png`   | Raccoon             |
-| `evidence/workspace-empty-narrow-dark.png`      | Dark                |
+| [workspace-empty-narrow-minecraft.png](evidence/workspace-empty-narrow-minecraft.png) | Minecraft (`craft`) |
+| [workspace-empty-narrow-light.png](evidence/workspace-empty-narrow-light.png)         | Light               |
+| [workspace-empty-narrow-raccoon.png](evidence/workspace-empty-narrow-raccoon.png)     | Raccoon             |
+| [workspace-empty-narrow-dark.png](evidence/workspace-empty-narrow-dark.png)           | Dark                |
 
 ## Stitch comparison
 
@@ -152,7 +152,7 @@ The implementation retains the approved docked-workbench hierarchy: application 
 
 This pass improves state and interaction fidelity, but is not a full composition match yet. The Stitch frame shows a one-column block list and a larger summary/quick-actions inspector; the current app keeps its existing virtualized two-column catalog and state-driven inspector. The mock also depicts grid/snap controls, version/telemetry counters, and a 108K-block sample structure that are not equivalent to existing live controls/data, so they were deliberately not fabricated. The screenshot set is a same-state theme comparison, not a pixel-controlled A/B against the mock content.
 
-`evidence/workspace-before.png` is the browser capture before this interaction pass; `evidence/workspace-after-dark-comparable.png` is the post-pass empty-project capture. Both use a 1600 x 857 viewport and the restored 180/200 px sidebar widths. These are useful visual checkpoints, not a pixel-controlled A/B: the active placement and catalog scroll state differ. The four real test placements, temporary theme changes, and temporary layout widths were reverted after capture; the persisted theme, widths, and project block count were verified in the browser.
+[workspace-before.png](evidence/workspace-before.png) is the browser capture before this interaction pass; [workspace-after-dark-comparable.png](evidence/workspace-after-dark-comparable.png) is the post-pass empty-project capture. Both use a 1600 x 857 viewport and the restored 180/200 px sidebar widths. These are useful visual checkpoints, not a pixel-controlled A/B: the active placement and catalog scroll state differ. The four real test placements, temporary theme changes, and temporary layout widths were reverted after capture; the persisted theme, widths, and project block count were verified in the browser.
 
 The Import Structure JSON dialog was also exercised in Chrome at 780 x 437 and 640 x 520 with a long 210-block validation result. At 780 px the validation preview owns its scroll; at 640 px the stacked import layout owns page scrolling and the source textarea retains its own scroll after it is brought into view. The fixed dialog footer remained within the viewport and Import Mode could be reached. Create with AI was checked at both sizes across Description, Available content, Content limits, AI guidance, and JSON example; wheel input advanced the active scroll owner to its end and the long Description draft remained intact across tab changes. The browser used an empty imported-mod catalog, so populated third-party mod content was not part of that smoke run.
 

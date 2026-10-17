@@ -8,6 +8,7 @@ The approved Stitch frames are stored separately under
 
 - [Screenshots, test notes, and browser measurements](current-run-20261017/README.md)
 - [Workspace UI acceptance inventory](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md)
+- [Earlier root-level browser captures and theme comparisons](../README.md)
 
 ## Updating the archive
 
