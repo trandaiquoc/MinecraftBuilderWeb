@@ -688,6 +688,79 @@ y=323 to 365. Native Tab traversal from Create with AI also reaches the
 selected Available content tab with the same visible focus and scroll position.
 The screenshots record both paths and the persistent dialog footer.
 
+## External AI tabs at 320 px
+
+At 320 x 520, the five equal-width English tabs overlapped their labels. The
+inner tab strip now uses content-sized grid tracks and horizontal scrolling;
+the component's existing focus scrolling keeps the selected tab visible. The
+English labels scroll within the strip, while Vietnamese labels fit without
+horizontal scrolling. At 390 x 520, all five labels fit in the visible strip.
+The dialog footer remains reachable, and the document itself has no horizontal
+overflow.
+
+The browser sent Home and ArrowRight through all five tabs. Each focused tab
+remained inside the strip, its text stayed within the button, and the visible
+focus indicator followed keyboard focus. The 24-state Normal matrix covers all
+four themes, three fonts, and both locales at 320 x 520. Comfortaa/Dark/English
+was also checked at Small and Large text sizes. English requires strip
+scrolling at 320 px; Vietnamese does not.
+
+### Before and after captures
+
+| State | Screenshot |
+| --- | --- |
+| Before, initial 320 x 520 view | [workspace-external-ai-before-dark-en-320x520-20261017.png](workspace-external-ai-before-dark-en-320x520-20261017.png) |
+| Before, overlapping tabs after keyboard focus, 320 x 520 | [workspace-external-ai-before-last-tab-focus-dark-en-320x520-20261017.png](workspace-external-ai-before-last-tab-focus-dark-en-320x520-20261017.png) |
+| Before, 390 x 520 | [workspace-external-ai-before-dark-en-390x520-20261017.png](workspace-external-ai-before-dark-en-390x520-20261017.png) |
+| Before, Description, 320 x 520 | [workspace-external-ai-description-dark-en-320x520-keyboard-20261017.png](workspace-external-ai-description-dark-en-320x520-keyboard-20261017.png) |
+| Before, Available content, 320 x 520 | [workspace-external-ai-available-content-dark-en-320x520-keyboard-20261017.png](workspace-external-ai-available-content-dark-en-320x520-keyboard-20261017.png) |
+| Before, Content limits, 320 x 520 | [workspace-external-ai-content-limits-dark-en-320x520-keyboard-20261017.png](workspace-external-ai-content-limits-dark-en-320x520-keyboard-20261017.png) |
+| Before, AI guidance, 320 x 520 | [workspace-external-ai-ai-guidance-dark-en-320x520-keyboard-20261017.png](workspace-external-ai-ai-guidance-dark-en-320x520-keyboard-20261017.png) |
+| Before, JSON example, 320 x 520 | [workspace-external-ai-json-example-dark-en-320x520-keyboard-20261017.png](workspace-external-ai-json-example-dark-en-320x520-keyboard-20261017.png) |
+| After, Description, 320 x 520 | [workspace-external-ai-description-after-dark-en-320x520-keyboard-20261017.png](workspace-external-ai-description-after-dark-en-320x520-keyboard-20261017.png) |
+| After, Available content, 320 x 520 | [workspace-external-ai-available-content-after-dark-en-320x520-keyboard-20261017.png](workspace-external-ai-available-content-after-dark-en-320x520-keyboard-20261017.png) |
+| After, Content limits, 320 x 520 | [workspace-external-ai-content-limits-after-dark-en-320x520-keyboard-20261017.png](workspace-external-ai-content-limits-after-dark-en-320x520-keyboard-20261017.png) |
+| After, AI guidance, 320 x 520 | [workspace-external-ai-ai-guidance-after-dark-en-320x520-keyboard-20261017.png](workspace-external-ai-ai-guidance-after-dark-en-320x520-keyboard-20261017.png) |
+| After, JSON example, 320 x 520 | [workspace-external-ai-json-example-after-dark-en-320x520-keyboard-20261017.png](workspace-external-ai-json-example-after-dark-en-320x520-keyboard-20261017.png) |
+| After, JSON example, 390 x 520 | [workspace-external-ai-json-example-after-dark-en-390x520-keyboard-20261017.png](workspace-external-ai-json-example-after-dark-en-390x520-keyboard-20261017.png) |
+
+### Normal-size matrix, 320 x 520
+
+| Font | Theme | English | Vietnamese |
+| --- | --- | --- | --- |
+| Comfortaa | Minecraft | [Capture](workspace-external-ai-matrix-comfortaa-craft-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-comfortaa-craft-vi-normal-320x520-20261017.png) |
+| Comfortaa | Raccoon | [Capture](workspace-external-ai-matrix-comfortaa-raccoon-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-comfortaa-raccoon-vi-normal-320x520-20261017.png) |
+| Comfortaa | Light | [Capture](workspace-external-ai-matrix-comfortaa-light-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-comfortaa-light-vi-normal-320x520-20261017.png) |
+| Comfortaa | Dark | [Capture](workspace-external-ai-matrix-comfortaa-dark-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-comfortaa-dark-vi-normal-320x520-20261017.png) |
+| Chakra Petch | Minecraft | [Capture](workspace-external-ai-matrix-chakra-petch-craft-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-chakra-petch-craft-vi-normal-320x520-20261017.png) |
+| Chakra Petch | Raccoon | [Capture](workspace-external-ai-matrix-chakra-petch-raccoon-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-chakra-petch-raccoon-vi-normal-320x520-20261017.png) |
+| Chakra Petch | Light | [Capture](workspace-external-ai-matrix-chakra-petch-light-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-chakra-petch-light-vi-normal-320x520-20261017.png) |
+| Chakra Petch | Dark | [Capture](workspace-external-ai-matrix-chakra-petch-dark-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-chakra-petch-dark-vi-normal-320x520-20261017.png) |
+| Pangolin | Minecraft | [Capture](workspace-external-ai-matrix-pangolin-craft-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-pangolin-craft-vi-normal-320x520-20261017.png) |
+| Pangolin | Raccoon | [Capture](workspace-external-ai-matrix-pangolin-raccoon-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-pangolin-raccoon-vi-normal-320x520-20261017.png) |
+| Pangolin | Light | [Capture](workspace-external-ai-matrix-pangolin-light-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-pangolin-light-vi-normal-320x520-20261017.png) |
+| Pangolin | Dark | [Capture](workspace-external-ai-matrix-pangolin-dark-en-normal-320x520-20261017.png) | [Capture](workspace-external-ai-matrix-pangolin-dark-vi-normal-320x520-20261017.png) |
+
+### Extra text-size captures
+
+| Text size | Screenshot |
+| --- | --- |
+| Small, Comfortaa/Dark/English, 320 x 520 | [workspace-external-ai-matrix-comfortaa-dark-en-small-320x520-20261017.png](workspace-external-ai-matrix-comfortaa-dark-en-small-320x520-20261017.png) |
+| Large, Comfortaa/Dark/English, 320 x 520 | [workspace-external-ai-matrix-comfortaa-dark-en-large-320x520-20261017.png](workspace-external-ai-matrix-comfortaa-dark-en-large-320x520-20261017.png) |
+
+### Lucian Labs source review
+
+The source review used Lucian Labs repository commit
+[`7e339faa1cc5e87496cb7ce556a5b22aadbe76f8`](https://github.com/Seokwoooo/lucian-uxui-prompt/tree/7e339faa1cc5e87496cb7ce556a5b22aadbe76f8).
+Its [sliding tabs example](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/7e339faa1cc5e87496cb7ce556a5b22aadbe76f8/src/elements/039-sliding-tabs-pill.html)
+uses roving arrow-key focus and directional transitions. Its pill transition
+does not guard reduced motion, so that animation was not transplanted. The
+[copy-to-check example](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/7e339faa1cc5e87496cb7ce556a5b22aadbe76f8/src/elements/008-copy-to-check.html)
+confirms clipboard feedback as a useful interaction; External AI already has
+success/error feedback and a status announcement. No source code was copied.
+The repository's [MIT license](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/7e339faa1cc5e87496cb7ce556a5b22aadbe76f8/LICENSE)
+was checked.
+
 ## File export dialog close and focus return
 
 This current-run check followed the File menu into both export dialogs. The
@@ -895,6 +968,9 @@ environment. No document-level horizontal overflow was found.
   navigate the outer tabs while preserving a visible focus ring.
 - Home and ArrowRight navigate the nested AI tabs; the focused tab scrolls into
   view at 390 x 520 with no document-level horizontal overflow.
+- External AI tab labels no longer overlap at 320 x 520; the 24-state Normal
+  theme/font/locale matrix and Comfortaa Small/Large checks keep text readable,
+  focus visible, and horizontal scrolling inside the tab strip.
 - Diagnostics starts focus at its heading, uses a neutral close control, and
   labels its render interval as smoothed with idle time included.
 - Diagnostics distinguishes missing and unresolved content errors from the
@@ -963,6 +1039,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 408 distinct PNG captures
-in this archive are linked to files in this folder (409 link occurrences, with
+animated-state and locale matrix remains open. All 448 distinct PNG captures
+in this archive are linked to files in this folder (449 link occurrences, with
 no missing targets or unlinked captures).

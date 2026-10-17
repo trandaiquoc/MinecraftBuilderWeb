@@ -2,8 +2,8 @@
 
 **Status:** in progress. This is a working audit matrix, not a claim that
 Workspace acceptance is complete. Evidence is split between the current
-browser pass and the earlier captures catalogued in
-[Workspace renovation evidence](README.md).
+browser pass and the earlier captures catalogued in the
+[Workspace browser evidence archive](evidence/README.md).
 
 ## Rating key
 
@@ -27,7 +27,7 @@ browser pass and the earlier captures catalogued in
 | Quick Bar and Status Bar                                          | Expanded and collapsed Quick Bar captured in Dark; no layout change across four themes                     | Enter collapses/expands without losing focus; 390×520 and Vietnamese 320×520 footer fit without horizontal overflow          | `aria-expanded` tracks the Quick Bar; save status announces Saved, Saving, and Save error politely in EN/VI                     | Low                        | [Current collapse screenshot and announcement checks](evidence/current-run-20261017/README.md); add/remove of Stone remains verified    |
 | Settings: General, Appearance, Controls, Shortcuts, Accessibility | All five sections and Workspace Background captured in Dark                                                | Desktop and 640×520/390×520 dialog layout captured; initial focus starts at General                                         | Escape closes an open select only; Tab dismisses its popup and continues through Settings; the dialog stays open              | Medium                     | [Current select and keyboard evidence](evidence/current-run-20261017/README.md) plus earlier section captures                         |
 | Structure JSON import/export                                      | Round trip, error recovery, initial focus, and keyboard tab switching captured in Dark                     | Two-block round trip and valid retry verified; footer remains visible at 390 x 520; invalid input cannot be applied         | Errors use role=alert; outer Arrow/Home/End navigation; Escape restores File focus                                            | Medium                     | [Current round-trip evidence](evidence/current-run-20261017/README.md); NBT import is not exposed by the File menu                    |
-| Create with AI / External AI                                      | Existing panels and five tabs recorded                                                                     | Keyboard tab selection and copy success verified; mobile focus scrolls into view at 390 x 520                               | Inner Arrow/Home/End navigation and visible focus verified; reduced motion remains to recheck                                 | Medium                     | [Current keyboard evidence](evidence/current-run-20261017/README.md); earlier interaction notes in [README](README.md)                |
+| Create with AI / External AI                                      | Five inner tabs remain readable after the 320 px label-overlap fix                                         | At 320×520, English uses horizontal scrolling and Vietnamese fits without it; all five labels fit at 390×520; footer stays reachable | Home/ArrowRight reaches all five tabs with visible focus and auto-scroll; Normal checked across 4 themes × 3 fonts × EN/VI; reduced motion and full content/action review remain open | Low | [External AI narrow-tab evidence](evidence/current-run-20261017/README.md#external-ai-tabs-at-320-px) |
 | NBT / Datapack export                                             | Both download modes captured in Dark; datapack also captured at 390 x 520                                  | Two-block ZIP and standalone NBT downloaded and decoded; fixed footer remains visible on mobile                             | Close returns focus to File; recheck validation announcements; Minecraft load remains pending                                 | Medium                     | [Current decoded exports](evidence/current-run-20261017/README.md); golden fixture is codec-tested                                    |
 | Asset Manager and Mod Import                                      | Vanilla and empty Mods tabs plus help overlay captured in Dark                                               | 1600 x 900 and 390 x 520 layouts fit; dialog scrolls internally with no horizontal overflow                                 | Help opens on first click; blur, Escape, and outside click dismiss it without closing the dialog                              | High                       | [Current tab and help-overlay evidence](evidence/current-run-20261017/README.md); loading/error recovery and trusted mod JAR fixture remain open |
 | Project Diagnostics                                               | Expanded mixed findings captured across all four themes; compatibility remains grouped and collapsed by default | Errors, a real partial-behavior warning, and unknown-behavior info stay distinct; filters announce matching counts      | Placement validity is not inferred from behavior coverage; browser cases and current UI contract recorded                    | High                       | [Current Diagnostics captures](evidence/current-run-20261017/README.md); no placement-validity finding is defined in this report      |
@@ -43,6 +43,7 @@ browser pass and the earlier captures catalogued in
 
 | Area | Result | Evidence |
 | --- | --- | --- |
+| Create with AI / External AI tabs | Fixed overlapping English tab labels at 320×520; all five tabs keep visible keyboard focus across the 24-state Normal matrix, with extra Small/Large checks | [External AI narrow-tab evidence](evidence/current-run-20261017/README.md#external-ai-tabs-at-320-px) |
 | Settings Appearance inner tabs | Verified one tab stop, ArrowLeft/Right wrapping, Home/End, Tab into the selected panel, and visible focus across all four themes and both locales | [Appearance tab captures and browser notes](evidence/current-run-20261017/README.md#settings-appearance-tab-keyboard-navigation) |
 | Structure JSON and Minecraft Structure export dialogs | Escape closes each dialog and restores visible focus to File; NBT dialog scrolls internally with its footer visible | [Current export dialog flow and focus return](evidence/current-run-20261017/README.md#file-export-dialog-close-and-focus-return) |
 | Application menu keyboard navigation | Arrow keys move sequentially and wrap; Home/End jump to the ends; Tab dismisses the popup; Escape returns visible focus to the trigger | [Application menu keyboard evidence](evidence/current-run-20261017/README.md#application-menu-keyboard-navigation) |
@@ -108,13 +109,17 @@ browser pass and the earlier captures catalogued in
 - Populated Block Usage was checked with one Stone and with Stone plus Oak
   Stairs; totals, unique types, missing count, exact IDs, and percentage shares
   matched the synthetic project's contents.
+- External AI inner tabs now size to their labels and scroll horizontally when
+  needed at 320 px; the existing keyboard-focus scrolling keeps the selected
+  tab visible without adding document-level horizontal overflow.
 
 The 45 functional-reference screenshots mentioned in the project objective
 were not present in the repository or attached files. The user confirmed to
 continue from source and existing documentation, so this matrix records that
 gap rather than inventing reference behavior. Full Workspace acceptance is
-still open, including a trusted mod JAR fixture, External AI, diagnostics, the
-remaining theme/locale/font combinations, keyboard traversal through longer
+still open, including a trusted mod JAR fixture, the remaining External AI
+content/action/error and reduced-motion audit, diagnostics, the remaining
+theme/locale/font combinations, keyboard traversal through longer
 virtualized lists, and reduced motion. The repository contains the independent
 Java 1.21.1 NBT fixture at
 `Frontend/src/app/core/persistence/minecraft-structure/fixtures/golden_1_21_1.nbt`;

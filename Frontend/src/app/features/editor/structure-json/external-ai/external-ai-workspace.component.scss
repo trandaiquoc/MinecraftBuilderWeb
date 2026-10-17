@@ -119,10 +119,12 @@
 }
 .ai-inner-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(min-content, 1fr));
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
 }
 .ai-inner-tabs button {
-  padding: 0.4rem 0.6rem;
+  padding: 0.4rem 0.25rem;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;

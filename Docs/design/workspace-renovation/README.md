@@ -2,6 +2,7 @@
 
 ## Current run — 2026-10-17
 
+- [Workspace browser evidence archive and update guide](evidence/README.md)
 - [Current browser screenshots and notes](evidence/current-run-20261017/README.md)
 - [Workspace UI acceptance inventory](WORKSPACE-UI-ACCEPTANCE-INVENTORY.md)
 
