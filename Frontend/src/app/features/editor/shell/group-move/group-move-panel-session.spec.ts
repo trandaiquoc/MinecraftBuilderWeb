@@ -10,8 +10,8 @@ function setup() {
     rightSidebarVisible: true,
     quickBarVisible: true,
     statusBarVisible: true,
-    leftSidebarWidth: 260,
-    rightSidebarWidth: 230,
+    leftSidebarWidth: 360,
+    rightSidebarWidth: 400,
   });
   const layout = {
     preferences,

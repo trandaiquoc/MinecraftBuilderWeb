@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EditorLayoutPreferences } from '../../../core/ui/preferences/editor-layout-preferences.service';
 import { EditorSidebarResizeSession } from './editor-sidebar-resize-session';
 
-function setup(width = 1000) {
+function setup(width = 1600) {
   const viewportWidth = signal(width);
   const preferences = signal<EditorLayoutPreferences>({
     editorToolbarVisible: true,
@@ -11,8 +11,8 @@ function setup(width = 1000) {
     rightSidebarVisible: true,
     quickBarVisible: true,
     statusBarVisible: true,
-    leftSidebarWidth: 260,
-    rightSidebarWidth: 230,
+    leftSidebarWidth: 360,
+    rightSidebarWidth: 400,
   });
   const layout = {
     preferences,
@@ -43,15 +43,15 @@ describe('EditorSidebarResizeSession', () => {
       clientX: 140,
       preventDefault: vi.fn(),
     } as unknown as PointerEvent);
-    expect(session.effectiveWidth('left')).toBe(300);
-    expect(preferences().leftSidebarWidth).toBe(260);
+    expect(session.effectiveWidth('left')).toBe(400);
+    expect(preferences().leftSidebarWidth).toBe(360);
     session.end({ pointerId: 3 } as PointerEvent);
-    expect(preferences().leftSidebarWidth).toBe(300);
-    expect(session.effectiveWidth('left')).toBe(300);
+    expect(preferences().leftSidebarWidth).toBe(400);
+    expect(session.effectiveWidth('left')).toBe(400);
   });
 
   it('clamps against minimum widths and the usable center viewport', () => {
-    const { session } = setup(850);
+    const { session } = setup(1000);
     const event = {
       button: 0,
       pointerId: 1,
@@ -66,7 +66,7 @@ describe('EditorSidebarResizeSession', () => {
       clientX: 500,
       preventDefault: vi.fn(),
     } as unknown as PointerEvent);
-    expect(session.effectiveWidth('left')).toBe(300);
+    expect(session.effectiveWidth('left')).toBe(280);
     session.reset();
     const shrink = { ...event, pointerId: 2, clientX: 200 } as PointerEvent;
     session.begin('right', shrink);
@@ -82,16 +82,16 @@ describe('EditorSidebarResizeSession', () => {
     const { session, preferences } = setup();
     const keyEvent = { key: 'ArrowRight', preventDefault: vi.fn() } as unknown as KeyboardEvent;
     session.adjust('left', keyEvent);
-    expect(preferences().leftSidebarWidth).toBe(276);
+    expect(preferences().leftSidebarWidth).toBe(376);
     preferences.update((current) => ({ ...current, rightSidebarVisible: false }));
-    expect(session.gridTemplate()).toBe('276px minmax(0, 1fr)');
+    expect(session.gridTemplate()).toBe('376px minmax(0, 1fr)');
   });
 
   it('reports the current allowed resize range for each sidebar', () => {
     const { session } = setup(1000);
 
-    expect(session.resizeRange('left')).toEqual({ min: 180, max: 450, value: 260 });
-    expect(session.resizeRange('right')).toEqual({ min: 200, max: 420, value: 230 });
+    expect(session.resizeRange('left')).toEqual({ min: 180, max: 280, value: 280 });
+    expect(session.resizeRange('right')).toEqual({ min: 200, max: 400, value: 400 });
   });
 
   it('constrains sidebar columns to the viewport without changing saved widths', () => {

@@ -36,6 +36,10 @@ describe('UiPreferencesService', () => {
       groundPreset: 'plains-grass',
       skyPreset: 'overworld-day',
     });
+    expect(preferences.preferences().layout).toMatchObject({
+      leftSidebarWidth: 360,
+      rightSidebarWidth: 400,
+    });
     expect(preferences.preferences().controls.zoomSensitivity).toBe(2);
     expect(preferences.preferences().controls.cameraMoveSpeed).toBe(15);
     expect(preferences.preferences().controls.verticalMoveSpeed).toBe(9);

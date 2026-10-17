@@ -1,7 +1,8 @@
 # Workspace Browser Evidence
 
-This index points to selected historical browser evidence. The captures predate
-commit ed7b1a5 and do not establish visual acceptance for later changes.
+This index separates historical captures from current implementation evidence.
+The dated archives predate commit ed7b1a5 and do not establish visual
+acceptance for later changes.
 
 ## Dated archives
 
@@ -10,9 +11,12 @@ commit ed7b1a5 and do not establish visual acceptance for later changes.
 
 ## Current acceptance
 
-The latest viewport starter card and Project Screen controls have no after
-screenshots in these archives. Their visual acceptance remains open in the
-[Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md) and
+The current desktop sidebar composition has a focused before/after capture in
+[the 2026-10-17 comparison](20261017-sidebar-composition/README.md). This only
+checks the Minecraft theme at a wide viewport. Full Workspace visual acceptance
+across themes, responsive states, and workflows remains open in the
+[Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The
+Project Screen concept remains open in the
 [Homepage/Project Screen notes](../../homepage-renovation/README.md).
 
 ## Retention policy

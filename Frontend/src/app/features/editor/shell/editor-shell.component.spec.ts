@@ -304,6 +304,7 @@ describe('editor shell movement/delete routing', () => {
   });
 
   it('exposes keyboard sidebar resizers with localized names and current ranges', () => {
+    vi.stubGlobal('innerWidth', 1600);
     const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
     const fixture = TestBed.createComponent(EditorShellComponent);
     const workspace = TestBed.inject(WorkspaceStateService);
