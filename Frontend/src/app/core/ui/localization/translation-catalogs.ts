@@ -1654,11 +1654,14 @@ const supplementalTranslationSource = {
     blockRenderingIncomplete:
       'Some blocks could not be rendered. Check the asset source or reopen the project.',
     missingAssetsWarning: 'Missing assets for {count} blocks',
+    missingAssetsWarningOne: 'Missing assets for {count} block',
     missingAssetsTitle: 'Missing assets',
     missingAssetsDialogText:
       'These blocks are still unavailable in the current local content sources.',
     missingAssetsBlockCount: '{count} blocks',
+    missingAssetsBlockCountOne: '{count} block',
     missingAssetsUniqueIds: '{count} unique block IDs',
+    missingAssetsUniqueIdsOne: '{count} unique block ID',
     missingAssetsEmpty: 'No missing assets remain.',
     viewportHydrationBlocks: 'blocks',
     viewportHydrationDecorations: 'decorations',
@@ -2000,10 +2003,13 @@ const supplementalTranslationSource = {
     blockRenderingIncomplete:
       'Một số khối chưa thể hiển thị. Hãy kiểm tra nguồn tài nguyên hoặc mở lại dự án.',
     missingAssetsWarning: 'Thiếu tài nguyên của {count} khối',
+    missingAssetsWarningOne: 'Thiếu tài nguyên của {count} khối',
     missingAssetsTitle: 'Tài nguyên còn thiếu',
     missingAssetsDialogText: 'Các khối này chưa có trong những nguồn nội dung cục bộ hiện tại.',
     missingAssetsBlockCount: '{count} khối',
+    missingAssetsBlockCountOne: '{count} khối',
     missingAssetsUniqueIds: '{count} ID khối duy nhất',
+    missingAssetsUniqueIdsOne: '{count} ID khối duy nhất',
     missingAssetsEmpty: 'Không còn tài nguyên thiếu.',
     structureJsonDecorationCount: 'Đồ trang trí',
     structureJsonTotalDecorations: 'Tổng đồ trang trí',

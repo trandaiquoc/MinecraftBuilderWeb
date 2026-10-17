@@ -114,5 +114,6 @@
     animate.leave="workspace-dialog-overlay-exit"
     [summary]="missingSummary()"
     (closed)="missingDialogOpen.set(false)"
+    (assetManagerRequested)="openAssetManagerFromMissingAssets()"
   />
 }

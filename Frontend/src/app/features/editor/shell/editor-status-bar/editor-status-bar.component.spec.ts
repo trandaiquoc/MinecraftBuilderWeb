@@ -533,6 +533,8 @@ describe('EditorStatusBarComponent missing-content warning', () => {
     }).compileComponents();
     const workspace = TestBed.inject(WorkspaceStateService);
     const fixture = TestBed.createComponent(EditorStatusBarComponent);
+    let assetManagerRequests = 0;
+    fixture.componentInstance.assetManagerRequested.subscribe(() => assetManagerRequests++);
     const project: ProjectDocument = {
       schemaVersion: 3,
       id: 'missing-status-project',
@@ -567,12 +569,33 @@ describe('EditorStatusBarComponent missing-content warning', () => {
     const warning = fixture.nativeElement.querySelector(
       '.asset-status--action',
     ) as HTMLButtonElement | null;
-    expect(warning?.textContent).toContain('Missing assets for 1 blocks');
+    expect(warning?.textContent).toContain('Missing assets for 1 block');
     warning?.click();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.missing-assets-dialog')?.textContent).toContain(
-      'unknown',
-    );
+    let details = fixture.nativeElement.querySelector(
+      '.missing-assets-dialog',
+    ) as HTMLElement | null;
+    expect(details?.textContent).toContain('unknown');
+    expect(details?.textContent).toContain('1 block · 1 unique block ID');
+
+    const missingBlock = project.blocks[0];
+    workspace.publishProject({
+      ...project,
+      blocks: [
+        missingBlock,
+        { ...missingBlock, position: { x: 1, y: 0, z: 0 } },
+        {
+          ...missingBlock,
+          id: 'unknown:another_missing_block',
+          position: { x: 2, y: 0, z: 0 },
+        },
+      ],
+    });
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    expect(warning?.textContent).toContain('Missing assets for 3 blocks');
+    details = fixture.nativeElement.querySelector('.missing-assets-dialog') as HTMLElement | null;
+    expect(details?.textContent).toContain('3 blocks · 2 unique block IDs');
     (
       fixture.nativeElement.querySelector(
         '.missing-assets-dialog .ui-close-button',
@@ -580,6 +603,14 @@ describe('EditorStatusBarComponent missing-content warning', () => {
     ).click();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.asset-status--action')).not.toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    warning?.click();
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector('.missing-assets-footer button') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    expect(assetManagerRequests).toBe(1);
   });
 });
 

@@ -62,6 +62,8 @@ selected Import JSON or Create with AI tab in English and Vietnamese.
 The [Asset Manager empty-state review](evidence/20261017-asset-manager-empty-state/README.md)
 adds import guidance to the empty Mods tab and checks its desktop and narrow
 layouts.
+The [Missing Assets handoff review](evidence/20261018-missing-assets-handoff/README.md)
+checks the direct route from the Status Bar warning to Asset Manager on Mods.
 The [Workspace menu feedback review](evidence/20261017-menu-feedback/README.md)
 checks persistent checked states, hover, and press feedback in all four themes.
 The [Quick Bar review](evidence/20261017-quick-bar-responsive/README.md)

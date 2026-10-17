@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorShellComponent, hasEditorSelectionState } from './editor-shell.component';
+import { EditorStatusBarComponent } from './editor-status-bar/editor-status-bar.component';
 import { AMBIGUOUS_RELEASE_GRACE_MS } from '../../../core/editor/input/editor-movement-input-session';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
@@ -196,6 +197,28 @@ describe('editor shell movement/delete routing', () => {
 
     openAssetManager('assetManager');
     expect(activeTab()).toEqual({ initial: 'vanilla', selected: 'vanilla' });
+
+    fixture.destroy();
+    mount.mockRestore();
+  });
+
+  it('opens Asset Manager on Mods when requested from missing-assets details', async () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    await workspace.restore(TestBed.inject(PROJECT_STORE), undefined);
+    workspace.activate(project, undefined);
+    fixture.detectChanges();
+
+    const statusBar = fixture.debugElement.query(By.directive(EditorStatusBarComponent))
+      .componentInstance as EditorStatusBarComponent;
+    statusBar.assetManagerRequested.emit();
+    fixture.detectChanges();
+
+    const assetManager = fixture.debugElement.query(By.css('app-asset-manager-dialog'))
+      .componentInstance as unknown as { initialTab: () => string; tab: () => string };
+    expect(assetManager.initialTab()).toBe('mods');
+    expect(assetManager.tab()).toBe('mods');
 
     fixture.destroy();
     mount.mockRestore();

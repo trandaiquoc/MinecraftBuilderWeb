@@ -37,13 +37,19 @@
           <small
             >{{
               i18n
-                .t('missingAssetsBlockCount')
+                .t(
+                  group.blockCount === 1 ? 'missingAssetsBlockCountOne' : 'missingAssetsBlockCount'
+                )
                 .replace('{count}', group.blockCount.toLocaleString(i18n.locale()))
             }}
             ·
             {{
               i18n
-                .t('missingAssetsUniqueIds')
+                .t(
+                  group.uniqueBlockCount === 1
+                    ? 'missingAssetsUniqueIdsOne'
+                    : 'missingAssetsUniqueIds'
+                )
                 .replace('{count}', group.uniqueBlockCount.toLocaleString(i18n.locale()))
             }}</small
           >
@@ -66,5 +72,15 @@
         <p class="missing-assets-empty">{{ i18n.t('missingAssetsEmpty') }}</p>
       }
     </div>
+    <footer class="missing-assets-footer">
+      <button
+        type="button"
+        class="ui-button ui-button--secondary"
+        (click)="assetManagerRequested.emit()"
+      >
+        <svg lucidePackageOpen aria-hidden="true"></svg>
+        {{ i18n.t('assetManager') }}
+      </button>
+    </footer>
   </section>
 </div>

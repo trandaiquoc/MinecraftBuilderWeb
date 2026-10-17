@@ -332,7 +332,9 @@
       }
     </div>
     @if (layout.preferences().statusBarVisible) {
-      <app-editor-status-bar></app-editor-status-bar>
+      <app-editor-status-bar
+        (assetManagerRequested)="openAssetManager('mods')"
+      ></app-editor-status-bar>
     }
     @if (settingsDialogOpen()) {
       <app-settings-dialog

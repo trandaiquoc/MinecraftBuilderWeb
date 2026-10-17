@@ -85,6 +85,9 @@ selected top-level tab in English and Vietnamese.
 The [Asset Manager empty-state review](20261017-asset-manager-empty-state/README.md)
 adds local Fabric import guidance to the empty Mods tab and checks the state at
 desktop and narrow widths.
+The [Missing Assets handoff review](20261018-missing-assets-handoff/README.md)
+checks the warning details and its direct transition to Asset Manager on the
+Mods tab.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The

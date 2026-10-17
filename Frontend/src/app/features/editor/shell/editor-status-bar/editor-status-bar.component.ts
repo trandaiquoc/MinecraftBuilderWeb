@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, output, signal } from '@angular/core';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { humanizeDecorationName } from '../../../../core/decorations/decoration-display';
@@ -28,6 +28,7 @@ import { UiProgressComponent } from '../../../../shared/ui/progress/ui-progress.
   styleUrl: './editor-status-bar.component.scss',
 })
 export class EditorStatusBarComponent {
+  readonly assetManagerRequested = output<void>();
   protected readonly i18n = inject(I18nService);
   protected readonly mode = inject(EditorModeService);
   protected readonly tool = inject(EditorToolService);
@@ -194,10 +195,11 @@ export class EditorStatusBarComponent {
         : this.i18n.t('buildingStructure');
     }
     if (finalization?.issue) return this.i18n.t('blockRenderingIncomplete');
-    if (this.missingWarningVisible())
-      return this.i18n
-        .t('missingAssetsWarning')
-        .replace('{count}', this.formatCount(this.missingSummary().totalMissingBlocks));
+    if (this.missingWarningVisible()) {
+      const count = this.missingSummary().totalMissingBlocks;
+      const key = count === 1 ? 'missingAssetsWarningOne' : 'missingAssetsWarning';
+      return this.i18n.t(key).replace('{count}', this.formatCount(count));
+    }
     if (finalization?.warning) {
       if (status.kind === 'unavailable') return this.i18n.t('assetsUnavailableForBrowser');
       return this.i18n.t('assetsReadyWithWarnings');
@@ -218,6 +220,10 @@ export class EditorStatusBarComponent {
   }
   protected openMissingAssets(): void {
     if (this.missingWarningVisible()) this.missingDialogOpen.set(true);
+  }
+  protected openAssetManagerFromMissingAssets(): void {
+    this.missingDialogOpen.set(false);
+    this.assetManagerRequested.emit();
   }
   private formatCount(value: number): string {
     return value.toLocaleString(this.i18n.locale());
