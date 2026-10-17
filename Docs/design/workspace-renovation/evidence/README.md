@@ -70,6 +70,9 @@ in all four themes.
 The [Project Diagnostics hierarchy review](20261017-diagnostics-hierarchy/README.md)
 checks a current unresolved-renderer warning and moves the Asset Audit action
 ahead of the long renderer metrics grid.
+The [Create with AI desktop inset review](20261017-ai-workspace-desktop-inset/README.md)
+aligns the prompt workspace with the import dialog's other surfaces and checks
+its desktop and narrow layouts.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The
