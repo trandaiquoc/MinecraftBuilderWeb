@@ -1193,9 +1193,9 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 491 distinct PNG captures
-in this archive are linked to files in this folder (492 link occurrences, with
-no missing targets or unlinked captures).
+animated-state and locale matrix remains open. The Workspace renovation archive
+contains 582 distinct PNG captures. Its READMEs contain 588 PNG link
+occurrences, covering every capture with no broken or unlinked files.
 
 ## Block Usage keyboard navigation: implementation checkpoint
 
@@ -1256,3 +1256,16 @@ announcements without making autosave state depend on the footer preference.
 The Editor Chrome spec verifies both preference states, and the production
 build passes. Browser/screen-reader behavior has not been rechecked in this
 source checkpoint; no new screenshot is claimed.
+
+## Full test-suite checkpoint — 2026-10-17
+
+`npm test` completed with 311 test files passed, 7 skipped, and 1 failed
+(1,949 tests passed, 11 skipped). The failure was
+`ViewportProviderRefreshPipeline > plans provider work with its generation
+and completes progress from shared hydration ownership`, which expected
+`isPlanning` to be false immediately after `plan()` returned. The planner uses
+cooperative work slices; the full-suite run observed it still planning at that
+assertion. A focused rerun of
+`npm test -- --include src/app/core/renderer/provider/viewport-provider-refresh-pipeline.spec.ts`
+passed all 5 tests. The cause of the differing timing is not confirmed, so the
+full suite is recorded as not passing and this renderer test needs follow-up.
