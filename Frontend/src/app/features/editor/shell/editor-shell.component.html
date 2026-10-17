@@ -239,6 +239,8 @@
         <button
           type="button"
           class="drawer-backdrop"
+          animate.enter="workspace-drawer-backdrop-enter"
+          animate.leave="workspace-drawer-backdrop-exit"
           aria-label="{{ i18n.t('closePanel') }}"
           (click)="closeDrawers()"
         ></button>

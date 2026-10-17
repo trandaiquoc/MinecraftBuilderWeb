@@ -880,6 +880,13 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
 .workspace-dialog-exit {
   animation: workspace-dialog-out 120ms var(--motion-easing-standard) both;
 }
+.workspace-drawer-backdrop-enter {
+  animation: workspace-drawer-backdrop-in var(--motion-duration-ui) var(--motion-easing-standard)
+    both;
+}
+.workspace-drawer-backdrop-exit {
+  animation: workspace-drawer-backdrop-out 120ms var(--motion-easing-standard) both;
+}
 @keyframes workspace-popover-in {
   from {
     opacity: 0;
@@ -910,6 +917,19 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
   to {
     opacity: 0;
     transform: translateY(2px) scale(0.995);
+  }
+}
+@keyframes workspace-drawer-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes workspace-drawer-backdrop-out {
+  to {
+    opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
