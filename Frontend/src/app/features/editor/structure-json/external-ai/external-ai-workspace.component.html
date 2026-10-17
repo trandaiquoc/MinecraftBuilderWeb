@@ -294,8 +294,8 @@
           /></label>
           <div
             class="ai-content-limits-candidates"
-            role="listbox"
-            [attr.aria-label]="i18n.t('structureJsonAiContentLimitsSearch')"
+            role="group"
+            aria-labelledby="structure-json-ai-content-limits-title"
           >
             @for (candidate of contentCandidates(); track candidate.category + ':' + candidate.id) {
               <label class="ai-content-limits-candidate"

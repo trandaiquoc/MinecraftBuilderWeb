@@ -344,9 +344,10 @@ describe('StructureJsonImportDialogComponent', () => {
     ) as HTMLElement;
     expect(workspaceHost.getAttribute('role')).toBe('region');
     expect(workspaceHost.getAttribute('aria-label')).toBe('structureJsonAiWorkspaceTitle');
-    workspaceHost.scrollTop = 120;
+    const scrollPanel = workspaceHost.querySelector('.ai-panel') as HTMLElement;
+    scrollPanel.scrollTop = 120;
     instance.setAiTab('example');
-    expect(workspaceHost.scrollTop).toBe(0);
+    expect(scrollPanel.scrollTop).toBe(0);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.structure-json-body.ai-mode')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.structure-json-ai-workspace')).toBeTruthy();
@@ -606,6 +607,7 @@ describe('StructureJsonImportDialogComponent', () => {
     fixture.componentRef.setInput('project', project);
     fixture.detectChanges();
     const instance = activateAiWorkspace(fixture) as unknown as {
+      setAiTab: (tab: 'limits') => void;
       setContentLimitsEnabled: (value: boolean) => void;
       contentLimitsJson: () => string;
       contentLimitSelected: (candidate: { category: 'blocks'; id: string }) => boolean;
@@ -617,6 +619,17 @@ describe('StructureJsonImportDialogComponent', () => {
       resetContentLimits: () => void;
       aiPrompt: () => string;
     };
+    instance.setAiTab('limits');
+    fixture.detectChanges();
+    const candidates = fixture.nativeElement.querySelector('.ai-content-limits-candidates');
+    expect(candidates.getAttribute('role')).toBe('group');
+    expect(candidates.getAttribute('aria-labelledby')).toBe(
+      'structure-json-ai-content-limits-title',
+    );
+    const candidateCheckboxes = candidates.querySelectorAll('input[type="checkbox"]');
+    expect(candidateCheckboxes).toHaveLength(1);
+    expect(candidateCheckboxes[0].closest('label')?.textContent).toContain('Crystal');
+
     expect(preferences.preferences().externalAiContentLimitsEnabled).toBe(false);
     expect(instance.contentLimitsJson()).toContain('missing:old_block');
     expect(instance.contentLimitSelected({ category: 'blocks', id: item.itemId })).toBe(false);

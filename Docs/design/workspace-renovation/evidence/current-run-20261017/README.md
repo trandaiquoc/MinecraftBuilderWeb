@@ -771,6 +771,21 @@ service.
 | Simulated copy success, normal motion, 320 x 520 | [workspace-external-ai-copy-success-normal-motion-dark-en-320x520-20261017.png](workspace-external-ai-copy-success-normal-motion-dark-en-320x520-20261017.png) |
 | Simulated copy success, reduced motion, 320 x 520 | [workspace-external-ai-copy-success-reduced-motion-dark-en-320x520-20261017.png](workspace-external-ai-copy-success-reduced-motion-dark-en-320x520-20261017.png) |
 
+### Content Limits checkbox group
+
+The Content Limits candidate controls are independent labeled checkboxes, so
+the candidate collection now uses a group role labeled by the visible Content
+Limits heading instead of listbox semantics. Chrome confirmed the group name,
+native checkbox controls, and zero document-level horizontal overflow at the
+1582 x 804 desktop viewport and 390 x 520 mobile viewport. The mobile capture
+is scrolled to the checkbox list; the dialog footer remains visible. This is a
+semantic and layout check, not a full external-AI workflow verification.
+
+| Viewport | Screenshot |
+| --- | --- |
+| Dark, English, 1582 x 804 | [workspace-external-ai-content-limits-dark-en-1582x804-20261017.png](workspace-external-ai-content-limits-dark-en-1582x804-20261017.png) |
+| Dark, English, 390 x 520, scrolled to candidates | [workspace-external-ai-content-limits-dark-en-390x520-20261017.png](workspace-external-ai-content-limits-dark-en-390x520-20261017.png) |
+
 ### Lucian Labs source review
 
 The source review used Lucian Labs repository commit
@@ -1065,6 +1080,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 452 distinct PNG captures
-in this archive are linked to files in this folder (453 link occurrences, with
+animated-state and locale matrix remains open. All 454 distinct PNG captures
+in this archive are linked to files in this folder (455 link occurrences, with
 no missing targets or unlinked captures).
