@@ -32,9 +32,9 @@ browser screenshots and their canvas content is not application behavior.
 
 ## Historical browser evidence
 
-The [browser evidence index](evidence/README.md) links the historical captures
-stored in this directory and its dated current-run subdirectory. These captures
-document earlier browser states and do not establish current visual acceptance.
+The [browser evidence index](evidence/README.md) links selected captures in two
+dated archives. These captures document earlier browser states and do not
+establish current visual acceptance.
 
 The four Block Usage screenshots are retained as a record of the positively
 reviewed panel. Block Usage is not an active redesign task.
