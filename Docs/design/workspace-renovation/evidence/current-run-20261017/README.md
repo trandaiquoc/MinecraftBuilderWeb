@@ -415,8 +415,44 @@ animation is also explicitly disabled by the reduced-motion stylesheet.
 | Workspace menu under reduced motion | [workspace-menu-motion-reduced-open-dark-en-1600x900-20261017.png](workspace-menu-motion-reduced-open-dark-en-1600x900-20261017.png) |
 
 Computed styles were read while Chrome emulated each preference. The screenshot
-captures show the settled states; they do not by themselves show animation
-timing. A full pass over every animated state and locale remains open.
+captures show settled states; the expanded state and theme/locale pass below
+records animation timing and the remaining component-specific coverage.
+
+## Workspace motion audit across UI states
+
+The source audit found five CSS keyframe families: selection marks,
+indeterminate progress, shared popover entry/exit, shared dialog entry/exit,
+and the External AI copy confirmation. The stylesheet declares 150 ms for
+popover entry, 100 ms for popover exit, 180 ms for dialog entry, 120 ms for
+dialog exit, 180 ms for selection marks, 220 ms for the AI copy confirmation,
+and 1.2 s/infinite for indeterminate progress. Chrome measured the active
+popover/dialog/selection/AI animations and the indeterminate progress state.
+
+With `prefers-reduced-motion: reduce`, the application-wide rule clamps CSS
+animations and transitions to 1 ms and animation iteration to one. The
+indeterminate progress animation becomes a static fill across its track. An
+offscreen computed-style probe was exercised through the real theme and locale
+controls for all four themes and both languages. Popover, dialog, selection,
+and progress styles returned the same reduced values in all eight
+combinations. The real AI copy success state was also measured in Craft/
+English: its icon animation changed from 220 ms to 1 ms while the success
+message stayed visible.
+
+The browser run used an isolated temporary profile and a temporary empty
+project. Selecting Chain changed only the catalog selection; no block was
+placed. Clipboard success used a temporary resolved stub, no AI service was
+called, and the project remained at zero placed blocks.
+
+| State | Default-motion capture | Reduced-motion capture |
+| --- | --- | --- |
+| Tools menu, Dark/Vietnamese | [Open menu](workspace-motion-menu-default-dark-vi-1600x900-20261017.png) | [Open menu](workspace-motion-menu-reduced-dark-vi-1600x900-20261017.png) |
+| Project Diagnostics dialog, Dark/Vietnamese | [Open dialog](workspace-motion-diagnostics-default-dark-vi-1600x900-20261017.png) | [Open dialog](workspace-motion-diagnostics-reduced-dark-vi-1600x900-20261017.png) |
+| Selected Chain card, Craft/English | [Selection mark](workspace-motion-block-selection-default-craft-en-1600x900-20261017.png) | [Selection mark](workspace-motion-block-selection-reduced-craft-en-1600x900-20261017.png) |
+| External AI copy success, Craft/English | [Copy success](workspace-motion-ai-copy-default-craft-en-1600x900-20261017.png) | [Copy success](workspace-motion-ai-copy-reduced-craft-en-1600x900-20261017.png) |
+
+The reduced-motion rule itself was not changed in this follow-up. This closes
+the Workspace CSS-animation-family audit; renderer camera movement and
+browser/assistive-technology combinations remain separate acceptance work.
 
 ## Settings
 
