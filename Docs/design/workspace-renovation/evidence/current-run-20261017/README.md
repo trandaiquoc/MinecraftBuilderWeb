@@ -302,6 +302,24 @@ combinations still need contrast coverage.
 The 4.5:1 normal-text threshold follows [WCAG 2.2 Success Criterion
 1.4.3](https://www.w3.org/TR/WCAG22/#contrast-minimum).
 
+## Workspace form placeholder contrast
+
+The native placeholder color was inconsistent across Workspace controls. The
+Block Browser search measured 1.94:1 in Craft, 2.04:1 in Raccoon, 4.41:1 in
+Light, and 3.66:1 in Dark at 1582 x 804. A Workspace-scoped rule now uses the
+active theme's secondary-text token at full opacity for input and textarea
+placeholders, including CDK overlays. The post-change Block Browser search
+measured at least 5.50:1 across the four themes, with no document-level
+horizontal overflow. The External AI dialog scan also found no visible text
+pair below 4.5:1 after the shared rule was applied.
+
+| Theme | Before | After |
+| --- | --- | --- |
+| Craft | [Block Browser search](workspace-placeholder-contrast-before-craft-en-1582x804-20261017.png) | [Block Browser search](workspace-placeholder-contrast-after-craft-en-1582x804-20261017.png) |
+| Raccoon | [Block Browser search](workspace-placeholder-contrast-before-raccoon-en-1582x804-20261017.png) | [Block Browser search](workspace-placeholder-contrast-after-raccoon-en-1582x804-20261017.png) |
+| Light | [Block Browser search](workspace-placeholder-contrast-before-light-en-1582x804-20261017.png) | [Block Browser search](workspace-placeholder-contrast-after-light-en-1582x804-20261017.png) |
+| Dark | [Block Browser search](workspace-placeholder-contrast-before-dark-en-1582x804-20261017.png) | [Block Browser search](workspace-placeholder-contrast-after-dark-en-1582x804-20261017.png) |
+
 ## Mobile application menus
 
 The File menu aligns inside the viewport at 390 px in English and Vietnamese.
@@ -789,11 +807,11 @@ semantic and layout check, not a full external-AI workflow verification.
 #### Placeholder contrast across four themes
 
 The browser's default `Search content` placeholder fell to 2.35:1 in Craft,
-2.53:1 in Raccoon, and 3.93:1 in Dark. It now uses the theme's secondary-text
-token at full opacity. Chrome scanned 111 visible text runs per theme at
-1582 x 804, including the search placeholder. No pair was below 4.5:1; the
-minimum across the four themes was 5.50:1 in Craft. The existing Dark capture
-above records its pre-fix state.
+2.53:1 in Raccoon, and 3.93:1 in Dark. The Workspace-wide form rule described
+above applies the theme's secondary-text token at full opacity. Chrome scanned
+111 visible text runs per theme at 1582 x 804, including the search
+placeholder. No pair was below 4.5:1; the minimum across the four themes was
+5.50:1 in Craft. The existing Dark capture above records its pre-fix state.
 
 | Theme | Before | After |
 | --- | --- | --- |
@@ -1096,6 +1114,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 461 distinct PNG captures
-in this archive are linked to files in this folder (462 link occurrences, with
+animated-state and locale matrix remains open. All 469 distinct PNG captures
+in this archive are linked to files in this folder (470 link occurrences, with
 no missing targets or unlinked captures).

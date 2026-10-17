@@ -390,20 +390,20 @@ describe('Workspace color palette contract', () => {
 
   it('keeps interactive text, focus, danger, and status combinations accessible', () => {
     const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
-    const externalAiStyles = String(
-      readFileSync(
-        'src/app/features/editor/structure-json/external-ai/external-ai-workspace.component.scss',
-        'utf8',
-      ),
-    );
     const designContract = String(
       readFileSync('../Docs/design/workspace-color-palette.md', 'utf8'),
     );
     const paletteStyles = stylesheet.slice(stylesheet.indexOf('/* Workspace V2 palette'));
     const themeNames = ['craft', 'light', 'raccoon', 'dark'] as const;
-    expect(externalAiStyles).toContain('.ai-content-limits-field input::placeholder {');
-    expect(externalAiStyles).toContain('color: var(--text-muted);');
-    expect(externalAiStyles).toContain('opacity: 1;');
+    const normalizedStylesheet = stylesheet.replace(/\r\n/g, '\n');
+    expect(normalizedStylesheet)
+      .toContain(`:root[data-theme] app-editor-shell :where(input, textarea)::placeholder,
+:root[data-theme]:has(app-editor-shell)
+  .cdk-overlay-container
+  :where(input, textarea)::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}`);
     const paletteRows = new Map<string, readonly string[]>();
     for (const row of designContract
       .split(/\r?\n/)

@@ -518,6 +518,14 @@
   color-scheme: var(--workspace-color-scheme);
 }
 
+:root[data-theme] app-editor-shell :where(input, textarea)::placeholder,
+:root[data-theme]:has(app-editor-shell)
+  .cdk-overlay-container
+  :where(input, textarea)::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
 :root[data-theme='light'] {
   --shadow-control: 0 1px 2px rgb(23 32 43 / 0.12);
   --shadow-control-raised: 0 3px 8px rgb(23 32 43 / 0.14);
