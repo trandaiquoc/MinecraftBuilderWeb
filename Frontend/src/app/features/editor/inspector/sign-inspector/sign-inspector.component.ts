@@ -71,12 +71,9 @@ export class SignInspectorComponent {
   protected lineLabel(index: number): string {
     return this.i18n.t('signTextInput').replace('{line}', String(index + 1));
   }
-  protected warning(): string | undefined {
-    const line = this.data()[this.side()].lines.findIndex(
-      (value) => signLineWidth(value) > this.maxTextWidth(),
-    );
-    return line >= 0
-      ? this.i18n.t('signLineTooWide').replace('{line}', String(line + 1))
+  protected lineWarning(index: number): string | undefined {
+    return signLineWidth(this.line(index)) > this.maxTextWidth()
+      ? this.i18n.t('signLineTooWide').replace('{line}', String(index + 1))
       : undefined;
   }
   protected beginEdit(): void {

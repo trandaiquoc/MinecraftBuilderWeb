@@ -69,6 +69,12 @@
   box-sizing: border-box;
   padding: 0.35rem 0.4rem;
 }
+.sign-lines input.sign-line-overflow {
+  box-shadow: inset 0 0 0 1px var(--status-warning);
+}
+.sign-lines label > .warning {
+  grid-column: 2;
+}
 .warning {
   color: var(--warning);
   font-size: 0.7rem;

@@ -15,23 +15,37 @@ import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { SignInspectorComponent } from './sign-inspector.component';
 
-describe('SignInspectorComponent tabs', () => {
+describe('SignInspectorComponent', () => {
   let injector: EnvironmentInjector;
   let component: SignInspectorComponent;
   let side: ReturnType<typeof signal<'front' | 'back'>>;
   let setSide: ReturnType<typeof vi.fn>;
+  let selectedPosition: { x: number; y: number; z: number } | undefined;
 
   beforeEach(() => {
     side = signal<'front' | 'back'>('front');
     setSide = vi.fn((next: 'front' | 'back') => side.set(next));
+    selectedPosition = undefined;
+    const position = { x: 0, y: 0, z: 0 };
     injector = createEnvironmentInjector(
       [
-        { provide: WorkspaceStateService, useValue: { project: () => undefined } },
-        { provide: SelectionService, useValue: { single: () => undefined } },
+        { provide: WorkspaceStateService, useValue: { project: () => ({ id: 'project' }) } },
+        { provide: SelectionService, useValue: { single: () => selectedPosition } },
         { provide: StructureEditorService, useValue: {} },
-        { provide: BlockLibraryService, useValue: {} },
-        { provide: ProjectBlockRuntimeIndex, useValue: {} },
-        { provide: I18nService, useValue: {} },
+        { provide: BlockLibraryService, useValue: { get: vi.fn(() => undefined) } },
+        {
+          provide: ProjectBlockRuntimeIndex,
+          useValue: {
+            ensure: vi.fn(),
+            get: vi.fn(() => ({ id: 'minecraft:oak_sign', position })),
+          },
+        },
+        {
+          provide: I18nService,
+          useValue: {
+            t: (key: string) => (key === 'signLineTooWide' ? 'Line {line} may be too wide' : key),
+          },
+        },
         {
           provide: SignTextSideService,
           useValue: { side: side.asReadonly(), set: setSide },
@@ -91,5 +105,22 @@ describe('SignInspectorComponent tabs', () => {
     expect(side()).toBe('front');
     expect(document.activeElement).toBe(frontTab);
     tablist.remove();
+  });
+
+  it('updates width feedback from the current sign draft while typing', () => {
+    selectedPosition = { x: 0, y: 0, z: 0 };
+    const state = component as unknown as {
+      beginEdit: () => void;
+      updateLine: (index: number, event: Event) => void;
+      lineWarning: (index: number) => string | undefined;
+    };
+
+    state.beginEdit();
+    state.updateLine(1, { target: { value: 'W'.repeat(20) } } as unknown as Event);
+    expect(state.lineWarning(1)).toBe('Line 2 may be too wide');
+    expect(state.lineWarning(0)).toBeUndefined();
+
+    state.updateLine(1, { target: { value: 'Fixed' } } as unknown as Event);
+    expect(state.lineWarning(1)).toBeUndefined();
   });
 });

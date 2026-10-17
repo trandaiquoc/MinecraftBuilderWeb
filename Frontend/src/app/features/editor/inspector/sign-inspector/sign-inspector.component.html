@@ -47,12 +47,16 @@
               (input)="updateLine(index, $event)"
               (blur)="commit()"
               [attr.aria-label]="lineLabel(index)"
-          /></label>
+              [attr.aria-invalid]="lineWarning(index) ? 'true' : null"
+              [attr.aria-describedby]="lineWarning(index) ? 'sign-line-warning-' + index : null"
+              [class.sign-line-overflow]="lineWarning(index)"
+            />
+            @if (lineWarning(index); as warning) {
+              <small class="warning" [id]="'sign-line-warning-' + index">{{ warning }}</small>
+            }
+          </label>
         }
       </div>
-      @if (warning(); as warning) {
-        <small class="warning">{{ warning }}</small>
-      }
     </div>
     <section class="sign-section">
       <h4>{{ i18n.t('appearance') }}</h4>
