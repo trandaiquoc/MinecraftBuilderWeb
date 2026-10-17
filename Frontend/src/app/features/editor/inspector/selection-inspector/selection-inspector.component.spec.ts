@@ -67,6 +67,9 @@ describe('SelectionInspectorComponent marquee summary', () => {
       '16 × 32 × 24',
     );
     expect(fixture.nativeElement.querySelector('.overview-metrics').textContent).toContain('2');
+    expect(
+      fixture.nativeElement.querySelector('.structure-overview .overview-actions'),
+    ).not.toBeNull();
 
     let selectAllRequests = 0;
     let clearSelectionRequests = 0;

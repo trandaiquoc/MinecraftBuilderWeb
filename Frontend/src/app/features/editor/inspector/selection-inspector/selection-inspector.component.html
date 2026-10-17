@@ -20,29 +20,29 @@
         <dd>{{ project.blocks.length.toLocaleString(i18n.locale()) }}</dd>
       </div>
     </dl>
-  </section>
-  <section class="overview-actions" aria-labelledby="quick-actions-title">
-    <h3 id="quick-actions-title">{{ i18n.t('quickActions') }}</h3>
-    <div class="overview-action-grid">
-      <button
-        type="button"
-        class="ui-button ui-button--secondary ui-button--sm"
-        data-action="select-all"
-        [disabled]="project.blocks.length === 0"
-        (click)="selectAllRequested.emit()"
-      >
-        <svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('selectAll') }}
-      </button>
-      <button
-        type="button"
-        class="ui-button ui-button--secondary ui-button--sm"
-        data-action="clear-selection"
-        [disabled]="!hasAnySelection()"
-        (click)="clearSelectionRequested.emit()"
-      >
-        <svg lucideX aria-hidden="true"></svg>{{ i18n.t('clearSelection') }}
-      </button>
-    </div>
+    <section class="overview-actions" aria-labelledby="quick-actions-title">
+      <h3 id="quick-actions-title">{{ i18n.t('quickActions') }}</h3>
+      <div class="overview-action-grid">
+        <button
+          type="button"
+          class="ui-button ui-button--secondary ui-button--sm"
+          data-action="select-all"
+          [disabled]="project.blocks.length === 0"
+          (click)="selectAllRequested.emit()"
+        >
+          <svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('selectAll') }}
+        </button>
+        <button
+          type="button"
+          class="ui-button ui-button--secondary ui-button--sm"
+          data-action="clear-selection"
+          [disabled]="!hasAnySelection()"
+          (click)="clearSelectionRequested.emit()"
+        >
+          <svg lucideX aria-hidden="true"></svg>{{ i18n.t('clearSelection') }}
+        </button>
+      </div>
+    </section>
   </section>
 }
 @if (selectedDecoration()) {
@@ -104,7 +104,13 @@
               (selectionChange)="updateSelectedStateValue(state.name, $any($event))"
           /></label>
         }
-        <button type="button" (click)="rotateSelected()">{{ i18n.t('rotateBlock') }}</button>
+        <button
+          type="button"
+          class="ui-button ui-button--secondary ui-button--sm"
+          (click)="rotateSelected()"
+        >
+          {{ i18n.t('rotateBlock') }}
+        </button>
         @if (stateFeedback()) {
           <p class="validation-feedback">{{ feedbackLabel() }}</p>
         }
