@@ -1,6 +1,13 @@
 import { signal, type WritableSignal } from '@angular/core';
+// @ts-expect-error Vitest executes this template contract test in Node.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AssetManagerDialogComponent } from './asset-manager-dialog.component';
+
+const assetManagerTemplate = readFileSync(
+  'src/app/features/editor/tools/asset-manager/asset-manager-dialog.component.html',
+  'utf8',
+);
 
 type AssetManagerTab = 'vanilla' | 'mods';
 
@@ -91,5 +98,17 @@ describe('AssetManagerDialogComponent help', () => {
     expect(escape.defaultPrevented).toBe(true);
     expect(escape.cancelBubble).toBe(true);
     expect(state.helpOpen()).toBe(false);
+  });
+});
+
+describe('AssetManagerDialogComponent progress announcements', () => {
+  it('announces operation phases without making high-frequency progress a live region', () => {
+    const openingTag = (className: string) =>
+      assetManagerTemplate.match(new RegExp(`<[^>]*class="${className}"[^>]*>`, 's'))?.[0] ?? '';
+
+    expect(openingTag('active-task-label')).toContain('role="status"');
+    expect(openingTag('active-task-panel')).not.toContain('aria-live');
+    expect(openingTag('preflight-card')).not.toContain('aria-live');
+    expect(openingTag('import-progress compact')).not.toContain('aria-live');
   });
 });

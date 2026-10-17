@@ -271,9 +271,9 @@
               <p class="manager-error" role="alert">{{ modImport.modError() }}</p>
             }
             @if (modImport.operationKind()) {
-              <section class="active-task-panel" aria-live="polite" aria-busy="true">
+              <section class="active-task-panel">
                 <div class="active-task-heading">
-                  <span class="active-task-label"
+                  <span class="active-task-label" role="status"
                     ><span class="active-task-indicator" aria-hidden="true"></span
                     >{{ i18n.t('assetManagerCurrentTask') }}: {{ operationTaskLabel() }}</span
                   >
@@ -305,7 +305,7 @@
               </section>
             }
             @if (modImport.preflight(); as prepared) {
-              <section class="preflight-card" aria-live="polite">
+              <section class="preflight-card">
                 <div class="preflight-header">
                   <div class="mod-icon">
                     @if (modImport.preflightIconUrl(); as icon) {
@@ -481,7 +481,6 @@
                 @if (modImport.preflightProgress(); as progress) {
                   <div
                     class="import-progress compact"
-                    aria-live="polite"
                     [attr.aria-busy]="modImport.operationKind() ? 'true' : null"
                   >
                     <app-ui-progress

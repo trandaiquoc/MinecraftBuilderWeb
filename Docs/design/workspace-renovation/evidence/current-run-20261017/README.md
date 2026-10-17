@@ -1222,15 +1222,23 @@ filtering when browser capture is available.
 
 `AssetActivityService` keeps current progress in a signal that can change many
 times during downloads or imported-Mod restoration, separately from the
-append-only activity history. The Manager previously placed both in one
-polite live region, which could repeatedly announce progress updates and
-surrounding sidebar content. The sidebar itself is no longer live; each
-history list is now a labeled `role="log"`, while current progress remains
-available in the normal reading order. Existing progress indicators and
-status-bar announcements are unchanged.
+append-only activity history. Mod import progress also updates per extraction
+callback. The Manager previously placed current progress, the complete
+preflight card, and sidebar history in broad live regions, which could repeat
+frequent updates or announce surrounding content. History lists now use
+labeled `role="log"` regions; the active task phase uses `role="status"`, while
+the percentage/detail progress and preflight card remain outside live regions.
+Progressbars retain their accessible current values for users who navigate to
+them, and the one-time preflight-ready message keeps its status role. Existing
+vanilla progress indicators and status-bar announcements are unchanged.
 
-The Asset Manager tab/help spec and AssetActivityService specs pass (6 tests
-total), as do the production build, encoding check, Prettier check, and
-`git diff --check`. Browser/assistive-technology announcement behavior remains
-unverified because the isolated Chrome launch was rejected by policy; no new
-screenshot is claimed for this source-only change.
+This follows WAI-ARIA's implicit polite, atomic behavior for `status`; the
+`progressbar` role itself does not announce changing values as a live region
+([WAI-ARIA 1.2](https://www.w3.org/TR/wai-aria-1.2/#status),
+[WCAG technique ARIA25](https://www.w3.org/WAI/WCAG22/Techniques/aria/ARIA25)).
+
+The Asset Manager tab/help/progress-announcement spec and AssetActivityService
+spec pass; production build, encoding, Prettier, and `git diff --check` also
+pass. Browser/assistive-technology announcement behavior remains unverified
+because the isolated Chrome launch was rejected by policy; no new screenshot is
+claimed for this source-only change.
