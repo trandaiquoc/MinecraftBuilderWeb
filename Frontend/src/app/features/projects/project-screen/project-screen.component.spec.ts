@@ -1,3 +1,5 @@
+// @ts-expect-error Vitest checks this template contract in Node.
+import { readFileSync } from 'node:fs';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
@@ -8,6 +10,17 @@ import { ProjectScreenComponent } from './project-screen.component';
 import { ProjectScreenWorkflow } from './project-screen-workflow';
 
 describe('ProjectScreenComponent', () => {
+  it('marks the project name input as the create dialog initial focus target', () => {
+    const template = String(
+      readFileSync(
+        'src/app/features/projects/project-screen/project-screen.component.html',
+        'utf8',
+      ),
+    );
+
+    expect(template).toMatch(/<input\s+cdkFocusInitial\s+class="project-text-input"/);
+  });
+
   it('delegates imported project activation to the screen workflow', async () => {
     const project = { id: 'imported' } as ProjectDocument;
     const createProject = vi.fn(async () => project);

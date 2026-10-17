@@ -247,6 +247,7 @@
             <label class="field-label"
               >{{ i18n.t('projectName')
               }}<input
+                cdkFocusInitial
                 class="project-text-input"
                 [value]="name()"
                 (input)="updateName($any($event.target).value)"

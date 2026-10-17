@@ -9,3 +9,7 @@ used only projects saved in an isolated profile.
 
 Project Screen visual acceptance is limited to the captured states in that
 review. Full application acceptance remains open.
+
+The [project creation focus review](20261017-project-create-focus/README.md)
+checks the narrow Create Project dialog's initial focus target and responsive
+width.
