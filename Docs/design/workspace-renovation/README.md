@@ -33,6 +33,9 @@ motion, and the narrow dialog layout.
 The [Workspace dialog host transition review](evidence/20261017-dialog-host-motion/README.md)
 checks that conditionally mounted Workspace dialogs fade out before their
 component hosts are removed.
+The [shared tab surface review](evidence/20261017-tab-surface-interaction/README.md)
+checks that each selected tab owns its theme-aware surface across all four
+themes, while the toolbar's segmented controls keep their separate track.
 The [Quick Bar review](evidence/20261017-quick-bar-responsive/README.md)
 confirms all ten slots remain reachable at a narrow viewport. The
 [active BlockState and Help review](evidence/20261017-selection-state-help/README.md)

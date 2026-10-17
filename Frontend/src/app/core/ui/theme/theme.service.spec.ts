@@ -87,10 +87,16 @@ describe('Workspace color palette contract', () => {
 
   it('marks the selected tab surface without a detached or moving indicator', () => {
     const stylesheet = String(readFileSync('src/styles.scss', 'utf8'));
-    expect(stylesheet).not.toContain('.ui-tab-strip::before');
-    expect(stylesheet).not.toContain(".ui-tab-strip > [role='tab'][aria-selected='true']::after");
-    expect(stylesheet).toContain(".ui-tab-strip > [role='tab'][aria-selected='true']");
-    expect(stylesheet).toContain('background: var(--control-selected);');
+    const tabStyles = stylesheet.slice(
+      stylesheet.indexOf('.ui-tab-strip {'),
+      stylesheet.indexOf('.ui-button {', stylesheet.indexOf('.ui-tab-strip {')),
+    );
+
+    expect(tabStyles).not.toContain('::before');
+    expect(tabStyles).not.toContain('::after');
+    expect(tabStyles).not.toContain('translateX');
+    expect(tabStyles).toContain(".ui-tab-strip > [role='tab'][aria-selected='true']");
+    expect(tabStyles).toContain('background: var(--control-selected);');
   });
 
   it('matches the approved 100 colors and keeps generic tokens workspace-scoped', () => {

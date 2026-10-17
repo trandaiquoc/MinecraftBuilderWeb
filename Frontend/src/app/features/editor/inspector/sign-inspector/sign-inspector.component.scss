@@ -28,7 +28,6 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.sign-tabs button,
 .sign-control select,
 .sign-lines input,
 .state-fields button {
@@ -39,8 +38,8 @@
   box-shadow: inset 0 0 0 1px var(--border);
 }
 .sign-tabs button {
+  border: 0;
   padding: 0.25rem 0.5rem;
-  background: transparent;
   box-shadow: none;
   cursor: pointer;
 }

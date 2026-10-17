@@ -181,16 +181,9 @@
   padding: 0.42rem 0.5rem;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--workspace-sidebar-text);
   cursor: pointer;
   font: inherit;
   font-size: 0.76rem;
-  transition:
-    background-color var(--motion-duration-fast) var(--motion-easing-standard),
-    color var(--motion-duration-fast) var(--motion-easing-standard),
-    border-color var(--motion-duration-fast) var(--motion-easing-standard),
-    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
 :host-context([data-theme='craft']) .sidebar-tabs button:not([aria-selected='true']) {
@@ -257,12 +250,6 @@
 .sidebar-tabs button:hover:not(:disabled):not([aria-selected='true']) {
   background: color-mix(in srgb, var(--workspace-sidebar-text) 15%, transparent);
   color: var(--workspace-sidebar-text);
-}
-
-.sidebar-tabs button[aria-selected='true'] {
-  background: var(--control-selected);
-  color: var(--control-selected-text);
-  font-weight: 700;
 }
 
 .left-panel > .sidebar-tabs button[aria-selected='true'] .sidebar-tab-icon {

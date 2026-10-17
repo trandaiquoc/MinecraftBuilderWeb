@@ -51,6 +51,9 @@ including reduced motion and a 390 px layout.
 The [Workspace dialog host transition review](20261017-dialog-host-motion/README.md)
 checks conditional modal entry/exit at desktop and narrow widths, including the
 reduced-motion path.
+The [shared tab surface review](20261017-tab-surface-interaction/README.md)
+checks selected states and tab transitions in all four Workspace themes,
+including reduced motion.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The
