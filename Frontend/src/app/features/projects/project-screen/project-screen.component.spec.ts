@@ -116,6 +116,7 @@ describe('ProjectScreenComponent', () => {
       openingId: signal<string | undefined>(undefined),
       deletingProjectIds: signal<ReadonlySet<string>>(new Set()),
       deleteError: signal<string | undefined>(undefined),
+      createProject: vi.fn(async () => undefined),
       loadProjects: vi.fn(async () => undefined),
       loadProjectPreview: vi.fn(async () => undefined),
     };
@@ -154,6 +155,12 @@ describe('ProjectScreenComponent', () => {
     i18n.setLocale('vi');
     fixture.detectChanges();
     expect(projectName.value).toBe('Cấu trúc chưa đặt tên');
+    await (
+      fixture.componentInstance as unknown as { createProject(): Promise<void> }
+    ).createProject();
+    expect(workflow.createProject).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Cấu trúc chưa đặt tên' }),
+    );
 
     projectName.value = 'My workshop';
     projectName.dispatchEvent(new Event('input', { bubbles: true }));
@@ -161,6 +168,13 @@ describe('ProjectScreenComponent', () => {
     i18n.setLocale('en');
     fixture.detectChanges();
     expect(projectName.value).toBe('My workshop');
+    workflow.createProject.mockClear();
+    await (
+      fixture.componentInstance as unknown as { createProject(): Promise<void> }
+    ).createProject();
+    expect(workflow.createProject).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'My workshop' }),
+    );
 
     const search = fixture.nativeElement.querySelector(
       '.project-search-field input',
