@@ -45,6 +45,9 @@ checks its mobile layout and scroll behavior. The [Workspace interaction review]
 records JSON import/export, Structure NBT/Datapack export, Asset Manager, and
 Diagnostics states, including the import, Mod JAR entry, and narrow Tools-menu
 interaction fixes.
+The [Settings navigation responsive review](20261018-settings-navigation-responsive/README.md)
+puts every section within reach at 390 px and 320 px and gives the primary save
+action a clear row at the narrowest size.
 The [Structure export desktop layout review](20261017-structure-export-desktop-layout/README.md)
 checks the two-column guidance layout at desktop widths and the Vietnamese
 single-column layout at 390 px.
