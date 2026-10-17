@@ -61,6 +61,8 @@ export const translations = {
     projectTitle: 'Your building workspace',
     recoverySnapshot: 'Recovery snapshot',
     recoveryAvailable: 'Recovery available',
+    recoverySnapshotSavedAt: 'Recovery snapshot saved',
+    savedProjectLastUpdated: 'Saved project last updated',
     recoveryAvailableHint:
       'A newer local recovery snapshot was found. Restore it before opening the editor.',
     recoveryInvalid: 'Recovery needs attention',
@@ -881,6 +883,8 @@ export const translations = {
     projectTitle: 'Không gian xây dựng của bạn',
     recoverySnapshot: 'Bản khôi phục',
     recoveryAvailable: 'Có bản khôi phục',
+    recoverySnapshotSavedAt: 'Bản khôi phục được lưu',
+    savedProjectLastUpdated: 'Dự án đã lưu cập nhật lần cuối',
     recoveryAvailableHint:
       'Tìm thấy bản khôi phục cục bộ mới hơn. Hãy khôi phục trước khi mở trình chỉnh sửa.',
     recoveryInvalid: 'Bản khôi phục cần xử lý',

@@ -420,6 +420,14 @@ export class EditorShellComponent implements OnDestroy {
   protected retryRestore(): void {
     void this.workspace.restore(this.projectStore);
   }
+  protected formatRecoveryTimestamp(value: string): string {
+    const timestamp = new Date(value);
+    if (Number.isNaN(timestamp.getTime())) return value;
+    const locale = this.i18n.locale() === 'vi' ? 'vi-VN' : 'en-US';
+    return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
+      timestamp,
+    );
+  }
   protected restoreRecovery(): void {
     void this.workspace.restoreRecovery();
   }

@@ -120,6 +120,64 @@ describe('editor shell movement/delete routing', () => {
     mount.mockRestore();
   });
 
+  it('presents recovery dates as labeled, localized project context', async () => {
+    const store = TestBed.inject(PROJECT_STORE);
+    const savedProject = {
+      ...project,
+      metadata: { ...project.metadata, updatedAt: '2026-10-17T18:30:00.000Z' },
+    };
+    const recoveryProject = {
+      ...project,
+      metadata: { ...project.metadata, updatedAt: '2026-10-18T09:15:00.000Z' },
+    };
+    vi.spyOn(store, 'list').mockResolvedValue([
+      {
+        id: project.id,
+        name: project.metadata.name,
+        minecraftVersion: project.metadata.minecraftVersion,
+        size: project.size,
+        structureMode: project.structureMode,
+        updatedAt: savedProject.metadata.updatedAt,
+      },
+    ]);
+    vi.spyOn(store, 'openRecord').mockResolvedValue({
+      project: savedProject,
+      metadata: { persistenceToken: 'saved-project-revision' },
+    });
+    vi.spyOn(store, 'openRecoveryRecord').mockResolvedValue({
+      project: recoveryProject,
+      metadata: {
+        persistenceToken: 'recovery-project-revision',
+        persistedAt: '2026-10-18T09:20:00.000Z',
+      },
+    });
+
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    fixture.detectChanges();
+    await TestBed.inject(WorkspaceStateService).restore(store, undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const i18n = TestBed.inject(I18nService);
+    const originalLocale = i18n.locale();
+    const recoveryCard = root.querySelector<HTMLElement>('.recovery-project-card');
+    expect(recoveryCard?.querySelector('h2')?.textContent?.trim()).toBe(project.metadata.name);
+    expect(recoveryCard?.querySelectorAll('dl > div')).toHaveLength(2);
+    expect(root.textContent).toContain(i18n.t('recoverySnapshotSavedAt'));
+    expect(root.textContent).toContain(i18n.t('savedProjectLastUpdated'));
+    expect(
+      root.querySelector('time[datetime="2026-10-18T09:20:00.000Z"]')?.textContent?.trim(),
+    ).not.toBe('2026-10-18T09:20:00.000Z');
+
+    i18n.setLocale('vi');
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Bản khôi phục được lưu');
+    expect(root.textContent).toContain('Dự án đã lưu cập nhật lần cuối');
+
+    i18n.setLocale(originalLocale);
+    fixture.destroy();
+  });
+
   it('opens and closes the Structure NBT export dialog from the File action', () => {
     const fixture = TestBed.createComponent(EditorShellComponent);
     const shell = fixture.componentInstance as unknown as {

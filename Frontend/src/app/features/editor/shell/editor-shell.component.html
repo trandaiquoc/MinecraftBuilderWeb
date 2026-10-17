@@ -32,15 +32,29 @@
       <main class="editor-startup-state recovery-startup-state">
         <p class="eyebrow">{{ i18n.t('appName') }}</p>
         <h1>{{ recovery.valid ? i18n.t('recoveryAvailable') : i18n.t('recoveryInvalid') }}</h1>
-        <p class="recovery-project-name">
-          <strong>{{ recovery.project.metadata?.name ?? i18n.t('recoverySnapshot') }}</strong>
-          @if (recovery.metadata.persistedAt) {
-            <span>· {{ recovery.metadata.persistedAt }}</span>
-          }
-          @if (recovery.mainProject?.metadata?.updatedAt) {
-            <span>· {{ recovery.mainProject?.metadata?.updatedAt }}</span>
-          }
-        </p>
+        <section class="recovery-project-card" [attr.aria-label]="i18n.t('recoverySnapshot')">
+          <h2>{{ recovery.project.metadata?.name ?? i18n.t('recoverySnapshot') }}</h2>
+          <dl class="recovery-metadata">
+            @if (recovery.metadata.persistedAt; as savedAt) {
+              <div>
+                <dt>{{ i18n.t('recoverySnapshotSavedAt') }}</dt>
+                <dd>
+                  <time [attr.datetime]="savedAt">{{ formatRecoveryTimestamp(savedAt) }}</time>
+                </dd>
+              </div>
+            }
+            @if (recovery.mainProject?.metadata?.updatedAt; as savedProjectUpdatedAt) {
+              <div>
+                <dt>{{ i18n.t('savedProjectLastUpdated') }}</dt>
+                <dd>
+                  <time [attr.datetime]="savedProjectUpdatedAt">
+                    {{ formatRecoveryTimestamp(savedProjectUpdatedAt) }}
+                  </time>
+                </dd>
+              </div>
+            }
+          </dl>
+        </section>
         <p>
           {{ recovery.valid ? i18n.t('recoveryAvailableHint') : i18n.t('recoveryInvalidHint') }}
         </p>
