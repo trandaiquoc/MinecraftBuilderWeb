@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
 import {
@@ -94,7 +94,9 @@ export class AssetManagerDialogComponent {
   private readonly supportCatalog = inject(ModSupportCatalog);
   protected readonly modImport = inject(AssetManagerModImportWorkflow);
   readonly closed = output<void>();
+  readonly initialTab = input<AssetManagerTab>('vanilla');
   protected readonly tab = signal<AssetManagerTab>('vanilla');
+  private readonly initialTabEffect = effect(() => this.tab.set(this.initialTab()));
   private readonly vanillaActionRunning = signal(false);
   protected readonly importing = computed(
     () => this.vanillaActionRunning() || this.modImport.importing(),

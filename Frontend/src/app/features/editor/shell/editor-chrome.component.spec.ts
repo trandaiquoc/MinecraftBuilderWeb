@@ -181,6 +181,28 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
     fixture.destroy();
   });
 
+  it('routes the Mod JAR Import menu item to its dedicated action', () => {
+    const fixture = TestBed.createComponent(EditorChromeComponent);
+    fixture.componentRef.setInput('state', state);
+    fixture.detectChanges();
+
+    const actions: unknown[] = [];
+    fixture.componentInstance.action.subscribe((action) => actions.push(action));
+    const root = fixture.nativeElement as HTMLElement;
+    const toolsTrigger = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('.app-menu-trigger'),
+    ).find((button) => button.textContent?.trim() === 'toolsMenu')!;
+    toolsTrigger.click();
+    fixture.detectChanges();
+    const importButton = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('.menu-popover [role="menuitem"]'),
+    ).find((button) => button.textContent?.includes('modJarImport'))!;
+    importButton.click();
+
+    expect(actions).toEqual([{ type: 'open-mod-jar-import' }]);
+    fixture.destroy();
+  });
+
   it('opens at the last item with ArrowUp and closes when focus leaves the menu', () => {
     const fixture = TestBed.createComponent(EditorChromeComponent);
     fixture.componentRef.setInput('state', state);

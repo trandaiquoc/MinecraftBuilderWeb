@@ -69,6 +69,8 @@ export function hasEditorSelectionState(
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
 
+type AssetManagerInitialTab = 'vanilla' | 'mods';
+
 @Component({
   selector: 'app-editor-shell',
   imports: [
@@ -169,6 +171,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly settingsDialogOpen = signal(false);
   protected readonly controlsHelpOpen = signal(false);
   protected readonly assetManagerOpen = signal(false);
+  protected readonly assetManagerInitialTab = signal<AssetManagerInitialTab>('vanilla');
   protected readonly diagnosticsOpen = signal(false);
   protected readonly structureJsonExportOpen = signal(false);
   protected readonly structureJsonImportOpen = signal(false);
@@ -271,6 +274,9 @@ export class EditorShellComponent implements OnDestroy {
       case 'open-asset-manager':
         this.openAssetManager();
         break;
+      case 'open-mod-jar-import':
+        this.openAssetManager('mods');
+        break;
       case 'open-diagnostics':
         this.openProjectDiagnostics();
         break;
@@ -366,7 +372,8 @@ export class EditorShellComponent implements OnDestroy {
   protected openSettingsDialog(): void {
     this.settingsDialogOpen.set(true);
   }
-  protected openAssetManager(): void {
+  protected openAssetManager(initialTab: AssetManagerInitialTab = 'vanilla'): void {
+    this.assetManagerInitialTab.set(initialTab);
     this.assetManagerOpen.set(true);
   }
   protected openProjectDiagnostics(): void {

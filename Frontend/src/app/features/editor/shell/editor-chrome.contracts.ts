@@ -45,6 +45,7 @@ export type EditorChromeAction =
   | { readonly type: 'fit-structure' }
   | { readonly type: 'focus-selection' }
   | { readonly type: 'open-asset-manager' }
+  | { readonly type: 'open-mod-jar-import' }
   | { readonly type: 'open-diagnostics' }
   | { readonly type: 'open-settings' }
   | { readonly type: 'set-locale'; readonly locale: UiLocale }

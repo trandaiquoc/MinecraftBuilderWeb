@@ -339,7 +339,10 @@
       <app-shortcuts-help-dialog (closed)="controlsHelpOpen.set(false)"></app-shortcuts-help-dialog>
     }
     @if (assetManagerOpen()) {
-      <app-asset-manager-dialog (closed)="assetManagerOpen.set(false)"></app-asset-manager-dialog>
+      <app-asset-manager-dialog
+        [initialTab]="assetManagerInitialTab()"
+        (closed)="assetManagerOpen.set(false)"
+      ></app-asset-manager-dialog>
     }
     @if (diagnosticsOpen()) {
       <app-project-diagnostics-dialog

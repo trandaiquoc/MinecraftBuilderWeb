@@ -19,7 +19,9 @@ checks its reading order in all four themes and in the narrow right drawer.
 The [viewport empty-state review](20261017-viewport-empty-starter/README.md)
 covers the 3D and Y-Layer starter card in all four themes and at a narrow
 viewport. The [Settings dialog responsive review](20261017-settings-responsive/README.md)
-checks its mobile layout and scroll behavior.
+checks its mobile layout and scroll behavior. The [Workspace interaction review](20261017-workspace-interactions/README.md)
+records JSON import/export, Structure NBT/Datapack export, Asset Manager, and
+Diagnostics states, including two interaction fixes.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The

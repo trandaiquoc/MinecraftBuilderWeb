@@ -135,7 +135,7 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(document.activeElement).toBe(tabs[1]);
   });
 
-  it('keeps narrow import content and the JSON editor independently scrollable', () => {
+  it('keeps the narrow validation preview bounded and the JSON editor reachable', () => {
     const workspaceStyles = String(
       readFileSync(
         'src/app/features/editor/structure-json/import/structure-json-import-workspace.component.scss',
@@ -171,7 +171,9 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(mobileStyles).toContain('display: block;');
     expect(mobileStyles).toContain('overflow-y: auto;');
     expect(mobileStyles).toContain('.structure-json-info');
-    expect(mobileStyles).toContain('overflow: visible;');
+    expect(mobileStyles).toContain('max-height: min(22dvh, 10rem);');
+    expect(mobileStyles).toContain('overflow: auto;');
+    expect(mobileStyles).toContain('grid-template-rows: auto minmax(12rem, 38dvh) auto;');
     expect(mobileStyles).not.toContain('max-height: 220px;');
     expect(mobileStyles).not.toContain('min-height: 420px;');
     expect(textareaStyles).toContain('overflow: auto;');

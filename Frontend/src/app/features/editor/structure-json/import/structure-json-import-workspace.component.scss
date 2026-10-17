@@ -412,12 +412,12 @@
     overscroll-behavior: contain;
   }
   .structure-json-info {
-    max-height: none;
-    overflow: visible;
+    max-height: min(22dvh, 10rem);
+    overflow: auto;
   }
   .structure-json-workspace {
     min-height: 0;
-    grid-template-rows: auto minmax(16rem, 45dvh) auto;
+    grid-template-rows: auto minmax(12rem, 38dvh) auto;
   }
 }
 @media (max-width: 480px) {

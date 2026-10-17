@@ -158,6 +158,49 @@ describe('editor shell movement/delete routing', () => {
     mount.mockRestore();
   });
 
+  it('opens Mod JAR Import on Mods and Asset Manager on Minecraft Versions', async () => {
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    await workspace.restore(TestBed.inject(PROJECT_STORE), undefined);
+    workspace.activate(project, undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const i18n = TestBed.inject(I18nService);
+    const toolsTrigger = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('.app-menu-trigger'),
+    ).find((button) => button.textContent?.trim() === i18n.t('toolsMenu'))!;
+    const openAssetManager = (label: 'modJarImport' | 'assetManager') => {
+      toolsTrigger.click();
+      fixture.detectChanges();
+      const action = Array.from(
+        root.querySelectorAll<HTMLButtonElement>('.menu-popover [role="menuitem"]'),
+      ).find((button) => button.textContent?.includes(i18n.t(label)))!;
+      action.click();
+      fixture.detectChanges();
+    };
+    const activeTab = () => {
+      const instance = fixture.debugElement.query(By.css('app-asset-manager-dialog'))
+        .componentInstance as unknown as {
+        initialTab: () => string;
+        tab: () => string;
+      };
+      return { initial: instance.initialTab(), selected: instance.tab() };
+    };
+
+    openAssetManager('modJarImport');
+    expect(activeTab()).toEqual({ initial: 'mods', selected: 'mods' });
+    root.querySelector<HTMLButtonElement>('.tool-dialog .ui-close-button')?.click();
+    fixture.detectChanges();
+
+    openAssetManager('assetManager');
+    expect(activeTab()).toEqual({ initial: 'vanilla', selected: 'vanilla' });
+
+    fixture.destroy();
+    mount.mockRestore();
+  });
+
   it('dismisses editor menus with Escape and outside clicks', async () => {
     const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
     const fixture = TestBed.createComponent(EditorShellComponent);
