@@ -31,9 +31,10 @@ import preflight and terminal-state visual acceptance remain open.
 
 ## Technical checkpoint
 
-At ed7b1a5, the full frontend suite passed (313 files passed, 7 skipped;
-1,953 tests passed, 11 skipped), app/spec/worker TypeScript checks, production
-build, tool tests, encoding, and git diff --check. These results are
+At d24454a0, the full frontend suite passed (318 files passed, 7 skipped;
+1,992 tests passed, 11 skipped), and the production build passed. The focused
+sign-inspector spec, Prettier, frontend encoding check, and `git diff --check`
+also passed during the current implementation checkpoint. These results are
 technical evidence only.
 
 ## Evidence rules
