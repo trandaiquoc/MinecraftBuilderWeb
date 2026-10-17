@@ -15,7 +15,10 @@ import {
   ThumbnailVisibilityDirective,
   type VisibilityEvent,
 } from '../../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
-import { validateItemStack } from '../../../../core/items/item-stack-validation';
+import {
+  validateItemStack,
+  type ItemStackValidationCode,
+} from '../../../../core/items/item-stack-validation';
 
 @Component({
   selector: 'app-inventory-storage-inspector',
@@ -30,7 +33,7 @@ export class InventoryStorageInspectorComponent implements OnChanges {
   protected readonly visualRevision = this.visuals.revision;
   private readonly editor = inject(StructureEditorService);
   protected readonly selectedSlot = signal(0);
-  protected readonly countFeedback = signal('');
+  protected readonly countFeedback = signal<ItemStackValidationCode | undefined>(undefined);
   protected readonly itemVisualEpoch = signal(0);
   @Input({ required: true }) block!: PlacedBlock;
   @Input({ required: true }) position!: VoxelCoordinate;
@@ -42,7 +45,7 @@ export class InventoryStorageInspectorComponent implements OnChanges {
       this.itemVisualEpoch.update((value) => value + 1);
       const first = this.slots().find((entry) => entry.stack)?.slot ?? 0;
       this.selectedSlot.set(first);
-      this.countFeedback.set('');
+      this.countFeedback.set(undefined);
     }
   }
 
@@ -92,12 +95,30 @@ export class InventoryStorageInspectorComponent implements OnChanges {
   }
   protected selectSlot(slot: number): void {
     this.selectedSlot.set(slot);
-    this.countFeedback.set('');
+    this.countFeedback.set(undefined);
   }
   protected setStack(stack: ItemStackData | undefined): void {
     if (this.locked) return;
-    this.countFeedback.set('');
+    this.countFeedback.set(undefined);
     this.editor.setBlockItemSlot(this.position, this.selectedSlot(), stack);
+  }
+  protected countFeedbackText(): string {
+    switch (this.countFeedback()) {
+      case 'invalid-count':
+        return this.i18n.t('inventoryCountPositiveInteger');
+      case 'exceeds-max-stack-size': {
+        const max = this.maxStackSize();
+        return max === undefined
+          ? this.i18n.t('invalid')
+          : `${this.i18n.t('inventoryCountMaximum')} ${max}.`;
+      }
+      case 'unknown-max-stack-size':
+        return this.i18n.t('inventoryCountUnknownMaximum');
+      case undefined:
+        return '';
+      default:
+        return this.i18n.t('invalid');
+    }
   }
   protected changeCount(event: Event): void {
     const value = Number((event.target as HTMLInputElement).value);
@@ -108,10 +129,10 @@ export class InventoryStorageInspectorComponent implements OnChanges {
       (id) => this.catalog.get(id)?.maxStackSize,
     );
     if (!result.valid) {
-      this.countFeedback.set(result.code ?? 'invalid');
+      this.countFeedback.set(result.code);
       return;
     }
-    this.countFeedback.set('');
+    this.countFeedback.set(undefined);
     this.editor.setBlockItemSlot(this.position, this.selectedSlot(), { ...current, count: value });
   }
   protected clearSelected(): void {

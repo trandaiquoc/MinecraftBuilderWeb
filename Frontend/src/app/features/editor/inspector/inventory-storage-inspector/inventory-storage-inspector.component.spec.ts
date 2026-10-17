@@ -10,6 +10,8 @@ import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.
 import type { ItemStackData } from '../../../../core/items/item-stack.types';
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 import type { ItemSlotData } from '../../../../core/block-entities/item-display/item-container';
+import type { VerifiedInventoryContainerSchema } from '../../../../core/block-entities/item-display/inventory-storage-schema';
+import type { PlacedBlock, VoxelCoordinate } from '../../../../core/domain/project.types';
 import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import type { VisibilityEvent } from '../../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
@@ -34,19 +36,30 @@ function createItemVisualServiceStub() {
   };
 }
 
-describe('InventoryStorageInspectorComponent slot labels', () => {
+describe('InventoryStorageInspectorComponent', () => {
   let injector: EnvironmentInjector;
   let component: InventoryStorageInspectorComponent;
   let locale: 'en' | 'vi';
   let visuals: ReturnType<typeof createItemVisualServiceStub>;
+  let setBlockItemSlot: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     locale = 'en';
     visuals = createItemVisualServiceStub();
+    setBlockItemSlot = vi.fn();
     const translations: Readonly<Record<string, Readonly<Record<'en' | 'vi', string>>>> = {
       inventorySlot: { en: 'Inventory slot', vi: 'Ô kho' },
       emptySlot: { en: 'Empty slot', vi: 'Ô trống' },
       itemCount: { en: 'Count', vi: 'Số lượng' },
+      inventoryCountPositiveInteger: {
+        en: 'Enter a whole number of at least 1.',
+        vi: 'Nhập số nguyên từ 1 trở lên.',
+      },
+      inventoryCountMaximum: { en: 'Maximum count:', vi: 'Số lượng tối đa:' },
+      inventoryCountUnknownMaximum: {
+        en: 'Only one item is allowed because its stack limit is unknown.',
+        vi: 'Chỉ có thể nhập 1 vật phẩm khi chưa biết giới hạn chồng vật phẩm.',
+      },
     };
     injector = createEnvironmentInjector(
       [
@@ -61,13 +74,37 @@ describe('InventoryStorageInspectorComponent slot labels', () => {
               id === 'minecraft:diamond' ? { displayName: 'Diamond', maxStackSize: 64 } : undefined,
           },
         },
-        { provide: StructureEditorService, useValue: {} },
+        { provide: StructureEditorService, useValue: { setBlockItemSlot } },
         { provide: ItemVisualService, useValue: visuals },
       ],
       TestBed.inject(EnvironmentInjector),
     );
     component = runInInjectionContext(injector, () => new InventoryStorageInspectorComponent());
   });
+
+  function prepareSelectedStack(stack: ItemStackData): void {
+    const position: VoxelCoordinate = { x: 0, y: 0, z: 0 };
+    component.position = position;
+    component.block = {
+      kind: 'resolved',
+      id: 'minecraft:chest',
+      namespace: 'minecraft',
+      position,
+      state: {},
+      blockEntityData: {
+        kind: 'item-container',
+        hostKind: 'inventory-storage',
+        slots: [{ slot: 0, stack }],
+      },
+    } satisfies PlacedBlock;
+    component.schema = {
+      blockId: 'minecraft:chest',
+      nbtId: 'minecraft:chest',
+      slotCount: 27,
+      editable: true,
+      nbtSupported: true,
+    } satisfies VerifiedInventoryContainerSchema;
+  }
 
   afterEach(() => {
     if (!injector.destroyed) injector.destroy();
@@ -132,5 +169,50 @@ describe('InventoryStorageInspectorComponent slot labels', () => {
     expect(state.thumbnailEpoch()).toBe(0);
     visuals.revision.update((value) => value + 1);
     expect(state.thumbnailEpoch()).toBe(1);
+  });
+
+  it('explains count validation failures and keeps invalid values out of the project', () => {
+    const state = component as unknown as {
+      changeCount: (event: Event) => void;
+      countFeedbackText: () => string;
+    };
+    prepareSelectedStack({ id: 'minecraft:diamond', count: 1 });
+
+    state.changeCount({ target: { value: '65' } } as unknown as Event);
+
+    expect(state.countFeedbackText()).toBe('Maximum count: 64.');
+    expect(setBlockItemSlot).not.toHaveBeenCalled();
+
+    locale = 'vi';
+    expect(state.countFeedbackText()).toBe('Số lượng tối đa: 64.');
+    state.changeCount({ target: { value: '' } } as unknown as Event);
+    expect(state.countFeedbackText()).toBe('Nhập số nguyên từ 1 trở lên.');
+  });
+
+  it('explains when an unknown item can only be stored as a single item', () => {
+    const state = component as unknown as {
+      changeCount: (event: Event) => void;
+      countFeedbackText: () => string;
+    };
+    prepareSelectedStack({ id: 'example:unknown_gem', count: 1 });
+
+    state.changeCount({ target: { value: '2' } } as unknown as Event);
+
+    expect(state.countFeedbackText()).toBe(
+      'Only one item is allowed because its stack limit is unknown.',
+    );
+    expect(setBlockItemSlot).not.toHaveBeenCalled();
+  });
+
+  it('commits valid counts through the existing editor operation', () => {
+    const state = component as unknown as { changeCount: (event: Event) => void };
+    prepareSelectedStack({ id: 'minecraft:diamond', count: 1 });
+
+    state.changeCount({ target: { value: '32' } } as unknown as Event);
+
+    expect(setBlockItemSlot).toHaveBeenCalledWith({ x: 0, y: 0, z: 0 }, 0, {
+      id: 'minecraft:diamond',
+      count: 32,
+    });
   });
 });

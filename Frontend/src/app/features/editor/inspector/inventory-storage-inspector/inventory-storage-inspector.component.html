@@ -60,9 +60,12 @@
       <label class="count-field"
         ><span>{{ i18n.t('itemCount') }}</span
         ><input
+          id="inventory-count-input"
           type="number"
           min="1"
           [attr.max]="maxStackSize()"
+          [attr.aria-invalid]="countFeedback() ? 'true' : null"
+          [attr.aria-describedby]="countFeedback() ? 'inventory-count-feedback' : null"
           step="1"
           [value]="stack.count"
           [disabled]="locked"
@@ -72,7 +75,9 @@
         {{ i18n.t('clearItem') }}
       </button>
       @if (countFeedback()) {
-        <p class="validation-feedback">{{ i18n.t('invalid') }}</p>
+        <p id="inventory-count-feedback" class="validation-feedback" aria-live="polite">
+          {{ countFeedbackText() }}
+        </p>
       }
     }
   </div>
