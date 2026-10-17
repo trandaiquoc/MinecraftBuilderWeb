@@ -73,9 +73,8 @@ Pangolin in English and Vietnamese (24 states). Every font loaded; no state had
 horizontal document overflow, clipped Camera buttons, or overlap between the
 Quick Bar and mobile drawer openers. Comfortaa/Vietnamese wraps the Camera
 actions and grows the page vertically, keeping a 149 px canvas visible; the
-other states fit within the viewport. A separate 320×520 Comfortaa/Vietnamese
-capture confirms the Camera controls stay inside the narrower page. Large-font
-behavior is checked below; the Small-size Comfortaa matrix follows.
+other states fit within the viewport. Full 320×520 matrices for Normal, Small,
+and Large font sizes follow.
 
 | Theme | Font | English | Vietnamese |
 | --- | --- | --- | --- |
@@ -103,6 +102,29 @@ tight edge fit measured earlier; at 320×520 the Camera group extended about
 | Raccoon | [workspace-font-narrow-before-camera-wrap-raccoon-comfortaa-vi-390x520-20261017.png](workspace-font-narrow-before-camera-wrap-raccoon-comfortaa-vi-390x520-20261017.png) |
 | Dark, 320×520 after change | [workspace-font-narrow-dark-comfortaa-vi-320x520-20261017.png](workspace-font-narrow-dark-comfortaa-vi-320x520-20261017.png) |
 
+### Normal font at 320px viewport
+
+All three fonts were checked across four themes and both locales (24 states).
+Every state required vertical scrolling; documents measured 557–602 px high
+with 148–150 px editor canvases. Camera controls stayed inside the viewport,
+the Quick Bar did not overlap drawer openers, and bottom captures show the
+Quick Bar and status bar.
+
+| Font | Theme | English | Vietnamese |
+| --- | --- | --- | --- |
+| Comfortaa | Minecraft | [Top](workspace-font-size-normal-comfortaa-craft-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-comfortaa-craft-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-comfortaa-craft-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-comfortaa-craft-vi-320x520-20261017-scrolled.png) |
+| Comfortaa | Dark | [Top](workspace-font-size-normal-comfortaa-dark-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-comfortaa-dark-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-comfortaa-dark-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-comfortaa-dark-vi-320x520-20261017-scrolled.png) |
+| Comfortaa | Light | [Top](workspace-font-size-normal-comfortaa-light-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-comfortaa-light-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-comfortaa-light-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-comfortaa-light-vi-320x520-20261017-scrolled.png) |
+| Comfortaa | Raccoon | [Top](workspace-font-size-normal-comfortaa-raccoon-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-comfortaa-raccoon-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-comfortaa-raccoon-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-comfortaa-raccoon-vi-320x520-20261017-scrolled.png) |
+| Chakra Petch | Minecraft | [Top](workspace-font-size-normal-chakra-petch-craft-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-chakra-petch-craft-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-chakra-petch-craft-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-chakra-petch-craft-vi-320x520-20261017-scrolled.png) |
+| Chakra Petch | Dark | [Top](workspace-font-size-normal-chakra-petch-dark-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-chakra-petch-dark-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-chakra-petch-dark-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-chakra-petch-dark-vi-320x520-20261017-scrolled.png) |
+| Chakra Petch | Light | [Top](workspace-font-size-normal-chakra-petch-light-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-chakra-petch-light-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-chakra-petch-light-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-chakra-petch-light-vi-320x520-20261017-scrolled.png) |
+| Chakra Petch | Raccoon | [Top](workspace-font-size-normal-chakra-petch-raccoon-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-chakra-petch-raccoon-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-chakra-petch-raccoon-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-chakra-petch-raccoon-vi-320x520-20261017-scrolled.png) |
+| Pangolin | Minecraft | [Top](workspace-font-size-normal-pangolin-craft-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-pangolin-craft-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-pangolin-craft-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-pangolin-craft-vi-320x520-20261017-scrolled.png) |
+| Pangolin | Dark | [Top](workspace-font-size-normal-pangolin-dark-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-pangolin-dark-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-pangolin-dark-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-pangolin-dark-vi-320x520-20261017-scrolled.png) |
+| Pangolin | Light | [Top](workspace-font-size-normal-pangolin-light-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-pangolin-light-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-pangolin-light-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-pangolin-light-vi-320x520-20261017-scrolled.png) |
+| Pangolin | Raccoon | [Top](workspace-font-size-normal-pangolin-raccoon-en-320x520-20261017.png) · [Bottom](workspace-font-size-normal-pangolin-raccoon-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-normal-pangolin-raccoon-vi-320x520-20261017.png) · [Bottom](workspace-font-size-normal-pangolin-raccoon-vi-320x520-20261017-scrolled.png) |
+
 ## Large Workspace font at narrow and short viewports
 
 The large font setting was checked in the Minecraft theme with Vietnamese at
@@ -123,7 +145,12 @@ and 320 x 520 checks kept a 149 px canvas and all Camera controls inside the
 viewport. At 320 x 520 with the Large font, all Camera controls remained
 inside; scrolling to the bottom
 revealed the Quick Bar and status bar. There was no horizontal document
-overflow. At 701 px high the shell returned to the viewport-height layout with
+overflow. At 320 x 520, Large size was also checked with all three font
+families in all four themes and both locales (24 states). Each state grew
+vertically and scrolled; the document measured 625–678 px high, and the editor
+canvas remained 166–168 px. Camera controls stayed inside the viewport, the
+Quick Bar did not overlap drawer openers, and both the Quick Bar and status bar
+were visible at the bottom. At 701 px high the shell returned to the viewport-height layout with
 a 192 px editor canvas and no document overflow. At 640 x 520, the Large font
 fit in all four themes and locales with 204-215 px canvases, no document
 overflow, no clipped Camera buttons, and no Quick Bar/drawer overlap. In the
@@ -153,6 +180,27 @@ openers.
 | Large font, Light, Vietnamese, 640 x 520 | [workspace-font-size-large-light-vi-640x520-20261017.png](workspace-font-size-large-light-vi-640x520-20261017.png) |
 | Large font, Raccoon, English, 640 x 520 | [workspace-font-size-large-raccoon-en-640x520-20261017.png](workspace-font-size-large-raccoon-en-640x520-20261017.png) |
 | Large font, Raccoon, Vietnamese, 640 x 520 | [workspace-font-size-large-raccoon-vi-640x520-20261017.png](workspace-font-size-large-raccoon-vi-640x520-20261017.png) |
+
+### Large font at 320px viewport
+
+Each cell links to the page-top and scrolled captures for that locale. All 24
+states required vertical scrolling to reach the footer, and all bottom captures
+show the Quick Bar and status bar.
+
+| Font | Theme | English | Vietnamese |
+| --- | --- | --- | --- |
+| Comfortaa | Minecraft | [Top](workspace-font-size-large-comfortaa-craft-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-comfortaa-craft-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-comfortaa-craft-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-comfortaa-craft-vi-320x520-20261017-scrolled.png) |
+| Comfortaa | Dark | [Top](workspace-font-size-large-comfortaa-dark-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-comfortaa-dark-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-comfortaa-dark-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-comfortaa-dark-vi-320x520-20261017-scrolled.png) |
+| Comfortaa | Light | [Top](workspace-font-size-large-comfortaa-light-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-comfortaa-light-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-comfortaa-light-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-comfortaa-light-vi-320x520-20261017-scrolled.png) |
+| Comfortaa | Raccoon | [Top](workspace-font-size-large-comfortaa-raccoon-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-comfortaa-raccoon-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-comfortaa-raccoon-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-comfortaa-raccoon-vi-320x520-20261017-scrolled.png) |
+| Chakra Petch | Minecraft | [Top](workspace-font-size-large-chakra-petch-craft-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-chakra-petch-craft-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-chakra-petch-craft-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-chakra-petch-craft-vi-320x520-20261017-scrolled.png) |
+| Chakra Petch | Dark | [Top](workspace-font-size-large-chakra-petch-dark-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-chakra-petch-dark-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-chakra-petch-dark-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-chakra-petch-dark-vi-320x520-20261017-scrolled.png) |
+| Chakra Petch | Light | [Top](workspace-font-size-large-chakra-petch-light-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-chakra-petch-light-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-chakra-petch-light-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-chakra-petch-light-vi-320x520-20261017-scrolled.png) |
+| Chakra Petch | Raccoon | [Top](workspace-font-size-large-chakra-petch-raccoon-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-chakra-petch-raccoon-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-chakra-petch-raccoon-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-chakra-petch-raccoon-vi-320x520-20261017-scrolled.png) |
+| Pangolin | Minecraft | [Top](workspace-font-size-large-pangolin-craft-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-pangolin-craft-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-pangolin-craft-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-pangolin-craft-vi-320x520-20261017-scrolled.png) |
+| Pangolin | Dark | [Top](workspace-font-size-large-pangolin-dark-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-pangolin-dark-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-pangolin-dark-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-pangolin-dark-vi-320x520-20261017-scrolled.png) |
+| Pangolin | Light | [Top](workspace-font-size-large-pangolin-light-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-pangolin-light-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-pangolin-light-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-pangolin-light-vi-320x520-20261017-scrolled.png) |
+| Pangolin | Raccoon | [Top](workspace-font-size-large-pangolin-raccoon-en-320x520-20261017.png) · [Bottom](workspace-font-size-large-pangolin-raccoon-en-320x520-20261017-scrolled.png) | [Top](workspace-font-size-large-pangolin-raccoon-vi-320x520-20261017.png) · [Bottom](workspace-font-size-large-pangolin-raccoon-vi-320x520-20261017-scrolled.png) |
 
 ## Small Workspace font at narrow viewports
 
