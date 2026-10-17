@@ -352,9 +352,9 @@
   color: var(--text);
   box-shadow: var(--shadow-control);
   transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    box-shadow 140ms ease;
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
   backdrop-filter: blur(4px);
 }
 

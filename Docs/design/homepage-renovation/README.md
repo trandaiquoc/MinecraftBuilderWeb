@@ -22,6 +22,8 @@ remaining scope; it is not a full application acceptance report.
 - The existing Project Screen workflow still owns create/open/delete, import,
   local persistence, and project navigation. Local guest status remains
   explicit; no account or cloud behavior was added.
+- Theme controls and project rows use the shared 120 ms standard-easing token;
+  reduced-motion preferences suppress these transitions.
 - At narrow widths, the scene becomes a responsive visual header followed by
   the project details, board, and local status. Project controls remain within
   the document width.
