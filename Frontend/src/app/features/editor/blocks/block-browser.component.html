@@ -67,8 +67,10 @@
               >
                 @if (assets.thumbnailUrlForItem(block); as thumbnail) {
                   <img [src]="thumbnail" alt="" />
+                } @else if (block.visualSupport === 'fallback') {
+                  <svg lucideCircleHelp aria-hidden="true"></svg>
                 } @else {
-                  <span>{{ block.visualSupport === 'fallback' ? '?' : '◇' }}</span>
+                  <svg lucideBox aria-hidden="true"></svg>
                 }</span
               ><span class="block-copy"
                 ><strong>{{ block.displayName }}</strong

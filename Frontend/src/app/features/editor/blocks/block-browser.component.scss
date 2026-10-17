@@ -220,7 +220,6 @@
   justify-self: start;
   overflow: hidden;
   color: var(--text-muted);
-  font-weight: 700;
   image-rendering: pixelated;
 }
 .preview.has-thumbnail {
@@ -231,6 +230,11 @@
   height: 100%;
   object-fit: cover;
   image-rendering: pixelated;
+}
+.preview > svg {
+  width: 1.75rem;
+  height: 1.75rem;
+  stroke-width: 1.6;
 }
 .preview.fallback {
   background: var(--border-strong);

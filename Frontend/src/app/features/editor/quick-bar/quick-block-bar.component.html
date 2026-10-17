@@ -35,7 +35,7 @@
               @if (entry.thumbnail) {
                 <img [src]="entry.thumbnail" alt="" />
               } @else {
-                ◇
+                <svg class="slot-placeholder" lucideBox aria-hidden="true"></svg>
               }</span
             ><small>{{ index === 9 ? 0 : index + 1 }}</small>
             @if (entry.active) {

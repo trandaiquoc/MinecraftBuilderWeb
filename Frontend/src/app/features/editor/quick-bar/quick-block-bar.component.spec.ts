@@ -55,6 +55,7 @@ describe('QuickBlockBarComponent disclosure', () => {
     expect(fixture.nativeElement.querySelector('.slot-select')?.getAttribute('aria-label')).toBe(
       '1: Stone, minecraft:stone',
     );
+    expect(fixture.nativeElement.querySelector('.slot-placeholder')).not.toBeNull();
 
     button.click();
     fixture.detectChanges();
