@@ -1242,3 +1242,17 @@ spec pass; production build, encoding, Prettier, and `git diff --check` also
 pass. Browser/assistive-technology announcement behavior remains unverified
 because the isolated Chrome launch was rejected by policy; no new screenshot is
 claimed for this source-only change.
+
+## Workspace save status announcement ownership
+
+The header and footer both display the same autosave label. When the footer
+status bar is visible, it remains the single polite status region and the
+header copy is visual only. When the user hides the footer status bar, the
+header becomes the live status source. At viewports where the header status is
+visually hidden for space, its standalone status remains available to
+assistive technology. This avoids duplicate “Saving”/“Saved” announcements
+without making autosave state depend on the footer preference.
+
+The Editor Chrome spec verifies both preference states, and the production
+build passes. Browser/screen-reader behavior has not been rechecked in this
+source checkpoint; no new screenshot is claimed.

@@ -191,6 +191,49 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
   });
 });
 
+describe('EditorChromeComponent save status announcements', () => {
+  it('uses the header as the live source only when the status bar is hidden', async () => {
+    await TestBed.configureTestingModule({
+      imports: [EditorChromeComponent],
+      providers: [
+        {
+          provide: I18nService,
+          useValue: { locale: signal('en'), t: (key: string) => key },
+        },
+        {
+          provide: KeyboardBindingService,
+          useValue: { bindings: signal({ undo: 'Ctrl+Z', redo: 'Ctrl+Y' }) },
+        },
+        provideRouter([]),
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(EditorChromeComponent);
+    fixture.componentRef.setInput('state', state);
+    fixture.detectChanges();
+
+    let status = (fixture.nativeElement as HTMLElement).querySelector(
+      '.chrome-project-status',
+    ) as HTMLElement;
+    expect(status.getAttribute('role')).toBeNull();
+    expect(status.getAttribute('aria-live')).toBeNull();
+
+    fixture.componentRef.setInput('state', {
+      ...state,
+      layout: { ...state.layout, statusBarVisible: false },
+    });
+    fixture.detectChanges();
+
+    status = (fixture.nativeElement as HTMLElement).querySelector(
+      '.chrome-project-status',
+    ) as HTMLElement;
+    expect(status.getAttribute('role')).toBe('status');
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.classList.contains('chrome-project-status--standalone')).toBe(true);
+    fixture.destroy();
+  });
+});
+
 function press(target: HTMLElement, key: string): KeyboardEvent {
   const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
   target.dispatchEvent(event);

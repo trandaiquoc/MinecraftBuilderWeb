@@ -563,7 +563,12 @@
         }
       </div>
     </nav>
-    <div class="chrome-project-status" role="status" aria-live="polite">
+    <div
+      class="chrome-project-status"
+      [class.chrome-project-status--standalone]="!state().layout.statusBarVisible"
+      [attr.role]="state().layout.statusBarVisible ? null : 'status'"
+      [attr.aria-live]="state().layout.statusBarVisible ? null : 'polite'"
+    >
       {{ state().saveStatusLabel }}
     </div>
   </div>
