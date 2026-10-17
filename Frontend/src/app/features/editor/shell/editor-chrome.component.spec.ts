@@ -1,3 +1,5 @@
+// @ts-expect-error Vitest executes this menu style contract in Node.
+import { readFileSync } from 'node:fs';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -251,6 +253,25 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
 
     expect(actions).toEqual([{ type: 'open-mod-jar-import' }]);
     fixture.destroy();
+  });
+
+  it('keeps checked menu choices selected while adding hover and press feedback', () => {
+    const menuStyles = String(
+      readFileSync('src/app/features/editor/shell/editor-chrome.component.scss', 'utf8'),
+    );
+    const menuButtonStyles = menuStyles.slice(
+      menuStyles.indexOf('.menu-popover button {'),
+      menuStyles.indexOf('.menu-popover button:disabled'),
+    );
+
+    expect(menuButtonStyles).toContain('background-color var(--motion-duration-fast)');
+    expect(menuButtonStyles).toContain('color var(--motion-duration-fast)');
+    expect(menuButtonStyles).toContain(
+      ".menu-popover button[aria-checked='true']:hover:not(:disabled):not([aria-disabled='true'])",
+    );
+    expect(menuButtonStyles).toContain('background: var(--control-selected);');
+    expect(menuButtonStyles).toContain('box-shadow: inset 0 0 0 1px');
+    expect(menuButtonStyles).toContain('transform: translateY(1px);');
   });
 
   it('opens at the last item with ArrowUp and closes when focus leaves the menu', () => {

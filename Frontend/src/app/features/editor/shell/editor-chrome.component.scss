@@ -380,6 +380,11 @@
   box-shadow: none;
   text-align: left;
   white-space: nowrap;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
 .menu-popover button:hover:not(:disabled):not([aria-disabled='true']),
@@ -392,6 +397,14 @@
 .menu-popover button[aria-checked='true'] {
   background: var(--control-selected);
   color: var(--control-selected-text);
+}
+.menu-popover button[aria-checked='true']:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--control-selected);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--control-selected-text) 24%, transparent);
+  color: var(--control-selected-text);
+}
+.menu-popover button:active:not(:disabled):not([aria-disabled='true']) {
+  transform: translateY(1px);
 }
 
 .menu-popover button:disabled,

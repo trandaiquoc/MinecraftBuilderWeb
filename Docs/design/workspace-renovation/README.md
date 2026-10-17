@@ -36,6 +36,8 @@ component hosts are removed.
 The [shared tab surface review](evidence/20261017-tab-surface-interaction/README.md)
 checks that each selected tab owns its theme-aware surface across all four
 themes, while the toolbar's segmented controls keep their separate track.
+The [Workspace menu feedback review](evidence/20261017-menu-feedback/README.md)
+checks persistent checked states, hover, and press feedback in all four themes.
 The [Quick Bar review](evidence/20261017-quick-bar-responsive/README.md)
 confirms all ten slots remain reachable at a narrow viewport. The
 [active BlockState and Help review](evidence/20261017-selection-state-help/README.md)

@@ -54,6 +54,9 @@ reduced-motion path.
 The [shared tab surface review](20261017-tab-surface-interaction/README.md)
 checks selected states and tab transitions in all four Workspace themes,
 including reduced motion.
+The [Workspace menu feedback review](20261017-menu-feedback/README.md) checks
+checked-item hover and press feedback in all four themes, including reduced
+motion.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The
