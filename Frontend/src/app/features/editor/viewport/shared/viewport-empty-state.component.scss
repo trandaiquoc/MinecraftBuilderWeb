@@ -7,12 +7,9 @@
   --starter-ground: var(--workspace-muted);
   --starter-grid-line: var(--workspace-border);
 
-  position: absolute;
-  z-index: 1;
-  top: 1rem;
-  left: 1rem;
+  position: static;
   display: block;
-  width: min(30rem, calc(100% - 2rem));
+  width: 100%;
   pointer-events: none;
 }
 
@@ -313,12 +310,6 @@
 }
 
 @media (max-width: 560px) {
-  :host {
-    top: 0.75rem;
-    left: 0.75rem;
-    width: calc(100% - 1.5rem);
-  }
-
   .viewport-starter {
     grid-template-columns: 5.5rem minmax(0, 1fr);
     gap: 0.75rem;

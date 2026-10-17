@@ -90,24 +90,14 @@
     (contextmenu)="$event.preventDefault()"
     (window:resize)="resize()"
   >
-    <app-viewport-empty-state
+    <app-viewport-overlay-stack
       [project]="workspace.project()"
       [tool]="tool.active()"
       [hasActiveBlock]="!!active.active()"
       [hasActiveDecoration]="!!decorations.active()"
+      [placementStatus]="placementFeedback()?.status"
+      [placementReason]="reasonLabel()"
+      [target]="target()"
     />
-    @if (target() || reasonLabel() || placementFeedback()) {
-      <div class="viewport-status" [attr.data-status]="placementFeedback()?.status">
-        @if (placementFeedback()) {
-          {{ statusLabel() }}
-        }
-        @if (reasonLabel()) {
-          <span>&middot; {{ reasonLabel() }}</span>
-        }
-        @if (target()) {
-          <span>{{ target() }}</span>
-        }
-      </div>
-    }
   </div>
 </div>

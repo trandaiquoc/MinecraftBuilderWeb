@@ -1,0 +1,56 @@
+.viewport-overlay-stack {
+  position: absolute;
+  z-index: 1;
+  top: 1rem;
+  left: 1rem;
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  width: min(30rem, calc(100% - 2rem));
+  pointer-events: none;
+}
+
+.viewport-status {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text-muted);
+  font: 0.72rem/1.25 var(--font-ui);
+}
+
+.viewport-status span {
+  margin-left: 0.5rem;
+  color: var(--text);
+}
+
+.viewport-status[data-status='valid'] {
+  color: var(--status-valid);
+}
+
+.viewport-status[data-status='warning'] {
+  color: var(--status-warning);
+}
+
+.viewport-status[data-status='unknown'] {
+  color: var(--status-unknown);
+}
+
+.viewport-status[data-status='invalid'] {
+  color: var(--status-invalid);
+}
+
+:host-context([data-font='chakra-petch']) .viewport-status {
+  font-size: 0.8rem;
+  line-height: 1.1;
+}
+
+@media (max-width: 560px) {
+  .viewport-overlay-stack {
+    top: 0.75rem;
+    left: 0.75rem;
+    width: calc(100% - 1.5rem);
+  }
+}

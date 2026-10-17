@@ -1,0 +1,21 @@
+<div class="viewport-overlay-stack">
+  <app-viewport-empty-state
+    [project]="project()"
+    [tool]="tool()"
+    [hasActiveBlock]="hasActiveBlock()"
+    [hasActiveDecoration]="hasActiveDecoration()"
+  />
+  @if (placementStatus() || placementReason() || target()) {
+    <div class="viewport-status" [attr.data-status]="placementStatus()">
+      @if (placementStatus()) {
+        {{ i18n.t(placementStatus()!) }}
+      }
+      @if (placementReason()) {
+        <span>&middot; {{ placementReason() }}</span>
+      }
+      @if (target()) {
+        <span>{{ target() }}</span>
+      }
+    </div>
+  }
+</div>

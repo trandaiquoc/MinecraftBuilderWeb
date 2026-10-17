@@ -64,7 +64,7 @@ import {
   type ViewportPreparationScope,
 } from '../shared/viewport-preparation-scheduler';
 import { ViewportHitInteractionWorkflow } from '../shared/viewport-hit-interaction-workflow';
-import { ViewportEmptyStateComponent } from '../shared/viewport-empty-state.component';
+import { ViewportOverlayStackComponent } from '../shared/viewport-overlay-stack.component';
 
 export const Y_LAYER_PROJECTION_STATUS_DELAY_MS = 180;
 
@@ -75,7 +75,7 @@ export const Y_LAYER_PROJECTION_STATUS_DELAY_MS = 180;
     LucideChevronLeft,
     LucideChevronRight,
     UiTooltipDirective,
-    ViewportEmptyStateComponent,
+    ViewportOverlayStackComponent,
   ],
   templateUrl: './y-layer.component.html',
   styleUrl: './y-layer.component.scss',
@@ -523,9 +523,6 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
       this.tool.active() === 'place',
     );
     this.hitInteraction.applyClick(hit, gestureAction, this.tool.active(), 'y-layer');
-  }
-  protected statusLabel(): string {
-    return this.i18n.t(this.placementFeedback()?.status ?? 'invalid');
   }
   protected setOpacity(value: string): void {
     const project = this.workspace.project();

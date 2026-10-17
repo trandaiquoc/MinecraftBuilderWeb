@@ -68,7 +68,7 @@ import {
   type ViewportPreparationScope,
 } from '../shared/viewport-preparation-scheduler';
 import { ViewportHitInteractionWorkflow } from '../shared/viewport-hit-interaction-workflow';
-import { ViewportEmptyStateComponent } from '../shared/viewport-empty-state.component';
+import { ViewportOverlayStackComponent } from '../shared/viewport-overlay-stack.component';
 
 declare global {
   interface Window {
@@ -78,7 +78,7 @@ declare global {
 
 @Component({
   selector: 'app-viewport',
-  imports: [ViewportEmptyStateComponent],
+  imports: [ViewportOverlayStackComponent],
   templateUrl: './viewport.component.html',
   styleUrl: './viewport.component.scss',
 })
@@ -369,9 +369,6 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     if (!this.viewportActive()) return;
     this.engine.resize();
     if (this.lastPointerPosition) this.updateMarqueePreview(this.lastPointerPosition);
-  }
-  protected statusLabel(): string {
-    return this.i18n.t(this.placementFeedback()?.status ?? 'invalid');
   }
   protected pointerMove(event: PointerEvent): void {
     if (!this.viewportActive()) return;
