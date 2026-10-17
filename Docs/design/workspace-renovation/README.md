@@ -15,6 +15,9 @@ saved move in the isolated browser project. The
 [compact toolbar review](evidence/20261017-compact-toolbar/README.md) checks
 the 390 px two-row layout and a 320 px viewport, keeping actions named while
 reducing toolbar height. The
+[Status Bar responsive review](evidence/20261017-statusbar-responsive/README.md)
+checks its two-row hierarchy at 390 and 320 px, pairing editor context and save
+state separately from project metrics and asset readiness. The
 [starter-card review](evidence/20261017-viewport-empty-starter/README.md) also
 checks both modes at a narrow viewport. Current browser review also covers the
 Settings dialog at a narrow viewport, JSON import/export, Structure NBT and

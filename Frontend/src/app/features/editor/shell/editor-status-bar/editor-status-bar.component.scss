@@ -184,34 +184,51 @@ app-ui-progress.block-loading-progress {
 }
 @media (max-width: 640px) {
   .status-bar {
-    flex-wrap: wrap;
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 0.3rem 0.6rem;
+    align-items: center;
   }
   .status-left {
-    flex: 1 1 100%;
-    min-width: 0;
+    display: contents;
   }
   .status-context {
-    flex: 0 0 auto;
+    grid-column: 1;
+    grid-row: 1;
   }
   .status-activity {
-    flex: 1 1 100%;
-    flex-wrap: wrap;
-    overflow: visible;
+    grid-column: 2;
+    grid-row: 1;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    overflow: hidden;
   }
   .status-metrics {
-    flex: 1 1 100%;
+    grid-column: 1;
+    grid-row: 2;
+    flex: 0 1 auto;
+    min-width: 0;
     margin-left: 0;
     padding-left: 0;
     border-left: 0;
+    overflow: hidden;
+  }
+  .status-metrics > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .status-right {
-    flex: 1 1 100%;
+    grid-column: 2;
+    grid-row: 2;
+    flex: 0 1 auto;
     max-width: none;
-    justify-content: flex-start;
+    justify-content: flex-end;
+    margin-left: 0;
   }
   .asset-status {
-    justify-items: start;
-    text-align: left;
+    justify-items: end;
+    text-align: right;
   }
 }

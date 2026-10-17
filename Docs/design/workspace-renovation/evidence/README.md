@@ -25,6 +25,8 @@ move.
 The [compact toolbar review](20261017-compact-toolbar/README.md) records the
 two-row 390 px layout and checks that every toolbar action remains reachable at
 320 px.
+The [Status Bar responsive review](20261017-statusbar-responsive/README.md)
+checks the compact two-row status hierarchy at 390 and 320 px.
 The [Selection inspector hierarchy comparison](20261017-selection-inspector-hierarchy/README.md)
 checks its reading order in all four themes and in the narrow right drawer.
 The [active BlockState and Help review](20261017-selection-state-help/README.md)
