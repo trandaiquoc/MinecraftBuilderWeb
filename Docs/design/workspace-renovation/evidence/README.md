@@ -45,6 +45,9 @@ interaction fixes.
 The [Quick Bar responsive review](20261017-quick-bar-responsive/README.md)
 records access to all ten slots and selection of the last slot at a 390 px
 viewport.
+The [shared alert dialog motion review](20261017-alert-dialog-motion/README.md)
+checks the confirmation portal's enter/exit lifecycle in all four themes,
+including reduced motion and a 390 px layout.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The

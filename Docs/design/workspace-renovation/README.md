@@ -27,6 +27,9 @@ Datapack export, Asset Manager, and Diagnostics. The
 [Workspace interaction review](evidence/20261017-workspace-interactions/README.md)
 records those responsive states and the fixes found in the import and Mod JAR
 entry paths, plus the Tools-menu collision with the narrow project-name chip.
+The [shared alert dialog motion review](evidence/20261017-alert-dialog-motion/README.md)
+checks confirm/notice overlay entry and exit, all four theme surfaces, reduced
+motion, and the narrow dialog layout.
 The [Quick Bar review](evidence/20261017-quick-bar-responsive/README.md)
 confirms all ten slots remain reachable at a narrow viewport. The
 [active BlockState and Help review](evidence/20261017-selection-state-help/README.md)

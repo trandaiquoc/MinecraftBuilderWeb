@@ -9,6 +9,8 @@ import {
   UiAlertModel,
 } from '../../../shared/ui/dialog/ui-alert-dialog.component';
 
+const DIALOG_EXIT_FALLBACK_MS = 180;
+
 export interface DialogConfirmOptions {
   readonly title: string;
   readonly text?: string;
@@ -105,14 +107,35 @@ export class DialogService {
       positionStrategy: this.overlay.position().global().centerHorizontally().centerVertically(),
     });
     const component = ref.attach(new ComponentPortal(UiAlertDialogComponent));
+    const dialogHost = component.location.nativeElement as HTMLElement;
+    dialogHost.classList.add('workspace-dialog-enter');
+    const backdrop = ref.backdropElement;
+    backdrop?.classList.add('workspace-dialog-backdrop-enter');
     return new Promise<unknown>((resolve) => {
-      let settled = false;
+      let closing = false;
+      let disposed = false;
+      let exitFallbackTimer: ReturnType<typeof setTimeout> | undefined;
       const finish = (value: unknown): void => {
-        if (settled) return;
-        settled = true;
-        ref.dispose();
-        queueMicrotask(() => previous?.focus());
-        resolve(value);
+        if (closing) return;
+        closing = true;
+        dialogHost.classList.remove('workspace-dialog-enter');
+        dialogHost.classList.add('workspace-dialog-exit');
+        backdrop?.classList.remove('workspace-dialog-backdrop-enter');
+        backdrop?.classList.add('workspace-dialog-backdrop-exit');
+        const resolveAfterExit = (): void => {
+          if (disposed) return;
+          disposed = true;
+          if (exitFallbackTimer !== undefined) clearTimeout(exitFallbackTimer);
+          dialogHost.removeEventListener('animationend', handleAnimationEnd);
+          ref.dispose();
+          queueMicrotask(() => previous?.focus());
+          resolve(value);
+        };
+        const handleAnimationEnd = (event: Event): void => {
+          if (event.target === dialogHost) resolveAfterExit();
+        };
+        dialogHost.addEventListener('animationend', handleAnimationEnd);
+        exitFallbackTimer = setTimeout(resolveAfterExit, DIALOG_EXIT_FALLBACK_MS);
       };
       component.instance.configure(model, finish);
       component.changeDetectorRef.detectChanges();

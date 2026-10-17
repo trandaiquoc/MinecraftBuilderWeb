@@ -1,7 +1,15 @@
 import { OverlayModule, OverlayContainer } from '@angular/cdk/overlay';
 import { TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 import { DialogService } from './dialog.service';
 import { UiAlertDialogComponent } from '../../../shared/ui/dialog/ui-alert-dialog.component';
+
+function completeDialogExit(overlayContainer: OverlayContainer): void {
+  const surface = overlayContainer
+    .getContainerElement()
+    .querySelector<HTMLElement>('.ui-dialog-overlay-pane.workspace-dialog-exit');
+  surface?.dispatchEvent(new Event('animationend'));
+}
 
 describe('DialogService', () => {
   let service: DialogService;
@@ -25,6 +33,10 @@ describe('DialogService', () => {
       destructive: true,
     });
     await Promise.resolve();
+    const dialogHost = overlayContainer
+      .getContainerElement()
+      .querySelector('.ui-dialog-overlay-pane app-ui-alert-dialog') as HTMLElement;
+    expect(dialogHost.classList.contains('workspace-dialog-enter')).toBe(true);
     const pane = overlayContainer
       .getContainerElement()
       .querySelector('.ui-alert-dialog') as HTMLElement;
@@ -34,6 +46,8 @@ describe('DialogService', () => {
         button.textContent?.includes('Delete'),
       ) as HTMLButtonElement
     ).click();
+    expect(dialogHost.classList.contains('workspace-dialog-exit')).toBe(true);
+    completeDialogExit(overlayContainer);
     await expect(result).resolves.toBe(true);
   });
 
@@ -52,6 +66,7 @@ describe('DialogService', () => {
         button.textContent?.includes('Cancel'),
       ) as HTMLButtonElement
     ).click();
+    completeDialogExit(overlayContainer);
     await expect(cancelled).resolves.toBe(false);
 
     const escaped = service.confirm({ title: 'Confirm' });
@@ -60,6 +75,7 @@ describe('DialogService', () => {
       .getContainerElement()
       .querySelector('.ui-alert-dialog')
       ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    completeDialogExit(overlayContainer);
     await expect(escaped).resolves.toBe(false);
   });
 
@@ -79,7 +95,29 @@ describe('DialogService', () => {
         .getContainerElement()
         .querySelector('.ui-alert-dialog .ui-button') as HTMLButtonElement
     ).click();
+    completeDialogExit(overlayContainer);
     await expect(pending).resolves.toBeUndefined();
+  });
+
+  it('disposes the overlay if the exit animation event does not arrive', async () => {
+    vi.useFakeTimers();
+    try {
+      const result = service.info('Saved');
+      await Promise.resolve();
+      const host = overlayContainer
+        .getContainerElement()
+        .querySelector('.ui-dialog-overlay-pane app-ui-alert-dialog') as HTMLElement;
+      (host.querySelector('.ui-button') as HTMLButtonElement).click();
+
+      await vi.advanceTimersByTimeAsync(180);
+
+      await expect(result).resolves.toBe(true);
+      expect(
+        overlayContainer.getContainerElement().querySelector('app-ui-alert-dialog'),
+      ).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('resolves a typed choice and uses undefined for Escape', async () => {
@@ -99,6 +137,7 @@ describe('DialogService', () => {
         button.textContent?.includes('Keep'),
       ) as HTMLButtonElement
     ).click();
+    completeDialogExit(overlayContainer);
     await expect(result).resolves.toBe('keep');
 
     const cancelled = service.choice({
@@ -110,6 +149,7 @@ describe('DialogService', () => {
       .getContainerElement()
       .querySelector('.ui-alert-dialog')
       ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    completeDialogExit(overlayContainer);
     await expect(cancelled).resolves.toBeUndefined();
   });
 
@@ -123,6 +163,7 @@ describe('DialogService', () => {
         .querySelector('.ui-alert-dialog') as HTMLElement;
       expect(pane).toBeTruthy();
       (pane.querySelector('.ui-button') as HTMLButtonElement).click();
+      completeDialogExit(overlayContainer);
       await expect(result).resolves.toBe(true);
     },
   );

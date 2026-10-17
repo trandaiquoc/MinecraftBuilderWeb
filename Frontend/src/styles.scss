@@ -928,11 +928,13 @@ app-editor-shell :where(button, input, select, textarea, [tabindex]):focus-visib
 .workspace-dialog-exit {
   animation: workspace-dialog-out 120ms var(--motion-easing-standard) both;
 }
-.workspace-drawer-backdrop-enter {
+.workspace-drawer-backdrop-enter,
+.workspace-dialog-backdrop-enter {
   animation: workspace-drawer-backdrop-in var(--motion-duration-ui) var(--motion-easing-standard)
     both;
 }
-.workspace-drawer-backdrop-exit {
+.workspace-drawer-backdrop-exit,
+.workspace-dialog-backdrop-exit {
   animation: workspace-drawer-backdrop-out 120ms var(--motion-easing-standard) both;
 }
 @keyframes workspace-popover-in {
