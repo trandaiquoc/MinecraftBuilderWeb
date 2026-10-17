@@ -1,0 +1,35 @@
+@if (guidance(); as guidance) {
+  <div
+    class="viewport-starter"
+    role="status"
+    aria-atomic="true"
+    [attr.data-guidance]="guidance.kind"
+  >
+    <div class="starter-art" aria-hidden="true">
+      <svg viewBox="0 0 128 112" focusable="false">
+        <path class="starter-ground" d="m10 69 54-31 54 31-54 31z" />
+        <path class="starter-ground-line" d="m22 69 42 24 42-24M37 60l42 24M52 51l42 24" />
+        <path class="starter-ground-line" d="m64 94 0-31M43 82l0-31M85 82l0-31" />
+        <path class="starter-cube-left" d="m37 39 27 16v34L37 73z" />
+        <path class="starter-cube-right" d="m64 55 27-16v34L64 89z" />
+        <path class="starter-cube-top" d="m37 39 27-16 27 16-27 16z" />
+        <path class="starter-cube-highlight" d="m39 40 25-15 24 14" />
+        <path class="starter-cube-edge" d="m64 56v31M39 42v30M89 41v31" />
+        <path
+          class="starter-pixel-patch"
+          d="m45 36 5-3 4 2-5 3zM61 27l4-3 4 2-4 3zM75 34l5-3 5 2-5 3z"
+        />
+        <path class="starter-stitch-line" d="m42 40 22-13 22 13m-45 5 21 12m24-12L65 57" />
+      </svg>
+    </div>
+    <div class="starter-copy">
+      <span class="starter-eyebrow">{{ i18n.t('viewportEmptyEyebrow') }}</span>
+      <h2>{{ i18n.t('viewportEmptyTitle') }}</h2>
+      <p>{{ i18n.t(guidance.hint) }}</p>
+      <div class="starter-next">
+        <span>{{ i18n.t('viewportEmptyNextLabel') }}</span>
+        <strong>{{ i18n.t(guidance.nextStep) }}</strong>
+      </div>
+    </div>
+  </div>
+}

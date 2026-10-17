@@ -68,6 +68,7 @@ import {
   type ViewportPreparationScope,
 } from '../shared/viewport-preparation-scheduler';
 import { ViewportHitInteractionWorkflow } from '../shared/viewport-hit-interaction-workflow';
+import { ViewportEmptyStateComponent } from '../shared/viewport-empty-state.component';
 
 declare global {
   interface Window {
@@ -77,6 +78,7 @@ declare global {
 
 @Component({
   selector: 'app-viewport',
+  imports: [ViewportEmptyStateComponent],
   templateUrl: './viewport.component.html',
   styleUrl: './viewport.component.scss',
 })
@@ -84,20 +86,20 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   readonly viewportActive = angularInput(true);
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
   private readonly selectionMarquee = viewChild<ElementRef<HTMLDivElement>>('selectionMarquee');
-  private readonly workspace = inject(WorkspaceStateService);
+  protected readonly workspace = inject(WorkspaceStateService);
   private readonly blockRuntimeIndex = inject(ProjectBlockRuntimeIndex);
-  private readonly active = inject(ActiveBlockService);
+  protected readonly active = inject(ActiveBlockService);
   private readonly library = inject(BlockLibraryService);
   private readonly preferences = inject(UiPreferencesService);
   private readonly renderer2 = inject(Renderer2);
   private readonly assets = inject(ContentAssetRuntimeService);
   private readonly editor = inject(StructureEditorService);
   private readonly selection = inject(SelectionService);
-  private readonly tool = inject(EditorToolService);
+  protected readonly tool = inject(EditorToolService);
   private readonly cameraState = inject(CameraStateService);
   private readonly groups = inject(GroupService);
   protected readonly i18n = inject(I18nService);
-  private readonly decorations = inject(DecorationService);
+  protected readonly decorations = inject(DecorationService);
   private readonly hitInteraction = inject(ViewportHitInteractionWorkflow);
   private readonly input = inject(KeyboardBindingService);
   private readonly mutationHints = inject(ProjectMutationHintService);

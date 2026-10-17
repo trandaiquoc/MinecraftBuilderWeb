@@ -18,6 +18,39 @@ and saved 260/230 px sidebars. Only the UI theme changes.
 | Light     | [workspace-final-light-en-1600x900-20261017.png](workspace-final-light-en-1600x900-20261017.png)     |
 | Dark      | [workspace-final-dark-en-1600x900-20261017.png](workspace-final-dark-en-1600x900-20261017.png)       |
 
+
+## Viewport starter redesign — source checkpoint
+
+The current worktree adds a contextual first-block starter card to both the 3D
+and Y-Layer canvases. It replaces the old one-line hint with a small voxel
+illustration, a localized instruction, and a next-step label. The state changes
+for Place/Select, a selected block, and a selected decoration; the card leaves
+the canvas when project content is present. The illustration and guidance are
+DOM-only and do not create Three.js objects or change project data.
+
+Theme treatments use a grass/dirt pixel surface for Minecraft, stitched and
+cushioned surfaces for Raccoon, restrained grayscale elevation for Light, and
+layered charcoal for Dark. The one-time entrance uses opacity and a short
+vertical settle. The reduced-motion query disables it, following the platform
+preference described by [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/%40media/prefers-reduced-motion).
+The layout keeps this orientation aid at the canvas edge so it does not compete
+with the main work area, consistent with the focus and visual-noise guidance in
+[Linear's interface refresh](https://linear.app/now/behind-the-latest-design-refresh).
+The existing [Lucian Labs source review](../../README.md#adapted-interaction-references)
+records the pinned HTML/CSS/JavaScript patterns inspected earlier; no demo code
+or asset is copied into this component.
+
+Technical verification passed: the full frontend suite passed (313 test files,
+7 skipped; 1,953 tests passed, 11 skipped), app/spec/worker TypeScript checks,
+the Angular production build, registry tool tests (2/2), frontend encoding, and
+git diff --check. Prettier passed for the changed source, branding reference,
+and homepage renovation notes. The existing Workspace inventory and evidence
+documents do not pass Prettier at HEAD; their established Markdown table style
+is retained. Renderer benchmarks were not rerun because no renderer hot paths
+changed. This is not visual acceptance: the current session has no browser
+capture tool, so the after screenshots for all four themes, narrow viewport
+review, and visual comparison remain pending.
+
 ## Workspace theme and font matrix
 
 The running Workspace was captured in Chrome at 1600×900 for all four UI

@@ -90,6 +90,12 @@
     (contextmenu)="$event.preventDefault()"
     (window:resize)="resize()"
   >
+    <app-viewport-empty-state
+      [project]="workspace.project()"
+      [tool]="tool.active()"
+      [hasActiveBlock]="!!active.active()"
+      [hasActiveDecoration]="!!decorations.active()"
+    />
     @if (target() || reasonLabel() || placementFeedback()) {
       <div class="viewport-status" [attr.data-status]="placementFeedback()?.status">
         @if (placementFeedback()) {

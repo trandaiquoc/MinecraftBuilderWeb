@@ -64,12 +64,19 @@ import {
   type ViewportPreparationScope,
 } from '../shared/viewport-preparation-scheduler';
 import { ViewportHitInteractionWorkflow } from '../shared/viewport-hit-interaction-workflow';
+import { ViewportEmptyStateComponent } from '../shared/viewport-empty-state.component';
 
 export const Y_LAYER_PROJECTION_STATUS_DELAY_MS = 180;
 
 @Component({
   selector: 'app-y-layer',
-  imports: [ThemedSelectComponent, LucideChevronLeft, LucideChevronRight, UiTooltipDirective],
+  imports: [
+    ThemedSelectComponent,
+    LucideChevronLeft,
+    LucideChevronRight,
+    UiTooltipDirective,
+    ViewportEmptyStateComponent,
+  ],
   templateUrl: './y-layer.component.html',
   styleUrl: './y-layer.component.scss',
 })
@@ -81,15 +88,15 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly layerIndex = inject(ProjectBlockRuntimeIndex);
   private readonly editor = inject(StructureEditorService);
-  private readonly active = inject(ActiveBlockService);
+  protected readonly active = inject(ActiveBlockService);
   private readonly library = inject(BlockLibraryService);
   protected readonly selection = inject(SelectionService);
-  private readonly tool = inject(EditorToolService);
+  protected readonly tool = inject(EditorToolService);
   private readonly cameraState = inject(CameraStateService);
   private readonly groups = inject(GroupService);
   protected readonly i18n = inject(I18nService);
   private readonly preferences = inject(UiPreferencesService);
-  private readonly decorations = inject(DecorationService);
+  protected readonly decorations = inject(DecorationService);
   private readonly hitInteraction = inject(ViewportHitInteractionWorkflow);
   private readonly input = inject(KeyboardBindingService);
   private readonly session = inject(EditorSessionService);
