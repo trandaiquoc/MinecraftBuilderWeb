@@ -95,6 +95,10 @@ export class ProjectScreenComponent {
   });
   protected readonly createDialogOpen = signal(false);
   protected readonly name = signal(this.i18n.t('untitledStructure'));
+  private readonly projectNameEdited = signal(false);
+  protected readonly projectNameValue = computed(() =>
+    this.projectNameEdited() ? this.name() : this.i18n.t('untitledStructure'),
+  );
   protected readonly defaultMinecraftVersion = DEFAULT_MINECRAFT_VERSION;
   protected readonly sizeX = signal('16');
   protected readonly sizeY = signal('16');
@@ -167,6 +171,7 @@ export class ProjectScreenComponent {
 
   protected updateName(value: string): void {
     this.name.set(value);
+    this.projectNameEdited.set(true);
   }
   protected updateSize(axis: 'x' | 'y' | 'z', value: string): void {
     ({
@@ -280,7 +285,7 @@ export class ProjectScreenComponent {
 
   protected async createProject(): Promise<void> {
     await this.workflow.createProject({
-      name: this.name(),
+      name: this.projectNameValue(),
       minecraftVersion: this.minecraftVersion(),
       size: this.enteredSize(),
       structureMode: this.effectiveStructureMode(),

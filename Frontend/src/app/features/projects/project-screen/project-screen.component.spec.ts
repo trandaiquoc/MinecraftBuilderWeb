@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ProjectDocument } from '../../../core/domain/project.types';
 import type { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
 import { MojangVersionService } from '../../../core/assets/vanilla/mojang-vanilla-asset-source';
+import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ProjectScreenComponent } from './project-screen.component';
 import { ProjectScreenWorkflow } from './project-screen-workflow';
 
@@ -136,12 +137,30 @@ describe('ProjectScreenComponent', () => {
     const fixture = TestBed.createComponent(ProjectScreenComponent);
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
+    const i18n = TestBed.inject(I18nService);
+    i18n.setLocale('en');
+    fixture.detectChanges();
     const cardNames = (): string[] =>
       Array.from(root.querySelectorAll('.project-row strong')).map(
         (name) => name.textContent?.trim() ?? '',
       );
     expect(cardNames()).toEqual(['Lakeside Cabin', 'Garden Study', 'Tower 2']);
     expect(root.querySelectorAll('.project-row app-project-screen-preview')).toHaveLength(3);
+
+    (root.querySelector('.board-actions .ui-button--primary') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const projectName = root.querySelector('.project-text-input') as HTMLInputElement;
+    expect(projectName.value).toBe('Untitled structure');
+    i18n.setLocale('vi');
+    fixture.detectChanges();
+    expect(projectName.value).toBe('Cấu trúc chưa đặt tên');
+
+    projectName.value = 'My workshop';
+    projectName.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    i18n.setLocale('en');
+    fixture.detectChanges();
+    expect(projectName.value).toBe('My workshop');
 
     const search = fixture.nativeElement.querySelector(
       '.project-search-field input',
