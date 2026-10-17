@@ -131,6 +131,22 @@
   white-space: nowrap;
 }
 
+.chrome-project-version {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.12rem 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--workspace-header-text) 25%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--workspace-header-text) 12%, var(--workspace-header-bg));
+  color: var(--workspace-header-text);
+  font-size: 0.68rem;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .chrome-project-status {
   display: inline-flex;
   flex: 0 0 auto;
@@ -611,6 +627,20 @@
 }
 
 @media (max-width: 380px) {
+  .chrome-project-version {
+    position: absolute;
+    box-sizing: border-box;
+    width: 1px;
+    height: 1px;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    clip-path: inset(50%);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
   .menu-popover button {
     align-items: flex-start;
     white-space: normal;

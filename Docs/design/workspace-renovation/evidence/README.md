@@ -62,7 +62,8 @@ motion.
 The [Workspace presentation audit](20261017-workspace-presentation-audit/README.md)
 compares the current shell across all four themes and verifies narrow Settings
 menu navigation in English and Vietnamese. It records and fixes the clipped
-End-key focus target.
+End-key focus target, and adds the active project's saved Minecraft version to
+the desktop header with a compact narrow treatment.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The

@@ -164,6 +164,7 @@ export class EditorShellComponent implements OnDestroy {
     canFocusSelection: this.focusSelectionAvailable(),
     deletingProject: this.deletingProject(),
     projectName: this.workspace.project()?.metadata.name ?? '',
+    minecraftVersion: this.workspace.project()?.metadata.minecraftVersion ?? '',
     saveStatusLabel: this.saveStatusLabel(),
   }));
   protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');

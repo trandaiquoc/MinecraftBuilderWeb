@@ -567,6 +567,16 @@
       <span class="chrome-project-name" [attr.title]="state().projectName">
         {{ state().projectName }}
       </span>
+      @if (state().minecraftVersion) {
+        <span
+          class="chrome-project-version"
+          [attr.title]="
+            i18n.t('minecraftJavaVersion').replace('{version}', state().minecraftVersion)
+          "
+        >
+          {{ state().minecraftVersion }}
+        </span>
+      }
       <span
         class="chrome-project-status"
         [class.chrome-project-status--redundant]="state().layout.statusBarVisible"

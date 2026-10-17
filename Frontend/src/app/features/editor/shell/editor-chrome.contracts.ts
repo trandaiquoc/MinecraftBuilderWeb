@@ -16,6 +16,7 @@ export interface EditorChromeState {
   readonly canFocusSelection: boolean;
   readonly deletingProject: boolean;
   readonly projectName: string;
+  readonly minecraftVersion: string;
   readonly saveStatusLabel: string;
 }
 

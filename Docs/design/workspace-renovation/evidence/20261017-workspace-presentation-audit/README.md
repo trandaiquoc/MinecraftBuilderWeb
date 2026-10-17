@@ -38,7 +38,14 @@ responsive reflow. It is not a full WCAG conformance audit.
    wide and remains inside the 320 px viewport. The header wraps `Trợ giúp` to
    a second line. The menu keeps its own scroll area, and the document does
    not overflow horizontally.
-5. **Close the menu with Escape.** Focus returns to the Settings trigger. The
+5. **Compare the header project context to the approved desktop reference.**
+   The reference includes the active Minecraft version. The app now displays
+   the selected project's saved version beside its name. At 390 px the project
+   name and badge both fit; at 320 px the badge leaves the visual layout while
+   remaining in the DOM instead of being removed with `display: none`.
+   Screen-reader announcement quality was not tested. The badge's background,
+   text, and border resolve to each of the four theme palettes.
+6. **Close the menu with Escape.** Focus returns to the Settings trigger. The
    isolated browser is restored to `/editor`, Dark theme, English, 3D Edit,
    Place tool, and no open dialogs. The existing one-block project was not
    changed.
@@ -47,6 +54,8 @@ responsive reflow. It is not a full WCAG conformance audit.
 
 - The shell's layout and theme palettes remain consistent across the four
   approved compositions.
+- The header identifies the active project's Minecraft Java version from
+  saved project metadata without assuming a mod loader.
 - The Settings menu has menu-item semantics and supports arrow movement,
   Home/End, and Escape.
 - At 320 px, the menu stays within the page width in both locales and keeps
@@ -88,3 +97,6 @@ visual acceptance.
 - [Settings menu before the focus-scroll fix](05-settings-menu-reality-focused-before-dark-320x640.png)
 - [Settings menu after the focus-scroll fix](06-settings-menu-reality-focused-after-dark-320x640.png)
 - [Vietnamese Settings menu](07-settings-menu-vietnamese-dark-320x640.png)
+- [Project version in the desktop header](08-project-version-in-header-dark-1600x1280.png)
+- [Project version beside the full name at 390 px](09-project-version-narrow-390x844.png)
+- [Compact project context at 320 px](10-project-context-compact-dark-320x640.png)

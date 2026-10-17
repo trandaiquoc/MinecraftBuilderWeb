@@ -30,6 +30,7 @@ const state: EditorChromeState = {
   canFocusSelection: true,
   deletingProject: false,
   projectName: 'Workspace UI audit',
+  minecraftVersion: '1.21.1',
   saveStatusLabel: 'Saved',
 };
 
@@ -47,7 +48,10 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
       providers: [
         {
           provide: I18nService,
-          useValue: { locale: signal('en'), t: (key: string) => key },
+          useValue: {
+            locale: signal('en'),
+            t: (key: string) => (key === 'minecraftJavaVersion' ? 'Minecraft Java {version}' : key),
+          },
         },
         {
           provide: KeyboardBindingService,
@@ -70,6 +74,10 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('.chrome-project-name')?.textContent?.trim()).toBe(
       'Workspace UI audit',
+    );
+    expect(root.querySelector('.chrome-project-version')?.textContent?.trim()).toBe('1.21.1');
+    expect(root.querySelector('.chrome-project-version')?.getAttribute('title')).toBe(
+      'Minecraft Java 1.21.1',
     );
     expect(
       root.querySelector('.chrome-project-context .chrome-project-status')?.textContent?.trim(),
