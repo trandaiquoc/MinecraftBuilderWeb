@@ -19,5 +19,9 @@ The [project creation focus review](20261017-project-create-focus/README.md)
 checks the narrow Create Project dialog's initial focus target and responsive
 width.
 
+The [project version hierarchy review](20261017-project-create-version-hierarchy/README.md)
+removes repeated version support text and checks the localized warning for a
+version whose behavior may be incomplete.
+
 The [Structure JSON project import focus review](20261017-project-import-focus/README.md)
 checks the import preview's initial focus target and narrow dialog bounds.

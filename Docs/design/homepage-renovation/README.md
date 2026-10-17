@@ -67,6 +67,10 @@ The [project creation focus review](evidence/20261017-project-create-focus/READM
 checks the narrow dialog's initial focus target and confirms the page has no
 horizontal overflow.
 
+The [project version hierarchy review](evidence/20261017-project-create-version-hierarchy/README.md)
+removes the repeated Minecraft version status from the create dialog and keeps
+the incomplete-behavior caveat distinct for other versions.
+
 The [Structure JSON project import focus review](evidence/20261017-project-import-focus/README.md)
 checks that the narrow import preview opens with its heading focused before
 the create and cancel actions.

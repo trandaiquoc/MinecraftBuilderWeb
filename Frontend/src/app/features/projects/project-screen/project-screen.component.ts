@@ -283,10 +283,8 @@ export class ProjectScreenComponent {
         : 'vanillaStructureBlock',
     );
   }
-  protected versionSupportLabel(): string {
-    return this.minecraftVersion() === DEFAULT_MINECRAFT_VERSION
-      ? this.i18n.t('verifiedSupport')
-      : this.i18n.t('resourceCompatibility');
+  protected hasIncompleteVersionBehavior(): boolean {
+    return this.minecraftVersion() !== DEFAULT_MINECRAFT_VERSION;
   }
   protected summaryModeFullLabel(mode: StructureMode): string {
     return this.i18n.t(

@@ -29,6 +29,30 @@ components, theme tokens, and data contracts.
   app follows the browser's `prefers-reduced-motion` setting across Workspace
   surfaces.
 
+### Lucian source examples inspected
+
+The repository snapshot at [commit `7e339faa1cc5`](https://github.com/Seokwoooo/lucian-uxui-prompt/commit/7e339faa1cc5)
+was checked on 2026-10-17, including these individual HTML examples:
+
+- [Sliding pill tabs](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/039-sliding-tabs-pill.html)
+  move the selected surface with transforms, keep tab selection state in
+  `aria-selected`, support arrow-key navigation, and skip the transition when
+  reduced motion is requested.
+- [Dropdown menu](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/037-dropdown-menu-stagger.html)
+  grows from its trigger, staggers menu-item entry, updates checked state, and
+  moves focus into the menu when it opens. The cascade is short and tied to
+  revealing that menu.
+- [Undo snackbar](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/071-snackbar-undo.html)
+  announces its message through a polite status region, pauses its timeout
+  while hovered or focused, and restores focus after undo. Reduced motion skips
+  the animated removal delay.
+- [Copy feedback](https://github.com/Seokwoooo/lucian-uxui-prompt/blob/main/src/elements/008-copy-to-check.html)
+  changes the copy icon to a check and shows a short contextual confirmation.
+
+These are interaction references, not drop-in components. The project keeps its
+existing Angular ownership, translations, theme tokens, and action behavior;
+no demo code or assets were copied.
+
 ## Application guidance
 
 - Use movement to confirm a selection, reveal a surface, show progress, or

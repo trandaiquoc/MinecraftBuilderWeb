@@ -721,18 +721,11 @@
 .size-input:focus {
   border-color: var(--accent);
 }
-.version-support {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.6rem;
+.version-caveat {
   margin: -0.35rem 0 0;
-  color: var(--text-muted);
+  color: var(--status-warning);
   font-size: 0.78rem;
   line-height: 1.35;
-}
-.version-support strong {
-  color: var(--success);
-  font-weight: 700;
 }
 .size-heading {
   display: flex;

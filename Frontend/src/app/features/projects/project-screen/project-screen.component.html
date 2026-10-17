@@ -287,12 +287,9 @@
                 [ariaLabel]="i18n.t('minecraftVersion')"
                 (selectionChange)="setMinecraftVersion($any($event))"
             /></label>
-            <p class="version-support">
-              <strong>{{ versionSupportLabel() }}</strong>
-              @if (minecraftVersion() !== '1.21.1') {
-                <span>{{ i18n.t('behaviorMayBeIncomplete') }}</span>
-              }
-            </p>
+            @if (hasIncompleteVersionBehavior()) {
+              <p class="version-caveat">{{ i18n.t('behaviorMayBeIncomplete') }}</p>
+            }
           </div>
           <div class="size-heading">
             <span>{{ i18n.t('structureSize') }}</span
