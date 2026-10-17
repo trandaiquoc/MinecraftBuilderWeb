@@ -50,13 +50,17 @@ dialog, and narrow Vietnamese layout. Browser interaction checks created two
 projects in an isolated profile, selected and opened a saved project, and
 confirmed deletion. That sample profile is not part of the repository. Those
 captures predate the wide-screen logo placement, project-card layout, and local
-search/sorting controls, so the latest composition still needs a fresh browser
-review.
+search/sorting controls. The [selected project card review](evidence/20261017-project-selection/README.md)
+captures the current populated board in all four themes and at a narrow width.
+It also records a selected-state correction found in the current Dark theme.
 
-Visual review covers the captured screen composition and states. Full Homepage
-acceptance remains open until the latest composition is reviewed. The metadata
-cards intentionally avoid fabricated thumbnails; cached real project captures
-remain future work.
+Visual review covers the current empty and populated board compositions, the
+selected card in four themes, and the narrow selected state. Full Homepage
+acceptance remains open while the project cards lack real structure previews;
+the project summary store has no cached capture, and rendering every full
+structure during board load would compromise initial performance. No preview is
+fabricated. Search/sort, project creation, and opening a saved project have
+also been exercised in the local browser profile.
 
 ## Interaction Research
 

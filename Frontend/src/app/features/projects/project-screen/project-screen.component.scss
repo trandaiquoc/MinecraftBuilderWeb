@@ -366,13 +366,8 @@
 
 .project-row.selected {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--control-selected) 82%, var(--surface));
-  color: var(--control-selected-text);
-}
-
-.project-row.selected .project-select-action > strong,
-.project-row.selected .project-row-meta {
-  color: inherit;
+  background: color-mix(in srgb, var(--surface-selected) 84%, var(--surface));
+  color: var(--text);
 }
 
 .project-row.deleting {
