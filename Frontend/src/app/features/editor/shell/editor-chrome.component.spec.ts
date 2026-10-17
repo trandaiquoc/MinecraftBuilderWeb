@@ -80,6 +80,32 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
     fixture.destroy();
   });
 
+  it('moves an open menu below the project chip when their narrow header bounds overlap', () => {
+    const fixture = TestBed.createComponent(EditorChromeComponent);
+    fixture.componentRef.setInput('state', state);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const toolsTrigger = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('.app-menu-trigger'),
+    ).find((button) => button.textContent?.trim() === 'toolsMenu')!;
+    toolsTrigger.click();
+    fixture.detectChanges();
+
+    const entry = toolsTrigger.closest<HTMLElement>('.menu-entry')!;
+    const popover = entry.querySelector<HTMLElement>('.menu-popover')!;
+    const projectContext = root.querySelector<HTMLElement>('.chrome-project-context')!;
+    vi.spyOn(entry, 'getBoundingClientRect').mockReturnValue(rect(169, 5, 31, 29));
+    vi.spyOn(popover, 'getBoundingClientRect').mockReturnValue(rect(169, 42, 213, 122));
+    vi.spyOn(projectContext, 'getBoundingClientRect').mockReturnValue(rect(267, 43, 115, 25));
+    Object.defineProperty(popover, 'offsetWidth', { configurable: true, value: 213 });
+
+    flushAnimationFrames(fixture, frameCallbacks);
+
+    expect(popover.style.top).toBe('71px');
+    fixture.destroy();
+  });
+
   it('keeps narrow toolbar actions named when their visible labels are compacted', () => {
     const fixture = TestBed.createComponent(EditorChromeComponent);
     fixture.componentRef.setInput('state', state);
@@ -367,6 +393,20 @@ function press(target: HTMLElement, key: string): KeyboardEvent {
   const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
   target.dispatchEvent(event);
   return event;
+}
+
+function rect(left: number, top: number, width: number, height: number): DOMRect {
+  return {
+    x: left,
+    y: top,
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+    width,
+    height,
+    toJSON: () => ({}),
+  } as DOMRect;
 }
 
 function flushAnimationFrames(

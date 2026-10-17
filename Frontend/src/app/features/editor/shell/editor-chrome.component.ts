@@ -122,7 +122,22 @@ export class EditorChromeComponent {
 
       popover.style.removeProperty('left');
       popover.style.removeProperty('right');
+      popover.style.removeProperty('top');
       const entryBounds = entry.getBoundingClientRect();
+      const gutter = 8;
+      const popoverBounds = popover.getBoundingClientRect();
+      const projectContext =
+        this.host.nativeElement.querySelector<HTMLElement>('.chrome-project-context');
+      if (projectContext) {
+        const contextBounds = projectContext.getBoundingClientRect();
+        const overlapsContextHorizontally =
+          popoverBounds.left < contextBounds.right && popoverBounds.right > contextBounds.left;
+        const overlapsContextVertically =
+          popoverBounds.top < contextBounds.bottom && popoverBounds.bottom > contextBounds.top;
+        if (overlapsContextHorizontally && overlapsContextVertically)
+          popover.style.top = `${contextBounds.bottom + gutter - entryBounds.top}px`;
+      }
+
       const style = view.getComputedStyle(popover);
       const width = popover.offsetWidth;
       const leftOffset = Number.parseFloat(style.left);
@@ -131,7 +146,6 @@ export class EditorChromeComponent {
         ? entryBounds.left + leftOffset
         : entryBounds.right - (Number.isFinite(rightOffset) ? rightOffset : 0) - width;
       const viewportWidth = this.host.nativeElement.ownerDocument.documentElement.clientWidth;
-      const gutter = 8;
       const maximumLeft = Math.max(gutter, viewportWidth - gutter - width);
       const targetLeft = Math.min(maximumLeft, Math.max(gutter, currentLeft));
       if (targetLeft === currentLeft) return;
