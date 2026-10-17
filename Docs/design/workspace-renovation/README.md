@@ -3,8 +3,11 @@
 ## Current status
 
 Workspace visual acceptance is still pending. Current browser captures show
-the sidebar composition, Block Browser list, Selection inspector hierarchy, and
-the viewport starter card in 3D and Y-Layer across all four themes. The
+the sidebar composition, Block Browser list, Groups panel, Selection inspector
+hierarchy, and the viewport starter card in 3D and Y-Layer across all four
+themes. The [Groups panel review](evidence/20261017-groups-panel/README.md)
+records the empty state, a selected two-block group in Dark and Minecraft, and
+the narrow Dark drawer. The
 [starter-card review](evidence/20261017-viewport-empty-starter/README.md) also
 checks both modes at a narrow viewport. Current browser review also covers the
 Settings dialog at a narrow viewport, JSON import/export, Structure NBT and
@@ -21,8 +24,9 @@ which need a real compatible fixture. Automated tests, keyboard checks, and
 contrast checks do not establish that the full interface matches the approved
 compositions.
 
-The Project Screen controls from the ed7b1a5 checkpoint have not yet received
-current visual acceptance. Their concept work remains tracked separately in the
+The Project Screen now has current browser review for its four themed scenes,
+project selection, creation, import, and narrow layout. Its full concept
+acceptance remains tracked separately in the
 [Homepage renovation notes](../homepage-renovation/README.md).
 
 ## Current contracts and acceptance

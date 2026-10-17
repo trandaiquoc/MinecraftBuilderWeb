@@ -55,6 +55,22 @@ describe('GroupService', () => {
     expect(groups.create(' roof ')).toBe(false);
   });
 
+  it('returns group block counts from the shared group-position calculation', () => {
+    const { groups } = setup({
+      ...project,
+      groups: [
+        { id: 'roof', name: 'Roof', visible: true, locked: false },
+        { id: 'walls', name: 'Walls', visible: true, locked: false },
+      ],
+      blocks: [{ ...project.blocks[0], groupIds: ['roof'] }],
+    });
+
+    expect(groups.groupBlockCount('roof')).toBe(1);
+    expect(groups.groupBlockCount('walls')).toBe(0);
+    groups.select('roof');
+    expect(groups.activeGroupBlockCount()).toBe(1);
+  });
+
   it('keeps active selection independent from each group lock state', () => {
     const { groups, workspace } = setup();
     groups.create('Unlocked');

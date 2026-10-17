@@ -59,7 +59,7 @@ export class GroupService {
   );
   readonly activeGroupPositions = computed(() => this.groupPositions(this.activeGroupId()));
   readonly isolatedGroupPositions = computed(() => this.groupPositions(this.isolatedGroupId()));
-  readonly activeGroupBlockCount = computed(() => this.activeGroupPositions().length);
+  readonly activeGroupBlockCount = computed(() => this.groupBlockCount(this.activeGroupId()));
   readonly movePreview = computed(() => {
     const project = this.workspace.project();
     const id = this.activeGroupId();
@@ -249,6 +249,9 @@ export class GroupService {
     this.activeGroupIdState.set(undefined);
     this.isolatedGroupIdState.set(undefined);
     this.resetMove();
+  }
+  groupBlockCount(groupId: string | undefined): number {
+    return this.groupPositions(groupId).length;
   }
   saveMove(): boolean {
     const id = this.activeGroupId();

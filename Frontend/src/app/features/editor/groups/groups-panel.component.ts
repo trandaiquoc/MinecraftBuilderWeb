@@ -59,6 +59,16 @@ export class GroupsPanelComponent {
       unlocked: this.i18n.t('unlocked'),
     }),
   );
+  protected readonly groupSummaries = computed(() =>
+    this.filteredGroups().map((group) => ({
+      ...group,
+      blockCount: this.groups.groupBlockCount(group.id),
+    })),
+  );
+  protected readonly groupCount = computed(() => this.workspace.project()?.groups.length ?? 0);
+  protected readonly groupCountDescription = computed(() =>
+    this.i18n.t('groupCountLabel').replace('{count}', String(this.groupCount())),
+  );
   protected readonly hasSelection = computed(() => {
     const service = this.selection as SelectionService & {
       hasAny?: (project?: import('../../../core/domain/project.types').ProjectDocument) => boolean;
@@ -71,6 +81,11 @@ export class GroupsPanelComponent {
   });
   protected createGroup(): void {
     if (this.groups.create(this.newGroupName().trim())) this.newGroupName.set('');
+  }
+  protected createGroupFromKeyboard(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.createGroup();
   }
   protected clearGroupSearch(): void {
     this.groupSearch.set('');

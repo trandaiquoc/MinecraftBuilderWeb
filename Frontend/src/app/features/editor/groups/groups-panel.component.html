@@ -1,18 +1,32 @@
 <section class="groups-panel">
-  <div class="group-create">
-    <input
-      type="text"
-      [value]="newGroupName()"
-      (input)="newGroupName.set($any($event.target).value)"
-      [placeholder]="i18n.t('groupName')"
-    /><button
-      type="button"
+  <header class="group-panel-header">
+    <div>
+      <h2>{{ i18n.t('projectGroups') }}</h2>
+      <p>{{ i18n.t('groupPanelHint') }}</p>
+    </div>
+    <span class="group-total-count" [attr.aria-label]="groupCountDescription()">
+      {{ groupCount() }}
+    </span>
+  </header>
+  <form class="group-create" (submit)="$event.preventDefault(); createGroup()">
+    <label class="group-create-field">
+      <span>{{ i18n.t('groupName') }}</span>
+      <input
+        type="text"
+        [value]="newGroupName()"
+        (input)="newGroupName.set($any($event.target).value)"
+        (keydown.enter)="createGroupFromKeyboard($event)"
+        [placeholder]="i18n.t('groupName')"
+      />
+    </label>
+    <button
+      type="submit"
       class="ui-button ui-button--primary ui-button--sm"
-      (click)="createGroup()"
+      [disabled]="!newGroupName().trim()"
     >
       <svg lucideFolderPlus aria-hidden="true"></svg>{{ i18n.t('createGroup') }}
     </button>
-  </div>
+  </form>
   <div class="group-search">
     <div class="group-search-field">
       <input
@@ -35,95 +49,145 @@
       }
     </div>
   </div>
-  @for (group of filteredGroups(); track group.id) {
-    <button
-      type="button"
-      class="group-item"
-      [class.active]="groups.activeGroupId() === group.id"
-      [class.isolated]="groups.isolatedGroupId() === group.id"
-      [attr.aria-pressed]="groups.activeGroupId() === group.id"
-      (click)="groups.select(group.id)"
-    >
-      <span class="group-item-name">{{ group.name }}</span>
-      <span class="group-item-meta"
-        ><span class="group-lock-state" [class.is-locked]="group.locked">{{
-          group.locked ? i18n.t('groupLockedState') : i18n.t('groupUnlockedState')
-        }}</span>
-        @if (groups.activeGroupId() === group.id) {
-          <svg class="workspace-selection-indicator" lucideCheck aria-hidden="true"></svg>
-        }
-      </span>
-    </button>
-  } @empty {
-    <p class="group-empty-state">
-      {{ groupSearch().trim() ? i18n.t('noGroupResults') : i18n.t('noGroups') }}
-    </p>
-  }
+  <div class="group-list">
+    @for (group of groupSummaries(); track group.id) {
+      <button
+        type="button"
+        class="group-item"
+        [class.active]="groups.activeGroupId() === group.id"
+        [class.isolated]="groups.isolatedGroupId() === group.id"
+        [attr.aria-pressed]="groups.activeGroupId() === group.id"
+        (click)="groups.select(group.id)"
+      >
+        <span class="group-item-icon" aria-hidden="true"><svg lucideBlocks></svg></span>
+        <span class="group-item-content">
+          <span class="group-item-heading">
+            <strong class="group-item-name">{{ group.name }}</strong>
+            @if (groups.activeGroupId() === group.id) {
+              <svg class="workspace-selection-indicator" lucideCheck aria-hidden="true"></svg>
+            }
+          </span>
+          <span class="group-item-meta">
+            <span class="group-item-count"
+              >{{ group.blockCount }} {{ i18n.t('groupBlocksLabel') }}</span
+            >
+            <span class="group-item-states">
+              <span class="group-state" [class.is-hidden]="!group.visible">
+                @if (group.visible) {
+                  <svg lucideEye aria-hidden="true"></svg>
+                  {{ i18n.t('groupVisibleState') }}
+                } @else {
+                  <svg lucideEyeOff aria-hidden="true"></svg>
+                  {{ i18n.t('groupHiddenState') }}
+                }
+              </span>
+              <span class="group-state" [class.is-locked]="group.locked">
+                @if (group.locked) {
+                  <svg lucideLock aria-hidden="true"></svg>
+                  {{ i18n.t('groupLockedState') }}
+                } @else {
+                  <svg lucideLockOpen aria-hidden="true"></svg>
+                  {{ i18n.t('groupUnlockedState') }}
+                }
+              </span>
+            </span>
+          </span>
+        </span>
+      </button>
+    } @empty {
+      <div class="group-empty-state">
+        <span class="group-empty-icon" aria-hidden="true"><svg lucideBlocks></svg></span>
+        <div>
+          <strong>{{
+            groupSearch().trim() ? i18n.t('noGroupResults') : i18n.t('noGroups')
+          }}</strong>
+          @if (!groupSearch().trim()) {
+            <p>{{ i18n.t('emptyGroupsHint') }}</p>
+          }
+        </div>
+      </div>
+    }
+  </div>
   @if (groups.activeGroup(); as active) {
     <section class="active-group-controls">
-      <h3>{{ active.name }}</h3>
-      <p>
-        {{ groups.activeGroupBlockCount() }} {{ i18n.t('blockCount') }} &middot;
-        {{ active.locked ? i18n.t('groupLockedState') : i18n.t('groupUnlockedState') }}
-      </p>
-      <input
-        type="text"
-        [value]="active.name"
-        (change)="renameGroup($event)"
-        [attr.aria-label]="i18n.t('renameGroup')"
-      />
-      <div class="group-actions">
-        <button
-          type="button"
-          class="ui-button ui-button--secondary ui-button--sm"
-          (click)="groups.setActiveVisible(!active.visible)"
-        >
-          @if (active.visible) {
-            <svg lucideEyeOff aria-hidden="true"></svg>
-          } @else {
-            <svg lucideEye aria-hidden="true"></svg>
-          }
-          {{ active.visible ? i18n.t('hideGroup') : i18n.t('showGroup') }}</button
-        ><button
-          type="button"
-          class="ui-button ui-button--secondary ui-button--sm"
-          (click)="groups.setActiveLocked(!active.locked)"
-        >
-          @if (active.locked) {
-            <svg lucideLockOpen aria-hidden="true"></svg>
-          } @else {
-            <svg lucideLock aria-hidden="true"></svg>
-          }
-          {{ active.locked ? i18n.t('unlockGroup') : i18n.t('lockGroup') }}</button
-        ><button
-          type="button"
-          class="ui-button ui-button--secondary ui-button--sm"
-          (click)="groups.addSelectionToActive()"
-          [disabled]="active.locked || !hasSelection()"
-        >
-          <svg lucidePlus aria-hidden="true"></svg>{{ i18n.t('addSelectionToGroup') }}</button
-        ><button
-          type="button"
-          class="ui-button ui-button--secondary ui-button--sm"
-          (click)="groups.removeSelectionFromActive()"
-          [disabled]="active.locked || !hasSelection()"
-        >
-          <svg lucideMinus aria-hidden="true"></svg>{{ i18n.t('removeSelectionFromGroup') }}</button
-        ><button
-          type="button"
-          class="ui-button ui-button--secondary ui-button--sm"
-          (click)="groups.isolateActive()"
-        >
-          <svg lucideFocus aria-hidden="true"></svg>{{ i18n.t('isolateGroup') }}</button
-        ><button
-          type="button"
-          class="ui-button ui-button--secondary ui-button--sm"
-          (click)="movePanelToggle.emit()"
-        >
-          <svg lucideMove aria-hidden="true"></svg>
-          {{ movePanelVisible() ? i18n.t('hideMove') : i18n.t('showMove') }}
-        </button>
-      </div>
+      <header class="active-group-header">
+        <span class="active-group-eyebrow">{{ i18n.t('activeGroupLabel') }}</span>
+        <h3>{{ active.name }}</h3>
+        <p>
+          {{ groups.activeGroupBlockCount() }} {{ i18n.t('groupBlocksLabel') }} &middot;
+          {{ active.visible ? i18n.t('groupVisibleState') : i18n.t('groupHiddenState') }}
+          &middot; {{ active.locked ? i18n.t('groupLockedState') : i18n.t('groupUnlockedState') }}
+        </p>
+      </header>
+      <label class="group-rename-field">
+        <span>{{ i18n.t('renameGroup') }}</span>
+        <input type="text" [value]="active.name" (change)="renameGroup($event)" />
+      </label>
+      <section class="group-action-section group-action-section--selection">
+        <h4>{{ i18n.t('groupSelectionActions') }}</h4>
+        <div class="group-actions">
+          <button
+            type="button"
+            class="ui-button ui-button--secondary ui-button--sm"
+            (click)="groups.addSelectionToActive()"
+            [disabled]="active.locked || !hasSelection()"
+          >
+            <svg lucidePlus aria-hidden="true"></svg>{{ i18n.t('addSelectionToGroup') }}
+          </button>
+          <button
+            type="button"
+            class="ui-button ui-button--secondary ui-button--sm"
+            (click)="groups.removeSelectionFromActive()"
+            [disabled]="active.locked || !hasSelection()"
+          >
+            <svg lucideMinus aria-hidden="true"></svg>{{ i18n.t('removeSelectionFromGroup') }}
+          </button>
+        </div>
+      </section>
+      <section class="group-action-section group-action-section--management">
+        <h4>{{ i18n.t('groupManagementActions') }}</h4>
+        <div class="group-actions">
+          <button
+            type="button"
+            class="ui-button ui-button--secondary ui-button--sm"
+            (click)="groups.setActiveVisible(!active.visible)"
+          >
+            @if (active.visible) {
+              <svg lucideEyeOff aria-hidden="true"></svg>
+            } @else {
+              <svg lucideEye aria-hidden="true"></svg>
+            }
+            {{ active.visible ? i18n.t('hideGroup') : i18n.t('showGroup') }}
+          </button>
+          <button
+            type="button"
+            class="ui-button ui-button--secondary ui-button--sm"
+            (click)="groups.setActiveLocked(!active.locked)"
+          >
+            @if (active.locked) {
+              <svg lucideLockOpen aria-hidden="true"></svg>
+            } @else {
+              <svg lucideLock aria-hidden="true"></svg>
+            }
+            {{ active.locked ? i18n.t('unlockGroup') : i18n.t('lockGroup') }}
+          </button>
+          <button
+            type="button"
+            class="ui-button ui-button--secondary ui-button--sm"
+            (click)="groups.isolateActive()"
+          >
+            <svg lucideFocus aria-hidden="true"></svg>{{ i18n.t('isolateGroup') }}
+          </button>
+          <button
+            type="button"
+            class="ui-button ui-button--secondary ui-button--sm"
+            (click)="movePanelToggle.emit()"
+          >
+            <svg lucideMove aria-hidden="true"></svg>
+            {{ movePanelVisible() ? i18n.t('hideMove') : i18n.t('showMove') }}
+          </button>
+        </div>
+      </section>
       <div class="destructive-actions">
         <button
           type="button"
