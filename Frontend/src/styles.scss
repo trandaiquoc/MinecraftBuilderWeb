@@ -678,7 +678,12 @@ svg[class*='lucide'] {
   text-align: center;
   transition:
     color var(--motion-duration-fast) var(--motion-easing-standard),
-    font-weight var(--motion-duration-fast) var(--motion-easing-standard);
+    font-weight var(--motion-duration-fast) var(--motion-easing-standard),
+    background var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.ui-tab-strip > [role='tab']:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .ui-tab-strip > [role='tab']:hover:not(:disabled):not([aria-selected='true']) {
   background: color-mix(in srgb, var(--surface-hover) 68%, transparent);
