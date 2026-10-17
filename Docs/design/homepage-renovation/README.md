@@ -12,6 +12,9 @@ remaining scope; it is not a full application acceptance report.
 - Recent projects appear as real selectable entries on the wooden board. The
   washer shows the selected project's name, Minecraft version, structure mode,
   dimensions, and Open action. It does not imply a project screenshot.
+- On wide desktop, the unchanged official logo sits above the washer in the
+  scene's open wall area. The board arranges real project summaries as cards;
+  the layout reduces to one column when the board is narrow.
 - Project creation reuses the existing size and version form in a focus-trapped
   dialog. Structure JSON import remains available directly from the board.
 - The existing Project Screen workflow still owns create/open/delete, import,
@@ -41,11 +44,14 @@ The [2026-10-17 laundromat scene review](evidence/20261017-laundromat-scene/READ
 contains captures of the empty state, project selection, four themes, creation
 dialog, and narrow Vietnamese layout. Browser interaction checks created two
 projects in an isolated profile, selected and opened a saved project, and
-confirmed deletion. That sample profile is not part of the repository.
+confirmed deletion. That sample profile is not part of the repository. Those
+captures predate the wide-screen logo placement and project-card layout, so the
+latest composition still needs a fresh browser review.
 
-Visual review covers the screen composition and the captured states. Full
-Homepage acceptance remains open while the broader Workspace renovation
-continues and until the remaining project preview question is resolved.
+Visual review covers the captured screen composition and states. Full Homepage
+acceptance remains open until the latest composition is reviewed and the
+project preview question is resolved. No project thumbnail is shown because
+the current project model does not provide a real capture source.
 
 ## Interaction Research
 

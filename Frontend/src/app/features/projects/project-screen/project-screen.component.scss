@@ -77,6 +77,28 @@
   flex: 0 0 auto;
 }
 
+@media (min-width: 1480px) {
+  .outer-topbar {
+    justify-content: flex-end;
+  }
+
+  .outer-brand {
+    position: absolute;
+    top: clamp(1.25rem, 2.6vh, 2rem);
+    left: 46%;
+    padding: 0;
+    transform: translateX(-50%);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .outer-brand-logo {
+    width: clamp(14rem, 29vw, 30rem);
+  }
+}
+
 .outer-topbar app-project-screen-controls {
   max-width: min(100%, 40rem);
 }
@@ -232,6 +254,7 @@
 
 .project-list {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   align-content: start;
   gap: 0.4rem;
   min-height: 0;
@@ -243,12 +266,13 @@
 }
 
 .project-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   gap: 0.4rem;
   min-width: 0;
-  padding: 0.25rem 0.35rem 0.25rem 0.55rem;
+  min-height: 6rem;
+  padding: 0.4rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface) 96%, transparent);
@@ -288,7 +312,8 @@
 
 .project-select-action {
   display: grid;
-  align-content: center;
+  align-content: start;
+  flex: 1 1 auto;
   gap: 0.3rem;
   min-width: 0;
   padding: 0.4rem 0.25rem;
@@ -362,6 +387,8 @@
 .project-row-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  margin-top: auto;
   gap: 0.2rem;
 }
 
@@ -386,6 +413,7 @@
 
 .project-list-empty,
 .board-message {
+  grid-column: 1 / -1;
   display: grid;
   min-height: 5rem;
   place-items: center;
@@ -1060,11 +1088,6 @@
 
   .board-actions > button {
     width: 100%;
-  }
-
-  .project-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.2rem;
   }
 
   .project-row-open {
