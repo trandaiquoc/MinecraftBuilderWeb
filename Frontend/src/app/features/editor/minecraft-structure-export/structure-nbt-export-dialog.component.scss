@@ -55,6 +55,9 @@
   text-transform: uppercase;
 }
 .structure-export-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  align-items: start;
   min-height: 0;
   overflow: auto;
 }
@@ -352,6 +355,11 @@
 .structure-export-footer {
   align-items: center;
   border-top: 1px solid var(--border);
+}
+@media (max-width: 860px) {
+  .structure-export-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 @media (max-width: 640px) {
   .install-step {

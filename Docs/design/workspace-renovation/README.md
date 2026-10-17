@@ -30,6 +30,9 @@ reducing the controls to multiple rows.
 The [Workspace interaction review](evidence/20261017-workspace-interactions/README.md)
 records those responsive states and the fixes found in the import and Mod JAR
 entry paths, plus the Tools-menu collision with the narrow project-name chip.
+The [Structure export desktop layout review](evidence/20261017-structure-export-desktop-layout/README.md)
+places install guidance alongside the form on wide screens and checks the
+Vietnamese narrow layout across the Workspace themes.
 The [shared alert dialog motion review](evidence/20261017-alert-dialog-motion/README.md)
 checks confirm/notice overlay entry and exit, all four theme surfaces, reduced
 motion, and the narrow dialog layout.

@@ -42,6 +42,9 @@ checks its mobile layout and scroll behavior. The [Workspace interaction review]
 records JSON import/export, Structure NBT/Datapack export, Asset Manager, and
 Diagnostics states, including the import, Mod JAR entry, and narrow Tools-menu
 interaction fixes.
+The [Structure export desktop layout review](20261017-structure-export-desktop-layout/README.md)
+checks the two-column guidance layout at desktop widths and the Vietnamese
+single-column layout at 390 px.
 The [Y-Layer compact controls review](20261017-y-layer-compact-controls/README.md)
 checks the reference-opacity row at 320 px and the 390 px breakpoint boundary.
 The [Quick Bar responsive review](20261017-quick-bar-responsive/README.md)
