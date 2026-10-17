@@ -30,8 +30,8 @@ entry paths. The [Quick Bar review](evidence/20261017-quick-bar-responsive/READM
 confirms all ten slots remain reachable at a narrow viewport. The
 [active BlockState and Help review](evidence/20261017-selection-state-help/README.md)
 checks state editing in all four themes, the narrow Selection drawer, and the
-Controls & Shortcuts dialog. The sign text tabs support Arrow, Home, and End
-navigation between the front and back sides. Full Workspace acceptance remains
+Controls & Shortcuts dialog. The sign text and keyboard/mouse shortcut tabs
+support Arrow, Home, and End navigation. Full Workspace acceptance remains
 open. A concrete
 remaining checkpoint is the Mod JAR import preflight and progress/error states,
 which need a real compatible fixture. Automated tests, keyboard checks, and

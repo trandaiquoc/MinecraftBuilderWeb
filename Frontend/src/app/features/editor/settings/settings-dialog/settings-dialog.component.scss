@@ -581,6 +581,11 @@
   color: var(--text-muted);
   cursor: pointer;
 }
+.shortcut-tab-panel {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
 .shortcut-group-title {
   margin: 0.35rem 0 -0.2rem;
   color: var(--text-muted);

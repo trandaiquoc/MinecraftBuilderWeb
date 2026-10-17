@@ -162,6 +162,36 @@ export class SettingsDialogComponent implements OnDestroy {
   protected appearanceTabIndex(tab: AppearanceTab): 0 | -1 {
     return this.appearanceTab() === tab ? 0 : -1;
   }
+  protected shortcutTabIndex(tab: 'keyboard' | 'mouse'): 0 | -1 {
+    return this.shortcutTab() === tab ? 0 : -1;
+  }
+  protected selectShortcutTab(tab: 'keyboard' | 'mouse'): void {
+    this.shortcutTab.set(tab);
+  }
+  protected handleShortcutTabKeydown(event: KeyboardEvent, currentTab: 'keyboard' | 'mouse'): void {
+    let nextTab: 'keyboard' | 'mouse';
+    switch (event.key) {
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        nextTab = currentTab === 'keyboard' ? 'mouse' : 'keyboard';
+        break;
+      case 'Home':
+        nextTab = 'keyboard';
+        break;
+      case 'End':
+        nextTab = 'mouse';
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.selectShortcutTab(nextTab);
+    const targetId = nextTab === 'keyboard' ? 'shortcut-tab-keyboard' : 'shortcut-tab-mouse';
+    (event.currentTarget as HTMLElement).parentElement
+      ?.querySelector<HTMLButtonElement>(`#${targetId}`)
+      ?.focus();
+  }
   protected handleAppearanceTabKeydown(event: KeyboardEvent, currentTab: AppearanceTab): void {
     const tabs: readonly AppearanceTab[] = ['interface', 'workspace-background'];
     const currentIndex = tabs.indexOf(currentTab);

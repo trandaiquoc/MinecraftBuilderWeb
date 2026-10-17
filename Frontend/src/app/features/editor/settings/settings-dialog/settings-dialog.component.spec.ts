@@ -148,6 +148,67 @@ describe('SettingsDialogComponent Reality previews', () => {
     fixture.destroy();
   });
 
+  it('uses one shortcut tab stop and supports arrow, Home, and End navigation', async () => {
+    localStorage.removeItem('the-block-laundromat.ui-preferences');
+    await TestBed.configureTestingModule({
+      imports: [SettingsDialogComponent],
+      providers: [
+        {
+          provide: ContentAssetRuntimeService,
+          useValue: {
+            generation: signal(0),
+            resourceAvailabilitySettled: signal(true),
+            sources: { resources: { textureUrl: () => undefined } },
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(SettingsDialogComponent);
+    const component = fixture.componentInstance as unknown as {
+      setSection(section: 'shortcuts'): void;
+    };
+    component.setSection('shortcuts');
+    fixture.detectChanges();
+
+    const tabs = Array.from(
+      fixture.nativeElement.querySelectorAll('.shortcut-tabs [role="tab"]'),
+    ) as HTMLButtonElement[];
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1]);
+
+    const press = (tab: HTMLButtonElement, key: string): void => {
+      tab.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+    };
+    const expectSelectedTab = (index: number): void => {
+      expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(
+        tabs.map((_, tabIndex) => String(tabIndex === index)),
+      );
+      expect(tabs.map((tab) => tab.tabIndex)).toEqual(
+        tabs.map((_, tabIndex) => (tabIndex === index ? 0 : -1)),
+      );
+      expect(document.activeElement).toBe(tabs[index]);
+      const panelId = index === 0 ? 'shortcut-panel-keyboard' : 'shortcut-panel-mouse';
+      expect(
+        fixture.nativeElement.querySelector(`#${panelId}`)?.getAttribute('aria-labelledby'),
+      ).toBe(tabs[index].id);
+    };
+
+    tabs[0].focus();
+    press(tabs[0], 'ArrowRight');
+    expectSelectedTab(1);
+    press(tabs[1], 'ArrowRight');
+    expectSelectedTab(0);
+    press(tabs[0], 'ArrowLeft');
+    expectSelectedTab(1);
+    press(tabs[1], 'Home');
+    expectSelectedTab(0);
+    press(tabs[0], 'End');
+    expectSelectedTab(1);
+
+    fixture.destroy();
+  });
+
   it('uses actual ground resources, availability state, and the renderer sky palette', async () => {
     localStorage.removeItem('the-block-laundromat.ui-preferences');
     const generation = signal(0);
