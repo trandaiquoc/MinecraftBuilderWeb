@@ -16,7 +16,9 @@ remaining scope; it is not a full application acceptance report.
   scene's open wall area. The board arranges real project summaries as cards;
   the layout reduces to one column when the board is narrow. Local search
   filters project name, Minecraft version, mode, and dimensions; sorting offers
-  newest, oldest, and name order.
+  newest, oldest, and name order. Search and sorting appear once projects exist,
+  keeping the empty board clear while preserving both controls for populated
+  lists.
 - Project creation reuses the existing size and version form in a focus-trapped
   dialog. Structure JSON import remains available directly from the board.
 - The existing Project Screen workflow still owns create/open/delete, import,
@@ -66,6 +68,9 @@ It also records a selected-state correction found in the current Dark theme.
 The [project board polish review](evidence/20261018-project-board-polish/README.md)
 compares the empty-state action and populated card layout before and after the
 latest refinement, with a narrow-screen check.
+The [empty board controls review](evidence/20261018-project-empty-state/README.md)
+keeps search and sorting out of the zero-project state while preserving the
+washer's Create action and the board's Structure JSON import action.
 The [project creation focus review](evidence/20261017-project-create-focus/README.md)
 checks the narrow dialog's initial focus target and confirms the page has no
 horizontal overflow.

@@ -118,7 +118,7 @@
               </button>
             </div>
           </div>
-          @if (loadStatus() === 'ready') {
+          @if (loadStatus() === 'ready' && projects().length > 0) {
             <div class="project-list-controls">
               <label class="project-search-field">
                 <svg lucideSearch aria-hidden="true"></svg>

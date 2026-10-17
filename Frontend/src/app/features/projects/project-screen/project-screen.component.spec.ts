@@ -173,6 +173,7 @@ describe('ProjectScreenComponent', () => {
     workflow.projects.set([]);
     fixture.detectChanges();
     expect(root.querySelector('.board-actions .ui-button--primary')).toBeNull();
+    expect(root.querySelector('.project-list-controls')).toBeNull();
     expect(root.querySelector('.washer-open-action')?.textContent).toContain('Create project');
     fixture.destroy();
   });
