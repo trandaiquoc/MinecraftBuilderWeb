@@ -21,6 +21,7 @@ describe('GroupsPanelComponent visual state contract', () => {
       activeGroupId,
       activeGroup,
       activeGroupBlockCount: signal(0),
+      groupBlockCount: vi.fn(() => 0),
       isolatedGroupId: signal<string | undefined>(undefined),
       select: vi.fn((id: string) => {
         activeGroupId.set(id);
