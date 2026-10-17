@@ -13,3 +13,6 @@ review. Full application acceptance remains open.
 The [project creation focus review](20261017-project-create-focus/README.md)
 checks the narrow Create Project dialog's initial focus target and responsive
 width.
+
+The [Structure JSON project import focus review](20261017-project-import-focus/README.md)
+checks the import preview's initial focus target and narrow dialog bounds.

@@ -21,6 +21,17 @@ describe('ProjectScreenComponent', () => {
     expect(template).toMatch(/<input\s+cdkFocusInitial\s+class="project-text-input"/);
   });
 
+  it('marks the structure import heading as the initial focus target', () => {
+    const template = String(
+      readFileSync(
+        'src/app/features/projects/project-screen/project-screen.component.html',
+        'utf8',
+      ),
+    );
+
+    expect(template).toMatch(/<h2\s+cdkFocusInitial\s+tabindex="-1"/);
+  });
+
   it('delegates imported project activation to the screen workflow', async () => {
     const project = { id: 'imported' } as ProjectDocument;
     const createProject = vi.fn(async () => project);

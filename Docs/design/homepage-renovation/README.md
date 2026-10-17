@@ -59,6 +59,10 @@ The [project creation focus review](evidence/20261017-project-create-focus/READM
 checks the narrow dialog's initial focus target and confirms the page has no
 horizontal overflow.
 
+The [Structure JSON project import focus review](evidence/20261017-project-import-focus/README.md)
+checks that the narrow import preview opens with its heading focused before
+the create and cancel actions.
+
 Visual review covers the current empty and populated board compositions, the
 selected card in four themes, and the narrow selected state. Full Homepage
 acceptance remains open while the project cards lack real structure previews;
