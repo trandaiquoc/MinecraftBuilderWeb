@@ -1,28 +1,45 @@
 <div class="editor-shell">
   @if (workspace.restoreStatus() === 'restoring' || workspace.restoreStatus() === 'idle') {
     <main class="editor-startup-state" aria-live="polite">
-      <p class="eyebrow">{{ i18n.t('appName') }}</p>
-      <h1>{{ i18n.t('restoringProject') }}</h1>
-      <p>{{ i18n.t('restoringProjectHint') }}</p>
+      <section class="startup-card" data-state="loading" aria-busy="true">
+        <span class="startup-card-icon" aria-hidden="true"><svg lucideLoaderCircle></svg></span>
+        <div class="startup-card-copy">
+          <p class="eyebrow">{{ i18n.t('appName') }}</p>
+          <h1>{{ i18n.t('restoringProject') }}</h1>
+          <p>{{ i18n.t('restoringProjectHint') }}</p>
+        </div>
+      </section>
     </main>
   } @else if (workspace.restoreStatus() === 'empty') {
     <main class="editor-startup-state">
-      <p class="eyebrow">{{ i18n.t('appName') }}</p>
-      <h1>{{ i18n.t('noProjectToRestore') }}</h1>
-      <p>{{ i18n.t('noProjectToRestoreHint') }}</p>
-      <button type="button" (click)="backToProjects()">{{ i18n.t('back') }}</button>
+      <section class="startup-card" data-state="empty">
+        <span class="startup-card-icon" aria-hidden="true"><svg lucideFolderOpen></svg></span>
+        <div class="startup-card-copy">
+          <p class="eyebrow">{{ i18n.t('appName') }}</p>
+          <h1>{{ i18n.t('noProjectToRestore') }}</h1>
+          <p>{{ i18n.t('noProjectToRestoreHint') }}</p>
+          <div class="startup-actions">
+            <button type="button" (click)="backToProjects()">{{ i18n.t('back') }}</button>
+          </div>
+        </div>
+      </section>
     </main>
   } @else if (workspace.restoreStatus() === 'error') {
     <main class="editor-startup-state">
-      <p class="eyebrow">{{ i18n.t('appName') }}</p>
-      <h1>{{ i18n.t('projectRestoreError') }}</h1>
-      <p role="alert">{{ i18n.t('projectRestoreErrorHint') }}</p>
-      <div>
-        <button type="button" (click)="retryRestore()">{{ i18n.t('retry') }}</button
-        ><button type="button" class="secondary" (click)="backToProjects()">
-          {{ i18n.t('back') }}
-        </button>
-      </div>
+      <section class="startup-card" data-state="error">
+        <span class="startup-card-icon" aria-hidden="true"><svg lucideCircleAlert></svg></span>
+        <div class="startup-card-copy">
+          <p class="eyebrow">{{ i18n.t('appName') }}</p>
+          <h1>{{ i18n.t('projectRestoreError') }}</h1>
+          <p class="startup-error" role="alert">{{ i18n.t('projectRestoreErrorHint') }}</p>
+          <div class="startup-actions">
+            <button type="button" (click)="retryRestore()">{{ i18n.t('retry') }}</button>
+            <button type="button" class="secondary" (click)="backToProjects()">
+              {{ i18n.t('back') }}
+            </button>
+          </div>
+        </div>
+      </section>
     </main>
   } @else if (
     workspace.restoreStatus() === 'recovery-pending' ||

@@ -46,7 +46,15 @@ import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/edi
 import { EditorSidebarResizeSession } from './editor-sidebar-resize-session';
 import { DecorationService } from '../../../core/decorations/decoration.service';
 import { SettingsDialogComponent } from '../settings/settings-dialog/settings-dialog.component';
-import { LucideCuboid, LucideGroup, LucideImage, LucideX } from '@lucide/angular';
+import {
+  LucideCircleAlert,
+  LucideCuboid,
+  LucideFolderOpen,
+  LucideGroup,
+  LucideImage,
+  LucideLoaderCircle,
+  LucideX,
+} from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { GroupsPanelComponent } from '../groups/groups-panel.component';
 import { SelectionInspectorComponent } from '../inspector/selection-inspector/selection-inspector.component';
@@ -94,10 +102,13 @@ type AssetManagerInitialTab = 'vanilla' | 'mods';
     StructureJsonExportDialogComponent,
     StructureJsonImportDialogComponent,
     StructureNbtExportDialogComponent,
+    LucideCircleAlert,
     LucideX,
     LucideCuboid,
+    LucideFolderOpen,
     LucideGroup,
     LucideImage,
+    LucideLoaderCircle,
     UiTooltipDirective,
   ],
   templateUrl: './editor-shell.component.html',

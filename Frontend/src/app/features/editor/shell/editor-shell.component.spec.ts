@@ -103,6 +103,55 @@ describe('editor shell movement/delete routing', () => {
     vi.restoreAllMocks();
   });
 
+  it('shows honest busy feedback while the local project store is being restored', async () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    fixture.detectChanges();
+
+    const loadingCard = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+      '.startup-card[data-state="loading"]',
+    );
+    expect(loadingCard?.getAttribute('aria-busy')).toBe('true');
+    expect(loadingCard?.querySelector('svg')).not.toBeNull();
+    expect(loadingCard?.textContent).toContain(TestBed.inject(I18nService).t('restoringProject'));
+
+    await TestBed.inject(WorkspaceStateService).restore(TestBed.inject(PROJECT_STORE), undefined);
+    fixture.destroy();
+  });
+
+  it('presents the no-project state as a clear return path', async () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    fixture.detectChanges();
+    await TestBed.inject(WorkspaceStateService).restore(TestBed.inject(PROJECT_STORE), undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const emptyCard = root.querySelector<HTMLElement>('.startup-card[data-state="empty"]');
+    expect(emptyCard?.querySelector('h1')?.textContent).toContain(
+      TestBed.inject(I18nService).t('noProjectToRestore'),
+    );
+    expect(emptyCard?.querySelectorAll('button')).toHaveLength(1);
+
+    fixture.destroy();
+  });
+
+  it('keeps retry and return actions with a clear error state after restore fails', async () => {
+    const store = TestBed.inject(PROJECT_STORE);
+    vi.spyOn(store, 'list').mockRejectedValue(new Error('IndexedDB unavailable'));
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    fixture.detectChanges();
+    await TestBed.inject(WorkspaceStateService).restore(store, undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const errorCard = root.querySelector<HTMLElement>('.startup-card[data-state="error"]');
+    expect(errorCard?.querySelector('[role="alert"]')?.textContent).toContain(
+      TestBed.inject(I18nService).t('projectRestoreErrorHint'),
+    );
+    expect(errorCard?.querySelectorAll('button')).toHaveLength(2);
+
+    fixture.destroy();
+  });
+
   it('uses the shared brand logo as the accessible link back to Projects', () => {
     const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => {});
     const fixture = TestBed.createComponent(EditorShellComponent);
