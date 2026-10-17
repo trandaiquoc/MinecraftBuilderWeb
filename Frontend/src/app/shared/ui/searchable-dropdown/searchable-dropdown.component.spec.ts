@@ -39,8 +39,9 @@ describe('SearchableDropdownComponent', () => {
     fixture.componentRef.setInput('emptyLabel', 'Empty frame');
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
+    const trigger = host.querySelector('.dropdown-trigger') as HTMLButtonElement;
     expect(host.querySelector('.dropdown-popover')).toBeNull();
-    (host.querySelector('.dropdown-trigger') as HTMLButtonElement).click();
+    trigger.click();
     fixture.detectChanges();
     const overlay = () => document.body.querySelector('.dropdown-popover');
     expect(overlay()).toBeTruthy();
@@ -54,12 +55,16 @@ describe('SearchableDropdownComponent', () => {
       document.body.querySelector('.dropdown-option:not(.active-option)') as HTMLButtonElement
     ).click();
     fixture.detectChanges();
+    await fixture.whenStable();
     expect(overlay()).toBeNull();
-    (host.querySelector('.dropdown-trigger') as HTMLButtonElement).click();
+    expect(document.activeElement).toBe(trigger);
+    trigger.click();
     fixture.detectChanges();
     host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
+    await fixture.whenStable();
     expect(overlay()).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 
   it('keeps the selected row separate from keyboard focus on open', async () => {
@@ -92,6 +97,30 @@ describe('SearchableDropdownComponent', () => {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     fixture.detectChanges();
     expect(document.body.querySelector('.dropdown-option.active-option')).toBeTruthy();
+  });
+
+  it('returns focus to the combobox after keyboard selection closes the popover', async () => {
+    await TestBed.configureTestingModule({
+      imports: [SearchableDropdownComponent],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SearchableDropdownComponent);
+    fixture.componentRef.setInput('options', [{ id: 'minecraft:diamond', label: 'Diamond' }]);
+    fixture.detectChanges();
+    const trigger = fixture.nativeElement.querySelector('.dropdown-trigger') as HTMLButtonElement;
+    trigger.focus();
+    trigger.click();
+    fixture.detectChanges();
+
+    const search = document.body.querySelector('.dropdown-search') as HTMLInputElement;
+    search.focus();
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(document.body.querySelector('.dropdown-popover')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    fixture.destroy();
   });
 
   it('caps prepared search results for large option sets', async () => {

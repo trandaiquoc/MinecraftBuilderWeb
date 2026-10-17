@@ -47,6 +47,7 @@ export class SearchableDropdownComponent {
   protected readonly query = signal('');
   protected readonly activeIndex = signal<number | null>(null);
   protected readonly listId = `searchable-dropdown-${nextDropdownId++}`;
+  protected readonly dropdownTrigger = viewChild<ElementRef<HTMLButtonElement>>('dropdownTrigger');
   protected readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
   private indexedOptions?: readonly SearchableDropdownOption[];
@@ -119,10 +120,15 @@ export class SearchableDropdownComponent {
       }
     }
   }
-  protected close(): void {
+  protected close(restoreFocus = true): void {
     this.open.set(false);
     this.query.set('');
     this.activeIndex.set(null);
+    if (restoreFocus)
+      queueMicrotask(() => {
+        const trigger = this.dropdownTrigger()?.nativeElement;
+        if (trigger?.isConnected && !trigger.disabled) trigger.focus();
+      });
   }
   protected onHostKeydown(event: KeyboardEvent): void {
     if (this.open() && event.key === 'Escape') {

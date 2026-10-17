@@ -1,6 +1,7 @@
 <div class="searchable-dropdown" [class.open]="open()" (keydown)="onHostKeydown($event)">
   <button
     type="button"
+    #dropdownTrigger
     cdkOverlayOrigin
     #dropdownOrigin="cdkOverlayOrigin"
     class="dropdown-trigger"
