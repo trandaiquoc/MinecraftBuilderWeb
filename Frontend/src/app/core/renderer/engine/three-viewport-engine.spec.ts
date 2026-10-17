@@ -29,6 +29,89 @@ import type { ViewportRenderOptions } from './viewport-engine-contracts';
 import type { YLayerPresentationReadiness } from './projection/y-layer-presentation-owner';
 import { deriveViewportFinalizationState } from '../../editor/state/viewport-finalization-coordinator';
 
+describe('project preview capture lifecycle', () => {
+  it('returns no preview when the renderer is unavailable', async () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    (engine as unknown as { project: ProjectDocument }).project = project;
+
+    await expect(engine.captureProjectPreview(project)).resolves.toBeUndefined();
+    engine.dispose();
+  });
+
+  it('restores renderer and scene state and disposes its target after readback fails', async () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    const previousTarget = {} as THREE.WebGLRenderTarget;
+    const previousViewport = new THREE.Vector4(2, 3, 640, 480);
+    const previousScissor = new THREE.Vector4(4, 5, 320, 240);
+    const previousClearColor = new THREE.Color(0x123456);
+    const previousClearAlpha = 0.4;
+    const previousBackground = new THREE.Color(0xabcdef);
+    const readbackError = new Error('readback failed');
+    let failReadback!: (error: Error) => void;
+    const root = new THREE.Group();
+    const overlay = new THREE.Group();
+    const internals = engine as unknown as {
+      project: ProjectDocument;
+      renderer: THREE.WebGLRenderer;
+      scene: THREE.Scene;
+      canonicalRoot: THREE.Group;
+    };
+    internals.project = project;
+    internals.canonicalRoot.add(new THREE.Object3D());
+    internals.scene.add(internals.canonicalRoot, root, overlay);
+    internals.scene.background = previousBackground;
+    const renderer = {
+      getRenderTarget: () => previousTarget,
+      getViewport: (target: THREE.Vector4) => target.copy(previousViewport),
+      getScissor: (target: THREE.Vector4) => target.copy(previousScissor),
+      getScissorTest: () => true,
+      getClearColor: (target: THREE.Color) => target.copy(previousClearColor),
+      getClearAlpha: () => previousClearAlpha,
+      setRenderTarget: vi.fn(),
+      setViewport: vi.fn(),
+      setScissor: vi.fn(),
+      setScissorTest: vi.fn(),
+      setClearColor: vi.fn(),
+      clear: vi.fn(),
+      render: vi.fn(),
+      readRenderTargetPixelsAsync: vi.fn(
+        () =>
+          new Promise<Uint8Array>((_resolve, reject) => {
+            failReadback = reject;
+          }),
+      ),
+      dispose: vi.fn(),
+      domElement: { remove: vi.fn() },
+    } as unknown as THREE.WebGLRenderer;
+    internals.renderer = renderer;
+    const targetDispose = vi.spyOn(THREE.WebGLRenderTarget.prototype, 'dispose');
+    const capture = engine.captureProjectPreview(project);
+    engine.dispose();
+
+    expect(renderer.dispose).not.toHaveBeenCalled();
+    expect(targetDispose).not.toHaveBeenCalled();
+    failReadback(readbackError);
+
+    await expect(capture).rejects.toBe(readbackError);
+
+    expect(internals.canonicalRoot.visible).toBe(true);
+    expect(root.visible).toBe(true);
+    expect(overlay.visible).toBe(true);
+    expect(internals.scene.background).toBe(previousBackground);
+    expect(renderer.setRenderTarget).toHaveBeenLastCalledWith(previousTarget);
+    expect(renderer.setViewport).toHaveBeenLastCalledWith(previousViewport);
+    expect(renderer.setScissor).toHaveBeenLastCalledWith(previousScissor);
+    expect(renderer.setScissorTest).toHaveBeenLastCalledWith(true);
+    expect(renderer.setClearColor).toHaveBeenLastCalledWith(previousClearColor, previousClearAlpha);
+    expect(targetDispose).toHaveBeenCalledOnce();
+    expect(renderer.dispose).toHaveBeenCalledOnce();
+
+    targetDispose.mockRestore();
+  });
+});
+
 describe('camera movement input contract', () => {
   it('finalization accepts physical representation ownership, not stale store metadata', () => {
     const engine = new ThreeViewportEngine();

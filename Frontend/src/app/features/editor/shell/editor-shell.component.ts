@@ -1,6 +1,7 @@
 import {
   Component,
   ElementRef,
+  ErrorHandler,
   OnDestroy,
   computed,
   effect,
@@ -137,6 +138,7 @@ export class EditorShellComponent implements OnDestroy {
   private readonly leaveCoordinator = inject(EditorLeaveCoordinator);
   private readonly library = inject(BlockLibraryService);
   private readonly projectDeletion = inject(ProjectDeletionService);
+  private readonly errorHandler = inject(ErrorHandler);
   private readonly threeDViewport = viewChild(ViewportComponent);
   private readonly yLayerViewport = viewChild(YLayerComponent);
   private readonly unregisterPreviewCapture = this.leaveCoordinator.registerProjectPreviewCapture(
@@ -453,28 +455,24 @@ export class EditorShellComponent implements OnDestroy {
     await this.router.navigateByUrl('/');
   }
 
-  private async captureProjectPreviewBeforeLeaving(): Promise<void> {
-    const projectId = this.workspace.project()?.id;
+  private captureProjectPreviewBeforeLeaving(): void {
     const project = this.workspace.project();
-    if (
-      !projectId ||
-      this.mode.mode() !== '3d' ||
-      project?.id !== projectId ||
-      this.autosave.dirty()
-    )
-      return;
+    if (!project || this.mode.mode() !== '3d' || this.autosave.isUnsafeDirty) return;
 
-    const preview = await this.threeDViewport()?.captureProjectPreview();
-    const currentProject = this.workspace.project();
-    if (
-      !preview ||
-      this.mode.mode() !== '3d' ||
-      currentProject?.id !== projectId ||
-      this.autosave.dirty()
-    )
-      return;
-
-    await this.projectStore.savePreview(projectId, currentProject.metadata.updatedAt, preview);
+    const capture = this.threeDViewport()?.captureProjectPreview(project);
+    if (!capture) return;
+    void capture
+      .then((preview) => {
+        if (
+          !preview ||
+          this.mode.mode() !== '3d' ||
+          this.workspace.project() !== project ||
+          this.autosave.isUnsafeDirty
+        )
+          return;
+        return this.projectStore.savePreview(project.id, project.metadata.updatedAt, preview);
+      })
+      .catch((error: unknown) => this.errorHandler.handleError(error));
   }
   protected async saveProject(): Promise<void> {
     try {

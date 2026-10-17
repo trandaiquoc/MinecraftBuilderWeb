@@ -44,15 +44,20 @@ Dark uses cool-lit versions of the same characters so their lighting fits the
 moonlit scene.
 
 The project board reads lightweight summary records while full structure data
-stays in separate project records. On an approved route leave from the 3D
-workspace, the already-mounted viewport captures a 256 x 144 image and stores it
-in a separate IndexedDB preview store. Home loads only the selected project's
-preview for the washer and lazily loads visible project-card previews when the
-project timestamp still matches. Saving the canonical project invalidates its
-preview in the same transaction; previews do not enter project JSON, backups,
-exports, or summary records. Empty projects, Y-Layer exits, stale captures, and
-unavailable captures show no image. The project board remains metadata-only and
-never opens or renders every full structure during list load.
+stays in separate project records. Once route checks approve leaving the 3D
+workspace, the mounted viewport submits a 256 x 144 capture and starts async GPU
+pixel readback. Navigation does not wait for readback, image encoding, or the
+IndexedDB write; renderer disposal waits for the pending readback. The capture
+is saved only while its exact workspace snapshot remains active, and the store
+checks the matching project timestamp transactionally. Home loads only the
+selected project's preview for the washer and lazily loads near-visible
+project-card previews through one shared visibility observer. Object URLs are
+released when a preview leaves the near viewport or its component is destroyed.
+Saving the canonical project invalidates its preview in the same transaction;
+previews do not enter project JSON, backups, exports, or summary records. Empty
+projects, Y-Layer exits, stale captures, and unavailable captures show no image.
+The project board remains metadata-only and never opens or renders every full
+structure during list load.
 
 ## Browser Evidence
 

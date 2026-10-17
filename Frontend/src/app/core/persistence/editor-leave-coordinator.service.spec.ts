@@ -108,12 +108,29 @@ describe('EditorLeaveCoordinator', () => {
     expect(capture).not.toHaveBeenCalled();
   });
 
+  it('does not wait for asynchronous preview work before allowing navigation', async () => {
+    let finishCapture!: () => void;
+    const capture = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCapture = resolve;
+        }),
+    );
+    const coordinator = TestBed.inject(EditorLeaveCoordinator);
+    coordinator.registerProjectPreviewCapture(capture);
+
+    await expect(coordinator.canLeave()).resolves.toBe(true);
+    expect(capture).toHaveBeenCalledOnce();
+    finishCapture();
+  });
+
   it('reports capture failures without blocking route leave', async () => {
     const error = new Error('capture failed');
     const coordinator = TestBed.inject(EditorLeaveCoordinator);
     coordinator.registerProjectPreviewCapture(() => Promise.reject(error));
 
     await expect(coordinator.canLeave()).resolves.toBe(true);
+    await Promise.resolve();
     expect(errorHandler.handleError).toHaveBeenCalledWith(error);
   });
 });

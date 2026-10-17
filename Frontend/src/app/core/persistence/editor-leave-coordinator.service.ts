@@ -13,9 +13,9 @@ export class EditorLeaveCoordinator {
   private readonly dialogs = inject(DialogService);
   private readonly i18n = inject(I18nService);
   private inFlight?: Promise<boolean>;
-  private projectPreviewCapture?: () => Promise<void>;
+  private projectPreviewCapture?: () => void | Promise<void>;
 
-  registerProjectPreviewCapture(capture: () => Promise<void>): () => void {
+  registerProjectPreviewCapture(capture: () => void | Promise<void>): () => void {
     this.projectPreviewCapture = capture;
     return () => {
       if (this.projectPreviewCapture === capture) this.projectPreviewCapture = undefined;
@@ -66,7 +66,8 @@ export class EditorLeaveCoordinator {
     }
 
     try {
-      await this.projectPreviewCapture?.();
+      const capture = this.projectPreviewCapture?.();
+      if (capture) void capture.catch((error) => this.errorHandler.handleError(error));
     } catch (error) {
       this.errorHandler.handleError(error);
     }

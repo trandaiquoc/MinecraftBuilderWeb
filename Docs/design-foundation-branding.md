@@ -88,12 +88,17 @@ profile, subscription, or cloud-sync behavior is implied.
 
 Layered, reusable artwork could later support seasonal events. The laundromat
 artwork, project board composition, creation dialog, and independent raccoon
-animations are implemented. Leaving the 3D workspace after route approval
-captures the project from the mounted renderer and stores the image in a
-separate IndexedDB preview cache. The washer displays only a timestamp-matched
-capture; project saves invalidate that cache. Empty projects, Y-Layer exits, and
-failed captures show no image. Project list cards remain metadata-only, and no
-sample account or fabricated project preview data is shown.
+animations are implemented. After route approval, the mounted renderer submits
+the current project snapshot and starts asynchronous GPU readback before
+teardown. Navigation does not wait for readback, image encoding, or the separate
+IndexedDB preview write; renderer disposal waits until readback finishes. A
+preview is kept only while that same workspace snapshot remains active and the
+stored project timestamp matches. Project saves invalidate the preview in the
+same transaction. The washer and near-visible cards load previews lazily through
+one shared observer, and object URLs are released when they leave the near
+viewport. Empty projects, Y-Layer exits, and failed or stale captures show no
+image. Project list cards remain metadata-only, and no sample account or
+fabricated project preview data is shown.
 
 ## References
 

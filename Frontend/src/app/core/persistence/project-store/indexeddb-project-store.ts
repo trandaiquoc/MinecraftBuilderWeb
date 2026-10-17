@@ -311,10 +311,34 @@ function openDatabase(name: string): Promise<IDBDatabase> {
         : database.createObjectStore(EDITOR_SETTINGS_STORE, { keyPath: 'id' });
       if (!database.objectStoreNames.contains(PROJECT_PREVIEWS_STORE))
         database.createObjectStore(PROJECT_PREVIEWS_STORE, { keyPath: 'id' });
+      const migrateRecoveryRecords = (): void => {
+        if (!recovery) return;
+        recovery.openCursor().onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+          if (!cursor) return;
+          const normalized = normalizeStoredProject(cursor.value as StoredProject);
+          const legacySettings = normalized.document.editorSettings;
+          cursor.update(stripLegacyEditorSettings(normalized));
+          if (legacySettings && editorSettings) {
+            const settingsRequest = editorSettings.get(normalized.id);
+            settingsRequest.onsuccess = () => {
+              if (settingsRequest.result) return;
+              editorSettings.put({
+                id: normalized.id,
+                settings: legacySettings,
+              } satisfies StoredEditorSettings);
+            };
+          }
+          cursor.continue();
+        };
+      };
       if (projects && summaries) {
         projects.openCursor().onsuccess = (event) => {
           const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
-          if (!cursor) return;
+          if (!cursor) {
+            migrateRecoveryRecords();
+            return;
+          }
           const record = cursor.value as StoredProject;
           const normalized = normalizeStoredProject(record);
           const legacySettings = normalized.document.editorSettings;
@@ -327,17 +351,7 @@ function openDatabase(name: string): Promise<IDBDatabase> {
           summaries.put(projectSummaryFromStoredRecord(normalized));
           cursor.continue();
         };
-      }
-      if (recovery) {
-        recovery.openCursor().onsuccess = (event) => {
-          const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
-          if (!cursor) return;
-          cursor.update(
-            stripLegacyEditorSettings(normalizeStoredProject(cursor.value as StoredProject)),
-          );
-          cursor.continue();
-        };
-      }
+      } else migrateRecoveryRecords();
     };
     request.onsuccess = () => resolve(request.result);
   });

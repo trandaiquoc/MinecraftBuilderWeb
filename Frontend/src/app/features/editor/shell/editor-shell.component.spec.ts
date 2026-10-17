@@ -17,6 +17,7 @@ import { UiPreferencesService } from '../../../core/ui/preferences/ui-preference
 import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/editor-layout-preferences.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
 import { PROJECT_STORE } from '../../../core/persistence/project-store/project-store.token';
+import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { ProjectDeletionService } from '../../../core/persistence/project-deletion.service';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
@@ -53,6 +54,9 @@ class TestViewportStub {
   static created = 0;
   static destroyed = 0;
   readonly viewportActive = input(true);
+  captureProjectPreview: (project: ProjectDocument) => Promise<Blob | undefined> = async () =>
+    undefined;
+  clearCameraInput(): void {}
   constructor() {
     TestViewportStub.created += 1;
   }
@@ -994,6 +998,72 @@ describe('editor shell retained viewport lifecycle', () => {
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('skips preview capture when the Y-Layer viewport is active', async () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    TestBed.inject(WorkspaceStateService).activate(project, undefined);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const capture = vi.fn(async () => undefined);
+    const viewport = fixture.debugElement.query(By.css('test-viewport'))
+      .componentInstance as TestViewportStub;
+    viewport.captureProjectPreview = capture;
+    TestBed.inject(EditorModeService).setMode('y-layer');
+    const shell = fixture.componentInstance as unknown as {
+      captureProjectPreviewBeforeLeaving: () => void;
+    };
+
+    shell.captureProjectPreviewBeforeLeaving();
+
+    expect(capture).not.toHaveBeenCalled();
+    fixture.destroy();
+  });
+
+  it('does not save a preview if the workspace project changes during image encoding', async () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    workspace.activate(project, undefined);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    let finishCapture!: (preview: Blob) => void;
+    const capture = vi.fn(
+      () =>
+        new Promise<Blob>((resolve) => {
+          finishCapture = resolve;
+        }),
+    );
+    const viewport = fixture.debugElement.query(By.css('test-viewport'))
+      .componentInstance as TestViewportStub;
+    viewport.captureProjectPreview = capture;
+    const shell = fixture.componentInstance as unknown as {
+      captureProjectPreviewBeforeLeaving: () => void;
+      threeDViewport: () => TestViewportStub;
+    };
+    shell.threeDViewport = () => viewport;
+    TestBed.inject(EditorModeService).setMode('3d');
+    const autosave = TestBed.inject(ProjectAutosaveService);
+    vi.spyOn(autosave, 'isUnsafeDirty', 'get').mockReturnValue(false);
+    const savePreview = vi.spyOn(TestBed.inject(PROJECT_STORE), 'savePreview');
+
+    shell.captureProjectPreviewBeforeLeaving();
+    expect(capture).toHaveBeenCalledWith(project);
+
+    workspace.publishProject({
+      ...project,
+      metadata: { ...project.metadata, updatedAt: '2026-10-18T00:00:00.001Z' },
+    });
+    fixture.detectChanges();
+    finishCapture(new Blob(['stale capture'], { type: 'image/webp' }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(savePreview).not.toHaveBeenCalled();
+    fixture.destroy();
   });
 
   it('starts with the persisted Y-layer viewport active', async () => {
