@@ -18,8 +18,10 @@ reducing toolbar height. The
 [Status Bar responsive review](evidence/20261017-statusbar-responsive/README.md)
 checks its two-row hierarchy at 390 and 320 px, pairing editor context and save
 state separately from project metrics and asset readiness. The
-[starter-card review](evidence/20261017-viewport-empty-starter/README.md) also
-checks both modes at a narrow viewport. Current browser review also covers the
+[Create with AI mobile review](evidence/20261017-ai-workspace-responsive/README.md)
+checks the five-section prompt workspace and its Vietnamese labels at narrow
+widths. The [starter-card review](evidence/20261017-viewport-empty-starter/README.md)
+also checks both modes at a narrow viewport. Current browser review also covers the
 Settings dialog at a narrow viewport, JSON import/export, Structure NBT and
 Datapack export, Asset Manager, and Diagnostics. The
 [Workspace interaction review](evidence/20261017-workspace-interactions/README.md)

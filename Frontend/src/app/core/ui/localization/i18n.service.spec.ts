@@ -81,6 +81,23 @@ describe('translation dictionaries', () => {
     );
   });
 
+  it('uses compact AI workspace tab labels in both locales', () => {
+    expect([
+      supplementalTranslations.en.structureJsonAiTabDescription,
+      supplementalTranslations.en.structureJsonAiTabContent,
+      supplementalTranslations.en.structureJsonAiTabContentLimits,
+      supplementalTranslations.en.structureJsonAiTabGuidance,
+      supplementalTranslations.en.structureJsonAiTabExample,
+    ]).toEqual(['Describe', 'Content', 'Limits', 'Guide', 'Example']);
+    expect([
+      supplementalTranslations.vi.structureJsonAiTabDescription,
+      supplementalTranslations.vi.structureJsonAiTabContent,
+      supplementalTranslations.vi.structureJsonAiTabContentLimits,
+      supplementalTranslations.vi.structureJsonAiTabGuidance,
+      supplementalTranslations.vi.structureJsonAiTabExample,
+    ]).toEqual(['Mô tả', 'Nội dung', 'Giới hạn', 'Gợi ý', 'Ví dụ']);
+  });
+
   it('provides localized viewport hydration labels', () => {
     expect(supplementalTranslations.en.importingStructure).toBe('Importing structure');
     expect(supplementalTranslations.en.buildingStructure).toBe('Building structure');

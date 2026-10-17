@@ -129,6 +129,7 @@
   color: var(--text-muted);
   cursor: pointer;
   font: 0.76rem/1.2 var(--font-ui);
+  white-space: nowrap;
 }
 .ai-inner-tabs button:hover:not([aria-selected='true']) {
   background: var(--surface-hover);
@@ -528,13 +529,32 @@
   .ai-panel-heading {
     flex-direction: column;
   }
+  .ai-prompt-config-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
   .ai-privacy-note {
     max-width: none;
     text-align: left;
   }
+  .ai-inner-tabs {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .ai-inner-tabs button {
+    padding-inline: 0.15rem;
+    font-size: 0.7rem;
+  }
   .ai-content-summary,
   .ai-content-limits-workspace {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 360px) {
+  .ai-inner-tabs button {
+    padding-inline: 0.08rem;
+    font-size: 0.64rem;
   }
 }
 
