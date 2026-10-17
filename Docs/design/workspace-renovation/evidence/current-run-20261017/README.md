@@ -1217,3 +1217,20 @@ browser focus-ring, long-list, or assistive-technology behavior. No fresh
 browser capture was taken because the isolated Chrome launch was rejected by
 policy in this run; verify first/middle/last navigation after sorting and
 filtering when browser capture is available.
+
+## Asset Manager activity announcements: source checkpoint
+
+`AssetActivityService` keeps current progress in a signal that can change many
+times during downloads or imported-Mod restoration, separately from the
+append-only activity history. The Manager previously placed both in one
+polite live region, which could repeatedly announce progress updates and
+surrounding sidebar content. The sidebar itself is no longer live; each
+history list is now a labeled `role="log"`, while current progress remains
+available in the normal reading order. Existing progress indicators and
+status-bar announcements are unchanged.
+
+The Asset Manager tab/help spec and AssetActivityService specs pass (6 tests
+total), as do the production build, encoding check, Prettier check, and
+`git diff --check`. Browser/assistive-technology announcement behavior remains
+unverified because the isolated Chrome launch was rejected by policy; no new
+screenshot is claimed for this source-only change.
