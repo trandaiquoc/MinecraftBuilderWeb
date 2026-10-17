@@ -26,34 +26,8 @@ import { ThumbnailVisibilityDirective } from '../../../shared/ui/thumbnail-visib
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling';
 import type { ThumbnailTaskPriority } from '../../../core/assets/vanilla/thumbnails/thumbnail-task-queue';
 
-const BLOCK_GRID_TILE_WIDTH = 112;
-const BLOCK_GRID_GAP = 7;
 const COMPACT_BLOCK_GRID_WIDTH = 240;
-const BLOCK_GRID_ROW_HEIGHT = 112;
-const COMPACT_BLOCK_GRID_ROW_HEIGHT = 80;
-
-export function blockGridColumnCount(width: number): number {
-  if (!Number.isFinite(width) || width <= 0) return 1;
-  return Math.max(
-    1,
-    Math.floor((width + BLOCK_GRID_GAP) / (BLOCK_GRID_TILE_WIDTH + BLOCK_GRID_GAP)),
-  );
-}
-
-export function blockGridRowHeight(width: number): number {
-  return width < COMPACT_BLOCK_GRID_WIDTH ? COMPACT_BLOCK_GRID_ROW_HEIGHT : BLOCK_GRID_ROW_HEIGHT;
-}
-
-export function groupBlockItemsIntoRows<T>(
-  items: readonly T[],
-  columns: number,
-): readonly (readonly T[])[] {
-  const safeColumns = Math.max(1, Math.floor(Number.isFinite(columns) ? columns : 1));
-  const rows: T[][] = [];
-  for (let index = 0; index < items.length; index += safeColumns)
-    rows.push(items.slice(index, index + safeColumns) as T[]);
-  return rows;
-}
+export const BLOCK_CATALOG_ROW_HEIGHT = 80;
 
 @Component({
   selector: 'app-block-browser',
@@ -99,13 +73,9 @@ export class BlockBrowserComponent {
   protected readonly results = computed(() =>
     this.library.searchPlaceableItems(this.library.query(), this.activeSource()),
   );
-  protected readonly columnCount = signal(1);
   protected readonly panelWidth = signal(0);
   protected readonly isCompact = computed(() => this.panelWidth() < COMPACT_BLOCK_GRID_WIDTH);
-  protected readonly rowHeight = computed(() => blockGridRowHeight(this.panelWidth()));
-  protected readonly rows = computed<readonly (readonly PlaceableItemDefinition[])[]>(() => {
-    return groupBlockItemsIntoRows(this.results(), this.columnCount());
-  });
+  protected readonly rowHeight = BLOCK_CATALOG_ROW_HEIGHT;
   private readonly catalogGridHost = viewChild<ElementRef<HTMLElement>>('catalogGridHost');
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   private readonly catalogViewport = viewChild<CdkVirtualScrollViewport>('catalogViewport');
@@ -114,11 +84,8 @@ export class BlockBrowserComponent {
     if (!host) return;
     const update = (): void => {
       const nextWidth = host.clientWidth;
-      const next = blockGridColumnCount(host.clientWidth);
-      const layoutChanged = next !== this.columnCount() || nextWidth !== this.panelWidth();
-      if (!layoutChanged) return;
+      if (nextWidth === this.panelWidth()) return;
       this.panelWidth.set(nextWidth);
-      this.columnCount.set(next);
       queueMicrotask(() => this.catalogViewport()?.checkViewportSize());
     };
     update();
@@ -190,7 +157,7 @@ export class BlockBrowserComponent {
         ? this.i18n.t('quickBarFull')
         : this.i18n.t('addToQuickBar');
   }
-  protected trackRow(index: number, row: readonly PlaceableItemDefinition[]): string {
-    return row[0]?.itemId ?? `row-${index}`;
+  protected trackBlock(_index: number, block: PlaceableItemDefinition): string {
+    return block.itemId;
   }
 }

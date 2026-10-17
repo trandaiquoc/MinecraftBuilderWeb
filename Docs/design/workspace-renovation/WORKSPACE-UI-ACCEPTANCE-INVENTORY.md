@@ -5,11 +5,11 @@ not a list of completed implementation tasks.
 
 ## Open acceptance
 
-| Area                      | Status                                                                                                                                       | Required evidence                                                                                                       |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Workspace visual fidelity | Pending. The approved four-theme compositions are references, not proof that the current UI matches them.                                    | Compare the current Workspace with all four approved frames and assess the full layout and component hierarchy.         |
-| Viewport starter card     | Implemented and technically verified in commit ed7b1a5; visual acceptance is pending. The available browser captures predate this component. | Capture and review 3D and Y-Layer empty states across Minecraft, Raccoon, Light, and Dark, including a narrow viewport. |
-| Project Screen / Homepage | Controls are implemented; its visual concept remains separate from Workspace acceptance.                                                     | Track its acceptance in the [Homepage renovation notes](../homepage-renovation/README.md).                              |
+| Area                      | Status                                                                                                                                                                | Required evidence                                                                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workspace visual fidelity | Pending. The Block Browser list and desktop panel proportions now have current evidence, but the full Workspace hierarchy and recurring states still need assessment. | Audit the remaining common Workspace surfaces and interaction states against all four approved compositions; capture verified gaps and fixes. |
+| Viewport starter card     | Implemented and technically verified in commit ed7b1a5; visual acceptance is pending. The available browser captures predate this component.                          | Capture and review 3D and Y-Layer empty states across Minecraft, Raccoon, Light, and Dark, including a narrow viewport.                       |
+| Project Screen / Homepage | Controls are implemented; its visual concept remains separate from Workspace acceptance.                                                                              | Track its acceptance in the [Homepage renovation notes](../homepage-renovation/README.md).                                                    |
 
 ## Technical checkpoint
 

@@ -12,9 +12,10 @@ acceptance for later changes.
 ## Current acceptance
 
 The current desktop sidebar composition has a focused before/after capture in
-[the 2026-10-17 comparison](20261017-sidebar-composition/README.md). This only
-checks the Minecraft theme at a wide viewport. Full Workspace visual acceptance
-across themes, responsive states, and workflows remains open in the
+[the 2026-10-17 comparison](20261017-sidebar-composition/README.md). The Block
+Browser list composition has its own [four-theme and narrow viewport evidence](20261017-block-browser-list/README.md).
+Full Workspace visual acceptance across surfaces, responsive states, and
+workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The
 Project Screen concept remains open in the
 [Homepage/Project Screen notes](../../homepage-renovation/README.md).

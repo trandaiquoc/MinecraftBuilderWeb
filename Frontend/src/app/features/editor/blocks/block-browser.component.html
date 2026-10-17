@@ -40,66 +40,63 @@
       <cdk-virtual-scroll-viewport
         #catalogViewport
         class="results"
-        [itemSize]="rowHeight()"
+        [itemSize]="rowHeight"
         role="group"
-        [style.--block-columns]="columnCount()"
-        [style.--block-row-height.px]="rowHeight()"
+        [style.--block-row-height.px]="rowHeight"
         [attr.aria-label]="i18n.t('blocksPanel')"
       >
-        <div *cdkVirtualFor="let row of rows(); trackBy: trackRow" class="block-row">
-          @for (block of row; track block.itemId) {
-            <div
-              class="block-item"
-              thumbnailVisibility
-              [thumbnailVisibilityEpoch]="assets.thumbnailEpoch()"
-              [class.active]="isActive(block)"
-              (thumbnailVisible)="requestThumbnail(block, $event)"
+        <div *cdkVirtualFor="let block of results(); trackBy: trackBlock" class="block-row">
+          <div
+            class="block-item"
+            thumbnailVisibility
+            [thumbnailVisibilityEpoch]="assets.thumbnailEpoch()"
+            [class.active]="isActive(block)"
+            (thumbnailVisible)="requestThumbnail(block, $event)"
+          >
+            <button
+              type="button"
+              class="block-select-action"
+              (click)="select(block)"
+              [attr.aria-pressed]="isActive(block)"
+              [attr.aria-label]="block.displayName + ', ' + block.displayBlockId"
             >
-              <button
-                type="button"
-                class="block-select-action"
-                (click)="select(block)"
-                [attr.aria-pressed]="isActive(block)"
-                [attr.aria-label]="block.displayName + ', ' + block.displayBlockId"
+              <span
+                class="preview"
+                [class.has-thumbnail]="!!assets.thumbnailUrlForItem(block)"
+                [class.fallback]="block.visualSupport === 'fallback'"
               >
+                @if (assets.thumbnailUrlForItem(block); as thumbnail) {
+                  <img [src]="thumbnail" alt="" />
+                } @else {
+                  <span>{{ block.visualSupport === 'fallback' ? '?' : '◇' }}</span>
+                }</span
+              ><span class="block-copy"
+                ><strong>{{ block.displayName }}</strong
+                ><small class="block-copy-id" [attr.title]="block.displayBlockId">{{
+                  block.displayBlockId
+                }}</small></span
+              >
+              @if (isActive(block)) {
                 <span
-                  class="preview"
-                  [class.has-thumbnail]="!!assets.thumbnailUrlForItem(block)"
-                  [class.fallback]="block.visualSupport === 'fallback'"
-                >
-                  @if (assets.thumbnailUrlForItem(block); as thumbnail) {
-                    <img [src]="thumbnail" alt="" />
-                  } @else {
-                    <span>{{ block.visualSupport === 'fallback' ? '?' : '◇' }}</span>
-                  }</span
-                ><span class="block-copy"
-                  ><strong>{{ block.displayName }}</strong
-                  ><small class="block-copy-id" [attr.title]="block.displayBlockId">{{
-                    block.displayBlockId
-                  }}</small></span
-                >
-                @if (isActive(block)) {
-                  <span
-                    class="block-selected-indicator workspace-selection-indicator"
-                    aria-hidden="true"
-                    ><svg lucideCheck></svg
-                  ></span>
-                }
-              </button>
-              <span class="quick-add-wrapper"
-                ><button
-                  type="button"
-                  class="quick-add-action"
-                  [class.ui-tooltip-align-end]="isCompact()"
-                  uiTooltip="{{ quickAddLabel(block) }}"
-                  (click)="addToQuickBar($event, block)"
-                  [disabled]="!canAddToQuickBar(block)"
-                  [attr.aria-label]="quickAddLabel(block)"
-                >
-                  <svg lucidePlus aria-hidden="true"></svg></button
-              ></span>
-            </div>
-          }
+                  class="block-selected-indicator workspace-selection-indicator"
+                  aria-hidden="true"
+                  ><svg lucideCheck></svg
+                ></span>
+              }
+            </button>
+            <span class="quick-add-wrapper"
+              ><button
+                type="button"
+                class="quick-add-action"
+                [class.ui-tooltip-align-end]="isCompact()"
+                uiTooltip="{{ quickAddLabel(block) }}"
+                (click)="addToQuickBar($event, block)"
+                [disabled]="!canAddToQuickBar(block)"
+                [attr.aria-label]="quickAddLabel(block)"
+              >
+                <svg lucidePlus aria-hidden="true"></svg></button
+            ></span>
+          </div>
         </div>
       </cdk-virtual-scroll-viewport>
     </div>

@@ -8,12 +8,7 @@ import type {
   ContentRestoreState,
   VanillaAssetStatus,
 } from '../../../core/assets/content-asset-runtime.service';
-import {
-  BlockBrowserComponent,
-  blockGridColumnCount,
-  blockGridRowHeight,
-  groupBlockItemsIntoRows,
-} from './block-browser.component';
+import { BLOCK_CATALOG_ROW_HEIGHT, BlockBrowserComponent } from './block-browser.component';
 
 function createAssetRuntimeStub() {
   return {
@@ -33,30 +28,9 @@ function createAssetRuntimeStub() {
   };
 }
 
-describe('BlockBrowser grid sizing', () => {
-  it('returns a bounded responsive column count', () => {
-    expect(blockGridColumnCount(0)).toBe(1);
-    expect(blockGridColumnCount(Number.NaN)).toBe(1);
-    expect(blockGridColumnCount(240)).toBe(2);
-    expect(blockGridColumnCount(500)).toBe(4);
-    expect(blockGridColumnCount(650)).toBe(5);
-    expect(blockGridColumnCount(800)).toBe(6);
-    expect(blockGridColumnCount(800)).toBeGreaterThan(blockGridColumnCount(500));
-    expect(blockGridRowHeight(180)).toBe(80);
-    expect(blockGridRowHeight(239)).toBe(80);
-    expect(blockGridRowHeight(240)).toBe(112);
-  });
-
-  it('groups items into deterministic virtual rows', () => {
-    expect(groupBlockItemsIntoRows(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], 4)).toEqual([
-      ['a', 'b', 'c', 'd'],
-      ['e', 'f', 'g', 'h'],
-      ['i', 'j'],
-    ]);
-    expect(
-      groupBlockItemsIntoRows(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], 2),
-    ).toHaveLength(5);
-    expect(groupBlockItemsIntoRows(['a', 'b'], 0)).toEqual([['a'], ['b']]);
+describe('BlockBrowser list sizing', () => {
+  it('uses a consistent virtual row height for full-width block rows', () => {
+    expect(BLOCK_CATALOG_ROW_HEIGHT).toBe(80);
   });
 });
 

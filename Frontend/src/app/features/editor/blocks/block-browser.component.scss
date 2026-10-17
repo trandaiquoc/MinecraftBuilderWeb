@@ -76,20 +76,18 @@
   width: 100%;
 }
 .block-row {
-  display: grid;
-  grid-template-columns: repeat(var(--block-columns, 1), minmax(0, 1fr));
-  gap: 0.45rem;
+  display: block;
   box-sizing: border-box;
   width: 100%;
-  height: var(--block-row-height, 112px);
+  height: var(--block-row-height, 80px);
   padding: 0.25rem 0;
 }
 .block-item {
   position: relative;
-  display: grid;
+  display: block;
   box-sizing: border-box;
   width: 100%;
-  height: calc(var(--block-row-height, 112px) - 8px);
+  height: calc(var(--block-row-height, 80px) - 8px);
   min-width: 0;
   padding: 0.35rem;
   border: 1px solid transparent;
@@ -107,13 +105,15 @@
 }
 .block-select-action {
   display: grid;
-  grid-template-rows: 52px auto;
-  align-content: start;
-  justify-items: stretch;
-  gap: 0.28rem;
+  grid-template-columns: 52px minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  box-sizing: border-box;
   min-width: 0;
   min-height: 100%;
-  padding: 0;
+  padding: 0 1.65rem 0 0;
   border: 0;
   background: transparent;
   color: inherit;
@@ -217,7 +217,7 @@
   place-items: center;
   width: 52px;
   height: 52px;
-  justify-self: center;
+  justify-self: start;
   overflow: hidden;
   color: var(--text-muted);
   font-weight: 700;
@@ -337,10 +337,11 @@
 }
 .quick-add-wrapper {
   position: absolute;
-  top: 0.3rem;
-  left: 0.3rem;
+  top: calc(50% + 0.2rem);
+  right: 0.25rem;
   z-index: 1;
   opacity: 0;
+  transform: translateY(-50%);
 }
 .block-item:hover .quick-add-wrapper,
 .block-item:focus-within .quick-add-wrapper,
@@ -353,25 +354,6 @@
 .quick-add-action:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-
-.catalog-grid-host.compact .block-item {
-  display: block;
-  padding: 0.3rem;
-}
-
-.catalog-grid-host.compact .block-select-action {
-  grid-template-columns: 52px minmax(0, 1fr);
-  grid-template-rows: 1fr;
-  align-items: center;
-  gap: 0.35rem;
-  padding-right: 1.65rem;
-}
-
-.catalog-grid-host.compact .preview {
-  width: 52px;
-  height: 52px;
-  justify-self: start;
 }
 
 .catalog-grid-host.compact .block-copy strong {
@@ -394,12 +376,7 @@
 }
 
 .catalog-grid-host.compact .quick-add-wrapper {
-  position: absolute;
-  top: calc(50% + 0.2rem);
-  right: 0.25rem;
-  left: auto;
   opacity: 1;
-  transform: translateY(-50%);
 }
 
 .catalog-grid-host.compact .quick-add-action {
