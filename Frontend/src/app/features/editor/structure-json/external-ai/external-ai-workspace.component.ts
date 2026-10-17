@@ -1,5 +1,5 @@
 import { Component, computed, DestroyRef, ElementRef, inject, input, signal } from '@angular/core';
-import { LucideCheck, LucideCopy } from '@lucide/angular';
+import { LucideCheck, LucideChevronDown, LucideCopy } from '@lucide/angular';
 import { canonicalPlaceableItemId } from '../../../../core/blocks/placement-palette/placeable-item-resolution';
 import type { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item.types';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
@@ -36,7 +36,7 @@ type AiWorkspaceTab = 'description' | 'content' | 'limits' | 'guidance' | 'examp
 
 @Component({
   selector: 'app-external-ai-workspace',
-  imports: [LucideCheck, LucideCopy, ReadonlyCodeViewerComponent],
+  imports: [LucideCheck, LucideChevronDown, LucideCopy, ReadonlyCodeViewerComponent],
   host: {
     role: 'region',
     tabindex: '0',
