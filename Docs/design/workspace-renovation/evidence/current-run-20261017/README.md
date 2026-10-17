@@ -1193,6 +1193,23 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 469 distinct PNG captures
-in this archive are linked to files in this folder (470 link occurrences, with
+animated-state and locale matrix remains open. All 491 distinct PNG captures
+in this archive are linked to files in this folder (492 link occurrences, with
 no missing targets or unlinked captures).
+
+## Source checkpoint: Block Usage keyboard navigation
+
+Source inspection confirms that the Block Usage list uses
+`CdkVirtualScrollViewport` and `*cdkVirtualFor`, with each rendered row
+containing a native button. The component does not define key-to-index
+navigation, focus transfer, `scrollToIndex`, or list-position metadata such as
+`aria-posinset` and `aria-setsize`. This confirms there is no component-managed
+keyboard navigation across the virtualized range or explicit announcement of
+a row's position. The source does not establish whether native viewport
+scrolling exposes all rows to keyboard users; that needs a browser check with
+enough distinct block types to exceed the rendered range.
+
+The next pass should keep virtualization and verify first, middle, and last
+row traversal after sorting and filtering, including focus and assistive
+technology output. No new browser capture was taken for this source-only
+checkpoint: the isolated Chrome launch was rejected by policy in this run.
