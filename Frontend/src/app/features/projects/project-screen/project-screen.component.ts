@@ -1,7 +1,7 @@
 import { DatePipe, NgOptimizedImage } from '@angular/common';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Component, computed, inject, signal } from '@angular/core';
-import { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
+import type { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
 import {
   DEFAULT_MINECRAFT_VERSION,
   ProjectSize,
@@ -16,7 +16,13 @@ import {
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
-import { LucideFileUp, LucideHardDrive, LucideTrash2, LucideX } from '@lucide/angular';
+import {
+  LucideFileUp,
+  LucideHardDrive,
+  LucideSearch,
+  LucideTrash2,
+  LucideX,
+} from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import {
   SearchableDropdownComponent,
@@ -34,6 +40,11 @@ import type {
 import { StructureJsonProjectImportWorkflow } from './structure-json-project-import-workflow';
 import { ProjectScreenWorkflow } from './project-screen-workflow';
 import { ProjectScreenControlsComponent } from './project-screen-controls.component';
+import {
+  filterAndSortProjectSummaries,
+  isProjectScreenProjectOrder,
+} from './project-screen-project-list';
+import type { ProjectScreenProjectOrder } from './project-screen-project-list';
 
 @Component({
   selector: 'app-project-screen',
@@ -44,6 +55,7 @@ import { ProjectScreenControlsComponent } from './project-screen-controls.compon
     NgOptimizedImage,
     LucideFileUp,
     LucideHardDrive,
+    LucideSearch,
     LucideTrash2,
     LucideX,
     UiTooltipDirective,
@@ -114,6 +126,16 @@ export class ProjectScreenComponent {
     }));
   });
   protected readonly projects = this.workflow.projects;
+  protected readonly projectSearch = signal('');
+  protected readonly projectOrder = signal<ProjectScreenProjectOrder>('newest');
+  protected readonly visibleProjects = computed(() =>
+    filterAndSortProjectSummaries(
+      this.projects(),
+      this.projectSearch(),
+      this.projectOrder(),
+      this.i18n.locale(),
+    ),
+  );
   protected readonly error = this.workflow.error;
   protected readonly listError = this.workflow.listError;
   protected readonly loadStatus = this.workflow.loadStatus;
@@ -175,6 +197,14 @@ export class ProjectScreenComponent {
   }
   protected selectProject(id: string): void {
     this.selectedProjectId.set(id);
+  }
+  protected updateProjectSearch(event: Event): void {
+    if (event.target instanceof HTMLInputElement) this.projectSearch.set(event.target.value);
+  }
+  protected updateProjectOrder(event: Event): void {
+    if (!(event.target instanceof HTMLSelectElement)) return;
+    const value = event.target.value;
+    if (isProjectScreenProjectOrder(value)) this.projectOrder.set(value);
   }
   protected openStructureJsonPicker(input: HTMLInputElement): void {
     if (!this.structureJsonImport.creating()) input.click();

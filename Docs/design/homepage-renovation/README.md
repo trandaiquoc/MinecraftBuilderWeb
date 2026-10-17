@@ -14,7 +14,9 @@ remaining scope; it is not a full application acceptance report.
   dimensions, and Open action. It does not imply a project screenshot.
 - On wide desktop, the unchanged official logo sits above the washer in the
   scene's open wall area. The board arranges real project summaries as cards;
-  the layout reduces to one column when the board is narrow.
+  the layout reduces to one column when the board is narrow. Local search
+  filters project name, Minecraft version, mode, and dimensions; sorting offers
+  newest, oldest, and name order.
 - Project creation reuses the existing size and version form in a focus-trapped
   dialog. Structure JSON import remains available directly from the board.
 - The existing Project Screen workflow still owns create/open/delete, import,
@@ -33,10 +35,12 @@ composition and style guidance. They contain no UI text, project cards, app
 logo, or external stock assets. The Light, Raccoon, and Dark variants preserve
 the same scene layout; Dark uses the approved moonlit castle setting.
 
-The app currently exposes project summaries as metadata and has no stored
-project-capture or thumbnail source. The board and washer therefore show real
-project metadata instead of a fabricated preview. A real thumbnail remains
-future work if the project model gains a suitable capture source.
+The project board reads lightweight summary records while full structure data
+stays in separate project records. No cached project-capture source exists, and
+generating thumbnails would need a preview pipeline that avoids opening and
+rendering every full structure during list load. The board and washer therefore
+show real project metadata and no fabricated preview. Revisit real thumbnails
+when a suitable capture pipeline exists.
 
 ## Browser Evidence
 
@@ -45,13 +49,14 @@ contains captures of the empty state, project selection, four themes, creation
 dialog, and narrow Vietnamese layout. Browser interaction checks created two
 projects in an isolated profile, selected and opened a saved project, and
 confirmed deletion. That sample profile is not part of the repository. Those
-captures predate the wide-screen logo placement and project-card layout, so the
-latest composition still needs a fresh browser review.
+captures predate the wide-screen logo placement, project-card layout, and local
+search/sorting controls, so the latest composition still needs a fresh browser
+review.
 
 Visual review covers the captured screen composition and states. Full Homepage
-acceptance remains open until the latest composition is reviewed and the
-project preview question is resolved. No project thumbnail is shown because
-the current project model does not provide a real capture source.
+acceptance remains open until the latest composition is reviewed. The metadata
+cards intentionally avoid fabricated thumbnails; cached real project captures
+remain future work.
 
 ## Interaction Research
 

@@ -59,36 +59,62 @@
 
       <section class="project-board" aria-labelledby="project-board-title">
         <header class="board-header">
-          <div class="board-heading">
-            <p class="eyebrow">{{ i18n.t('projectTitle') }}</p>
-            <h1 id="project-board-title">{{ i18n.t('recent') }}</h1>
+          <div class="board-header-main">
+            <div class="board-heading">
+              <p class="eyebrow">{{ i18n.t('projectTitle') }}</p>
+              <h1 id="project-board-title">{{ i18n.t('recent') }}</h1>
+            </div>
+            <div class="board-actions">
+              <button
+                class="ui-button ui-button--primary ui-button--sm"
+                type="button"
+                [disabled]="creating() || !!openingId()"
+                (click)="openCreateDialog()"
+              >
+                {{ i18n.t('create') }}
+              </button>
+              <input
+                #structureJsonFile
+                type="file"
+                accept="application/json,.json"
+                hidden
+                (change)="selectStructureJson($event)"
+              />
+              <button
+                class="ui-button ui-button--secondary ui-button--sm structure-json-create-action"
+                type="button"
+                [disabled]="creating() || !!openingId()"
+                (click)="openStructureJsonPicker(structureJsonFile)"
+              >
+                <svg lucideFileUp aria-hidden="true"></svg>
+                <span>{{ i18n.t('createFromStructureJson') }}</span>
+              </button>
+            </div>
           </div>
-          <div class="board-actions">
-            <button
-              class="ui-button ui-button--primary ui-button--sm"
-              type="button"
-              [disabled]="creating() || !!openingId()"
-              (click)="openCreateDialog()"
-            >
-              {{ i18n.t('create') }}
-            </button>
-            <input
-              #structureJsonFile
-              type="file"
-              accept="application/json,.json"
-              hidden
-              (change)="selectStructureJson($event)"
-            />
-            <button
-              class="ui-button ui-button--secondary ui-button--sm structure-json-create-action"
-              type="button"
-              [disabled]="creating() || !!openingId()"
-              (click)="openStructureJsonPicker(structureJsonFile)"
-            >
-              <svg lucideFileUp aria-hidden="true"></svg>
-              <span>{{ i18n.t('createFromStructureJson') }}</span>
-            </button>
-          </div>
+          @if (loadStatus() === 'ready') {
+            <div class="project-list-controls">
+              <label class="project-search-field">
+                <svg lucideSearch aria-hidden="true"></svg>
+                <input
+                  type="search"
+                  [value]="projectSearch()"
+                  [attr.aria-label]="i18n.t('searchProjects')"
+                  [placeholder]="i18n.t('searchProjects')"
+                  (input)="updateProjectSearch($event)"
+                />
+              </label>
+              <select
+                class="project-sort"
+                [value]="projectOrder()"
+                [attr.aria-label]="i18n.t('sortProjects')"
+                (change)="updateProjectOrder($event)"
+              >
+                <option value="newest">{{ i18n.t('projectSortNewest') }}</option>
+                <option value="oldest">{{ i18n.t('projectSortOldest') }}</option>
+                <option value="name">{{ i18n.t('projectSortName') }}</option>
+              </select>
+            </div>
+          }
         </header>
 
         <div class="project-list" aria-live="polite">
@@ -101,8 +127,10 @@
             </button>
           } @else if (projects().length === 0) {
             <p class="project-list-empty muted">{{ i18n.t('noProjects') }}</p>
+          } @else if (visibleProjects().length === 0) {
+            <p class="project-list-empty muted" role="status">{{ i18n.t('noProjectMatches') }}</p>
           } @else {
-            @for (project of projects(); track project.id) {
+            @for (project of visibleProjects(); track project.id) {
               <article
                 class="project-row"
                 [class.selected]="selectedProject()?.id === project.id"
