@@ -46,9 +46,11 @@
       </div>
       <section class="washer-project" [attr.aria-label]="i18n.t('projectActions')">
         @if (selectedProject(); as project) {
-          @if (selectedProjectPreviewUrl(); as previewUrl) {
-            <img class="washer-project-preview" [src]="previewUrl" alt="" aria-hidden="true" />
-          }
+          <app-project-screen-preview
+            class="washer-project-preview"
+            [project]="project"
+            aria-hidden="true"
+          />
           <span class="washer-project-label">{{ i18n.t('openProject') }}</span>
           <h2>{{ project.name }}</h2>
           <p>{{ i18n.t('minecraftJavaVersion').replace('{version}', project.minecraftVersion) }}</p>
@@ -167,6 +169,11 @@
                   [attr.aria-pressed]="selectedProject()?.id === project.id"
                   (click)="selectProject(project.id)"
                 >
+                  <app-project-screen-preview
+                    class="project-select-preview"
+                    [project]="project"
+                    aria-hidden="true"
+                  />
                   <strong>{{ project.name }}</strong>
                   <span class="project-row-meta">
                     <small>{{

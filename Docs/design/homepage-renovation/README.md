@@ -45,12 +45,12 @@ The project board reads lightweight summary records while full structure data
 stays in separate project records. On an approved route leave from the 3D
 workspace, the already-mounted viewport captures a 256 x 144 image and stores it
 in a separate IndexedDB preview store. Home loads only the selected project's
-preview and shows it in the washer when its project timestamp still matches.
-Saving the canonical project invalidates its preview in the same transaction;
-previews do not enter project JSON, backups, exports, or summary records. Empty
-projects, Y-Layer exits, stale captures, and unavailable captures show no image.
-The project board remains metadata-only and never opens or renders every full
-structure during list load.
+preview for the washer and lazily loads visible project-card previews when the
+project timestamp still matches. Saving the canonical project invalidates its
+preview in the same transaction; previews do not enter project JSON, backups,
+exports, or summary records. Empty projects, Y-Layer exits, stale captures, and
+unavailable captures show no image. The project board remains metadata-only and
+never opens or renders every full structure during list load.
 
 ## Browser Evidence
 
@@ -83,6 +83,9 @@ have also been exercised in the local browser profile.
 The [independent mascot motion review](evidence/20261017-project-screen-mascots/README.md)
 checks the two separate character layers across the four themes, at a narrow
 viewport, and with reduced motion enabled.
+
+The [project-card preview review](evidence/20261017-project-card-previews/README.md)
+shows the real renderer capture on a project card, with the card actions visible.
 
 The [real project preview review](evidence/20261017-project-preview/README.md)
 checks the selected washer preview captured from the mounted 3D workspace, its

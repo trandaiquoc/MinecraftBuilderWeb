@@ -194,7 +194,6 @@
   z-index: 0;
   inset: 8%;
   display: block;
-  object-fit: contain;
   opacity: 0.72;
   pointer-events: none;
 }
@@ -401,7 +400,7 @@
 
 .project-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
   align-content: start;
   gap: 0.4rem;
   min-height: 0;

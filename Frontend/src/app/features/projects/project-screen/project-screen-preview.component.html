@@ -1,0 +1,7 @@
+<div class="preview-surface" [class.preview-surface--ready]="previewUrl()" aria-hidden="true">
+  @if (previewUrl(); as url) {
+    <img [src]="url" alt="" decoding="async" />
+  } @else {
+    <svg lucideImage aria-hidden="true"></svg>
+  }
+</div>

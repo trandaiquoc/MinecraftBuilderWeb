@@ -141,6 +141,7 @@ describe('ProjectScreenComponent', () => {
         (name) => name.textContent?.trim() ?? '',
       );
     expect(cardNames()).toEqual(['Lakeside Cabin', 'Garden Study', 'Tower 2']);
+    expect(root.querySelectorAll('.project-row app-project-screen-preview')).toHaveLength(3);
 
     const search = fixture.nativeElement.querySelector(
       '.project-search-field input',
@@ -149,6 +150,7 @@ describe('ProjectScreenComponent', () => {
     search.dispatchEvent(new Event('input'));
     fixture.detectChanges();
     expect(cardNames()).toEqual(['Lakeside Cabin']);
+    expect(root.querySelectorAll('.project-row app-project-screen-preview')).toHaveLength(1);
 
     search.value = 'unmatched';
     search.dispatchEvent(new Event('input'));
@@ -156,6 +158,7 @@ describe('ProjectScreenComponent', () => {
     expect(fixture.nativeElement.querySelector('.project-list-empty').textContent).toContain(
       'No projects match your search.',
     );
+    expect(root.querySelectorAll('.project-row app-project-screen-preview')).toHaveLength(0);
 
     search.value = '';
     search.dispatchEvent(new Event('input'));
@@ -164,6 +167,7 @@ describe('ProjectScreenComponent', () => {
     sort.dispatchEvent(new Event('change'));
     fixture.detectChanges();
     expect(cardNames()).toEqual(['Garden Study', 'Lakeside Cabin', 'Tower 2']);
+    expect(root.querySelectorAll('.project-row app-project-screen-preview')).toHaveLength(3);
     fixture.destroy();
   });
 });
