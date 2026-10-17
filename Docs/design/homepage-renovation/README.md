@@ -65,6 +65,9 @@ captures predate the wide-screen logo placement, project-card layout, and local
 search/sorting controls. The [selected project card review](evidence/20261017-project-selection/README.md)
 captures the current populated board in all four themes and at a narrow width.
 It also records a selected-state correction found in the current Dark theme.
+The [populated 320 px Project Screen review](evidence/20261018-project-populated-narrow/README.md)
+checks a selected project card in Raccoon Vietnamese, including its Open and
+Delete actions and the empty-project preview surface.
 The [project board polish review](evidence/20261018-project-board-polish/README.md)
 compares the empty-state action and populated card layout before and after the
 latest refinement, with a narrow-screen check.
