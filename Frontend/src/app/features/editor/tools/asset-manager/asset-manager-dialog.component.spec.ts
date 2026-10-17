@@ -112,3 +112,12 @@ describe('AssetManagerDialogComponent progress announcements', () => {
     expect(openingTag('import-progress compact')).not.toContain('aria-live');
   });
 });
+
+describe('AssetManagerDialogComponent empty states', () => {
+  it('explains the initial mod library while keeping search misses concise', () => {
+    expect(assetManagerTemplate).toContain('} @else if (modSearch()) {');
+    expect(assetManagerTemplate).toContain('class="mods-empty-state"');
+    expect(assetManagerTemplate).toContain("i18n.t('assetManagerModHint')");
+    expect(assetManagerTemplate).toContain("i18n.t('assetManagerNoModMatches')");
+  });
+});

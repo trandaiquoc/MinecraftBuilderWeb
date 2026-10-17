@@ -661,12 +661,22 @@
                     </article>
                   }
                 </div>
-              } @else {
+              } @else if (modSearch()) {
                 <p class="manager-empty">
-                  {{
-                    modSearch() ? i18n.t('assetManagerNoModMatches') : i18n.t('assetManagerNoMods')
-                  }}
+                  {{ i18n.t('assetManagerNoModMatches') }}
                 </p>
+              } @else {
+                <section class="mods-empty-state" aria-labelledby="asset-manager-mods-empty-title">
+                  <span class="mods-empty-state-icon" aria-hidden="true"
+                    ><svg lucidePackageOpen></svg
+                  ></span>
+                  <div class="mods-empty-state-copy">
+                    <h3 id="asset-manager-mods-empty-title">
+                      {{ i18n.t('assetManagerNoMods') }}
+                    </h3>
+                    <p>{{ i18n.t('assetManagerModHint') }}</p>
+                  </div>
+                </section>
               }
             </section>
           </section>

@@ -53,6 +53,9 @@ action appears before the long renderer metrics section.
 The [Create with AI desktop inset review](evidence/20261017-ai-workspace-desktop-inset/README.md)
 aligns the prompt workspace with the import dialog's other content surfaces
 and checks its 390 px and 320 px layouts.
+The [Asset Manager empty-state review](evidence/20261017-asset-manager-empty-state/README.md)
+adds import guidance to the empty Mods tab and checks its desktop and narrow
+layouts.
 The [Workspace menu feedback review](evidence/20261017-menu-feedback/README.md)
 checks persistent checked states, hover, and press feedback in all four themes.
 The [Quick Bar review](evidence/20261017-quick-bar-responsive/README.md)

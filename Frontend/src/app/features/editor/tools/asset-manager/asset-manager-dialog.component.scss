@@ -614,6 +614,45 @@
   color: var(--text-muted);
   font-size: 0.78rem;
 }
+.mods-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  min-height: 10rem;
+  box-sizing: border-box;
+  padding: 1rem;
+  border: 1px dashed color-mix(in srgb, var(--accent) 36%, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+.mods-empty-state-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 2.8rem;
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+}
+.mods-empty-state-icon svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+.mods-empty-state-copy {
+  min-width: 0;
+  max-width: 30rem;
+}
+.mods-empty-state-copy h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.mods-empty-state-copy p {
+  margin: 0.3rem 0 0;
+  color: var(--text-muted);
+  font: 0.76rem/1.45 var(--font-readable);
+}
 .activity-current {
   display: grid;
   gap: 0.3rem;
