@@ -5,10 +5,20 @@ not a list of completed implementation tasks.
 
 ## Open acceptance
 
-| Area                      | Status                                                                                                                                                                   | Required evidence                                                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Workspace visual fidelity | Pending. The Block Browser and Selection inspector hierarchy now have current evidence, but the remaining Workspace surfaces and recurring states still need assessment. | Audit the remaining common Workspace surfaces and interaction states against all four approved compositions; capture verified gaps and fixes. |
-| Project Screen / Homepage | Controls are implemented; its visual concept remains separate from Workspace acceptance.                                                                                 | Track its acceptance in the [Homepage renovation notes](../homepage-renovation/README.md).                                                    |
+| Area                      | Status                                                                                                                                                                                          | Required evidence                                                                                                                    |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Workspace visual fidelity | Pending. The Block Browser, Selection hierarchy, active BlockState, Help dialog, and viewport starter now have current evidence; full visual acceptance and remaining workflows are still open. | Audit remaining common Workspace surfaces and interaction states against the approved compositions; capture verified gaps and fixes. |
+| Project Screen / Homepage | Controls are implemented; its visual concept remains separate from Workspace acceptance.                                                                                                        | Track its acceptance in the [Homepage renovation notes](../homepage-renovation/README.md).                                           |
+
+## Fixture checkpoint
+
+The Asset Manager's empty Mods state and the Mod JAR Import menu destination
+have been reviewed. Import preflight, progress, completion, and failure states
+need a real Fabric mod JAR compatible with Minecraft Java 1.21.1 that includes
+standard `fabric.mod.json` metadata and static block resources. No such fixture
+is checked into this repository. A supplied fixture can be imported through
+the browser-local workflow; JAR code is never loaded or executed. The importer
+contract is documented in [Minecraft asset support](../../minecraft-assets.md).
 
 ## Technical checkpoint
 

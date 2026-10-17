@@ -5,9 +5,10 @@ import { SelectionService } from '../../../../core/editor/selection/selection.se
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { rendererBenchmarkProject } from '../../../../core/renderer/benchmark/renderer-benchmark-fixtures';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
+import type { ContentPropertyDescriptor } from '../../../../core/content/content-introspection';
 import { SelectionInspectorComponent } from './selection-inspector.component';
 
-describe('SelectionInspectorComponent marquee summary', () => {
+describe('SelectionInspectorComponent', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   it('shows selected-set bounds and count instead of a synthetic drag volume', async () => {
@@ -110,6 +111,41 @@ describe('SelectionInspectorComponent marquee summary', () => {
 
     expect(selectAllRequests).toBe(1);
     expect(clearSelectionRequests).toBe(0);
+    fixture.destroy();
+  });
+
+  it('keeps the auto-derived marker separate from property effect labels', async () => {
+    await TestBed.configureTestingModule({
+      imports: [SelectionInspectorComponent],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SelectionInspectorComponent);
+    const i18n = TestBed.inject(I18nService);
+    const property: ContentPropertyDescriptor = {
+      name: 'shape',
+      values: ['straight'],
+      defaultValue: 'straight',
+      derived: true,
+      provenance: 'resource-backed',
+      effects: {
+        visual: true,
+        placement: true,
+        behavior: true,
+        attachment: false,
+        connection: false,
+        itemDisplay: false,
+        runtimeUnknown: false,
+      },
+      evidence: [],
+    };
+    const component = fixture.componentInstance as unknown as {
+      propertyEffects: (value: ContentPropertyDescriptor) => string[];
+    };
+
+    expect(component.propertyEffects(property)).toEqual([
+      i18n.t('propertyVisual'),
+      i18n.t('propertyBehavior'),
+      i18n.t('propertyPlacement'),
+    ]);
     fixture.destroy();
   });
 });

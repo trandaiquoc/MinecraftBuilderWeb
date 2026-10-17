@@ -236,6 +236,35 @@
   color: var(--workspace-sidebar-text);
   font-size: 0.72rem;
 }
+.state-editor-label {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.22rem 0.35rem;
+  min-width: 0;
+}
+.state-editor-property-name {
+  font-weight: 650;
+}
+.state-editor-effects {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+.state-editor-effects small {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1rem;
+  padding: 0.12rem 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 68%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 0.57rem;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.025em;
+}
 .state-editor .ui-button {
   justify-self: start;
 }

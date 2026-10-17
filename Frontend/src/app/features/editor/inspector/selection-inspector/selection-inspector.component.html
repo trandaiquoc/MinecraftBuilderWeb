@@ -40,22 +40,29 @@
       <section class="state-editor">
         <h3>{{ i18n.t('editBlockState') }}</h3>
         @for (state of stateProperties(); track state.name) {
-          <label
-            ><span
-              >{{ i18n.stateProperty(state.name) }}
-              @if (state.derived) {
-                <small>{{ i18n.t('autoDerived') }}</small>
+          @let effects = propertyEffects(state);
+          <label>
+            <span class="state-editor-label">
+              <span class="state-editor-property-name">{{ i18n.stateProperty(state.name) }}</span>
+              @if (state.derived || effects.length) {
+                <span class="state-editor-effects">
+                  @if (state.derived) {
+                    <small>{{ i18n.t('autoDerived') }}</small>
+                  }
+                  @for (effect of effects; track effect) {
+                    <small>{{ effect }}</small>
+                  }
+                </span>
               }
-              @for (effect of propertyEffects(state); track effect) {
-                <small>{{ effect }}</small>
-              }</span
-            ><app-themed-select
+            </span>
+            <app-themed-select
               [options]="stateOptions(state.values)"
               [selectedId]="selected.state[state.name] ?? state.defaultValue ?? state.values[0]"
               [disabled]="state.derived"
               [ariaLabel]="i18n.stateProperty(state.name)"
               (selectionChange)="updateSelectedStateValue(state.name, $any($event))"
-          /></label>
+            />
+          </label>
         }
         <button
           type="button"

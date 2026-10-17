@@ -181,7 +181,6 @@ export class SelectionInspectorComponent {
     if (property.effects.visual) labels.push(this.i18n.t('propertyVisual'));
     if (property.effects.behavior) labels.push(this.i18n.t('propertyBehavior'));
     if (property.effects.placement) labels.push(this.i18n.t('propertyPlacement'));
-    if (property.derived) labels.push(this.i18n.t('propertyDerived'));
     if (property.effects.runtimeUnknown) labels.push(this.i18n.t('propertyRuntimeUnknown'));
     return labels;
   }
