@@ -1,4 +1,4 @@
-import { computed } from '@angular/core';
+import { computed, signal } from '@angular/core';
 import { EditorLayoutPreferencesService } from '../../../../core/ui/preferences/editor-layout-preferences.service';
 import { clampGroupMovePanelPosition, type PanelPosition } from './group-move-panel';
 
@@ -16,7 +16,9 @@ export class GroupMovePanelSession {
     readonly origin: PanelPosition;
   };
   private clampFrame?: number;
+  private readonly viewportRevision = signal(0);
   readonly position = computed(() => {
+    this.viewportRevision();
     const preferences = this.layout.preferences();
     const viewport = this.viewportSize();
     const panel = this.panelSize();
@@ -83,6 +85,7 @@ export class GroupMovePanelSession {
   }
 
   clampPersistedPosition(): void {
+    this.viewportRevision.update((revision) => revision + 1);
     const position = this.position();
     const preferences = this.layout.preferences();
     if (preferences.groupMovePanelX !== position.x || preferences.groupMovePanelY !== position.y)

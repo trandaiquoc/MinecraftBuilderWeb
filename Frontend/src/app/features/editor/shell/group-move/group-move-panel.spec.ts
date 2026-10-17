@@ -29,13 +29,20 @@ describe('group move panel positioning', () => {
     ).toEqual({ x: 552, y: 352 });
   });
 
-  it('handles a viewport narrower than the panel', () => {
+  it('keeps the full panel visible when it fits a narrow viewport', () => {
+    expect(
+      clampGroupMovePanelPosition(
+        { x: 500, y: 50 },
+        { width: 390, height: 844 },
+        { width: 300, height: 280 },
+      ),
+    ).toEqual({ x: 90, y: 50 });
     expect(
       clampGroupMovePanelPosition(
         { x: 200, y: 50 },
         { width: 200, height: 160 },
         { width: 300, height: 280 },
       ),
-    ).toEqual({ x: 152, y: 50 });
+    ).toEqual({ x: 0, y: 50 });
   });
 });

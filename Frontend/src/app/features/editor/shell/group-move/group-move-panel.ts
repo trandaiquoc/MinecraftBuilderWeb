@@ -13,6 +13,9 @@ export interface PanelSize {
   readonly height: number;
 }
 
+// Keep this breakpoint aligned with the compact panel width in its stylesheet.
+const NARROW_VIEWPORT_MAX_WIDTH = 560;
+
 /** Keeps the move window reachable without constraining how much of it is visible. */
 export function clampGroupMovePanelPosition(
   position: PanelPosition,
@@ -20,8 +23,11 @@ export function clampGroupMovePanelPosition(
   panel: PanelSize,
   reachableHeaderSize = 48,
 ): PanelPosition {
-  const minX = reachableHeaderSize - panel.width;
-  const maxX = Math.max(minX, viewport.width - reachableHeaderSize);
+  const keepPanelVisible = viewport.width <= NARROW_VIEWPORT_MAX_WIDTH;
+  const minX = keepPanelVisible ? 0 : reachableHeaderSize - panel.width;
+  const maxX = keepPanelVisible
+    ? Math.max(minX, viewport.width - panel.width)
+    : Math.max(minX, viewport.width - reachableHeaderSize);
   const minY = 0;
   const maxY = Math.max(minY, viewport.height - reachableHeaderSize);
   return {

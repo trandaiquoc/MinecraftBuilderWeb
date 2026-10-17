@@ -81,6 +81,11 @@ export class GroupMovePanelComponent implements AfterViewInit, OnDestroy {
     this.groups.setMoveStep(Number((event.target as HTMLInputElement).value));
   }
 
+  protected hasMoveTargets(): boolean {
+    const preview = this.groups.movePreview();
+    return !!preview && (preview.positions.length > 0 || preview.decorationIds.length > 0);
+  }
+
   protected moveReason(): string {
     const reason = this.groups.movePreview()?.reason;
     return reason === 'bounds'

@@ -11,6 +11,7 @@
   position: absolute;
   display: grid;
   gap: 0.65rem;
+  box-sizing: border-box;
   width: min(19rem, calc(100% - 1rem));
   max-height: calc(100% - 1rem);
   padding: 0.8rem;
@@ -57,10 +58,26 @@
 }
 
 .move-offsets,
-.height-buttons,
 .move-actions {
   display: flex;
   gap: 0.4rem;
+}
+
+.move-control-section {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.move-axis-heading {
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
 }
 
 .move-offsets label,
@@ -101,11 +118,27 @@
   cursor: pointer;
   font: inherit;
   font-size: 0.72rem;
+  box-shadow: var(--shadow-control);
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
 .nudge-grid button:hover,
 .height-buttons button:hover {
   background: var(--surface-hover);
+  box-shadow: var(--shadow-control-raised);
+  transform: translateY(-1px);
+}
+
+.height-buttons {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.height-buttons button {
+  flex: 1 1 0;
 }
 
 .nudge-grid button:nth-child(1) {
@@ -138,6 +171,17 @@
   font-size: 0.74rem;
 }
 
+.move-empty-state {
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
 .move-actions {
   justify-content: flex-end;
   padding-top: 0.2rem;
@@ -147,5 +191,35 @@
 @media (max-width: 560px) {
   .group-move-panel {
     width: min(18rem, calc(100% - 1rem));
+  }
+}
+
+:host-context([data-theme='craft']) .move-control-section {
+  border-color: var(--workspace-control-frame);
+  border-bottom-width: 2px;
+  border-radius: var(--workspace-radius-sm);
+  box-shadow: var(--workspace-control-depth);
+}
+
+:host-context([data-theme='craft']) .move-empty-state {
+  border-color: var(--workspace-control-frame-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--workspace-radius-sm);
+}
+
+:host-context([data-theme='raccoon']) .move-control-section {
+  border-radius: var(--workspace-radius-lg);
+  box-shadow: var(--shadow-control);
+}
+
+:host-context([data-theme='raccoon']) .move-empty-state {
+  border-radius: var(--workspace-radius-xl);
+  box-shadow: var(--shadow-control);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nudge-grid button,
+  .height-buttons button {
+    transition: none;
   }
 }

@@ -3,7 +3,7 @@
     <section
       #panel
       class="group-move-panel"
-      [class.invalid]="groups.movePreview()?.valid === false"
+      [class.invalid]="hasMoveTargets() && groups.movePreview()?.valid === false"
       [style.left.px]="session.position().x"
       [style.top.px]="session.position().y"
       (wheel)="$event.stopPropagation()"
@@ -20,7 +20,7 @@
         </div>
         <button
           type="button"
-          class="ui-button ui-button--ghost ui-button--icon ui-button--sm group-move-close"
+          class="ui-button ui-button--ghost ui-button--icon ui-button--sm group-move-close ui-tooltip-align-end"
           uiTooltip="{{ i18n.t('hideMove') }}"
           [attr.aria-label]="i18n.t('hideMove')"
           (pointerdown)="$event.stopPropagation()"
@@ -29,92 +29,115 @@
           <svg lucideX aria-hidden="true"></svg>
         </button>
       </header>
-      <div class="move-offsets" [attr.aria-label]="i18n.t('moveGroup')">
-        <label
-          >X
+      @if (hasMoveTargets()) {
+        <div class="move-offsets" [attr.aria-label]="i18n.t('moveGroup')">
+          <label
+            >X
+            <input
+              type="number"
+              step="1"
+              [value]="groups.moveOffset().x"
+              (input)="setOffset('x', $event)"
+          /></label>
+          <label
+            >Y
+            <input
+              type="number"
+              step="1"
+              [value]="groups.moveOffset().y"
+              (input)="setOffset('y', $event)"
+          /></label>
+          <label
+            >Z
+            <input
+              type="number"
+              step="1"
+              [value]="groups.moveOffset().z"
+              (input)="setOffset('z', $event)"
+          /></label>
+        </div>
+        <label class="move-step-label"
+          >{{ i18n.t('moveStep') }}
           <input
             type="number"
+            min="1"
             step="1"
-            [value]="groups.moveOffset().x"
-            (input)="setOffset('x', $event)"
+            [value]="groups.moveStep()"
+            (input)="setStep($event)"
         /></label>
-        <label
-          >Y
-          <input
-            type="number"
-            step="1"
-            [value]="groups.moveOffset().y"
-            (input)="setOffset('y', $event)"
-        /></label>
-        <label
-          >Z
-          <input
-            type="number"
-            step="1"
-            [value]="groups.moveOffset().z"
-            (input)="setOffset('z', $event)"
-        /></label>
-      </div>
-      <label class="move-step-label"
-        >{{ i18n.t('moveStep') }}
-        <input type="number" min="1" step="1" [value]="groups.moveStep()" (input)="setStep($event)"
-      /></label>
-      <div class="nudge-grid" [attr.aria-label]="i18n.t('moveGroup')">
-        <button
-          type="button"
-          [attr.aria-label]="i18n.t('axisZMinus')"
-          (click)="groups.nudgeMove('z', -1)"
+        <section
+          class="move-control-section"
+          role="group"
+          [attr.aria-label]="i18n.t('movePlanarAxes')"
         >
-          {{ i18n.t('axisZMinus') }}
-        </button>
-        <button
-          type="button"
-          [attr.aria-label]="i18n.t('axisXMinus')"
-          (click)="groups.nudgeMove('x', -1)"
+          <span class="move-axis-heading">{{ i18n.t('movePlanarAxes') }}</span>
+          <div class="nudge-grid">
+            <button
+              type="button"
+              [attr.aria-label]="i18n.t('axisZMinus')"
+              (click)="groups.nudgeMove('z', -1)"
+            >
+              {{ i18n.t('axisZMinus') }}
+            </button>
+            <button
+              type="button"
+              [attr.aria-label]="i18n.t('axisXMinus')"
+              (click)="groups.nudgeMove('x', -1)"
+            >
+              {{ i18n.t('axisXMinus') }}
+            </button>
+            <button
+              type="button"
+              uiTooltip="{{ i18n.t('resetOffsets') }}"
+              [attr.aria-label]="i18n.t('resetOffsets')"
+              (click)="groups.resetMove()"
+            >
+              <svg lucideRotateCcw aria-hidden="true"></svg>
+            </button>
+            <button
+              type="button"
+              [attr.aria-label]="i18n.t('axisXPlus')"
+              (click)="groups.nudgeMove('x', 1)"
+            >
+              {{ i18n.t('axisXPlus') }}
+            </button>
+            <button
+              type="button"
+              [attr.aria-label]="i18n.t('axisZPlus')"
+              (click)="groups.nudgeMove('z', 1)"
+            >
+              {{ i18n.t('axisZPlus') }}
+            </button>
+          </div>
+        </section>
+        <section
+          class="move-control-section"
+          role="group"
+          [attr.aria-label]="i18n.t('moveVerticalAxis')"
         >
-          {{ i18n.t('axisXMinus') }}
-        </button>
-        <button
-          type="button"
-          uiTooltip="{{ i18n.t('resetOffsets') }}"
-          [attr.aria-label]="i18n.t('resetOffsets')"
-          (click)="groups.resetMove()"
-        >
-          <svg lucideRotateCcw aria-hidden="true"></svg>
-        </button>
-        <button
-          type="button"
-          [attr.aria-label]="i18n.t('axisXPlus')"
-          (click)="groups.nudgeMove('x', 1)"
-        >
-          {{ i18n.t('axisXPlus') }}
-        </button>
-        <button
-          type="button"
-          [attr.aria-label]="i18n.t('axisZPlus')"
-          (click)="groups.nudgeMove('z', 1)"
-        >
-          {{ i18n.t('axisZPlus') }}
-        </button>
-      </div>
-      <div class="height-buttons">
-        <button
-          type="button"
-          [attr.aria-label]="i18n.t('axisYMinus')"
-          (click)="groups.nudgeMove('y', -1)"
-        >
-          {{ i18n.t('axisYMinus') }}
-        </button>
-        <button
-          type="button"
-          [attr.aria-label]="i18n.t('axisYPlus')"
-          (click)="groups.nudgeMove('y', 1)"
-        >
-          {{ i18n.t('axisYPlus') }}
-        </button>
-      </div>
-      @if (moveReason()) {
-        <p class="move-error" role="status">{{ moveReason() }}</p>
+          <span class="move-axis-heading">{{ i18n.t('moveVerticalAxis') }}</span>
+          <div class="height-buttons">
+            <button
+              type="button"
+              [attr.aria-label]="i18n.t('axisYMinus')"
+              (click)="groups.nudgeMove('y', -1)"
+            >
+              {{ i18n.t('axisYMinus') }}
+            </button>
+            <button
+              type="button"
+              [attr.aria-label]="i18n.t('axisYPlus')"
+              (click)="groups.nudgeMove('y', 1)"
+            >
+              {{ i18n.t('axisYPlus') }}
+            </button>
+          </div>
+        </section>
+        @if (moveReason()) {
+          <p class="move-error" role="status">{{ moveReason() }}</p>
+        }
+      } @else {
+        <p class="move-empty-state" role="status">{{ i18n.t('emptyGroupMove') }}</p>
       }
       <div class="move-actions">
         <button

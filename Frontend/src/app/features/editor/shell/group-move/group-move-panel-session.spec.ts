@@ -4,6 +4,7 @@ import type { EditorLayoutPreferences } from '../../../../core/ui/preferences/ed
 import { GroupMovePanelSession } from './group-move-panel-session';
 
 function setup() {
+  const viewport = { width: 640, height: 480 };
   const preferences = signal<EditorLayoutPreferences>({
     editorToolbarVisible: true,
     leftSidebarVisible: true,
@@ -22,9 +23,10 @@ function setup() {
     preferences,
     session: new GroupMovePanelSession(
       layout as never,
-      () => ({ width: 640, height: 480 }),
+      () => viewport,
       () => ({ width: 300, height: 280 }),
     ),
+    viewport,
   };
 }
 
@@ -84,5 +86,17 @@ describe('GroupMovePanelSession', () => {
       stopPropagation: vi.fn(),
     } as unknown as PointerEvent);
     expect(preferences().groupMovePanelX).toBeUndefined();
+  });
+
+  it('reclamps a cached desktop position after the viewport becomes narrow', () => {
+    const { preferences, session, viewport } = setup();
+    preferences.update((current) => ({ ...current, groupMovePanelX: 500 }));
+    expect(session.position()).toEqual({ x: 500, y: 16 });
+
+    viewport.width = 390;
+    session.clampPersistedPosition();
+
+    expect(session.position()).toEqual({ x: 90, y: 16 });
+    expect(preferences().groupMovePanelX).toBe(90);
   });
 });

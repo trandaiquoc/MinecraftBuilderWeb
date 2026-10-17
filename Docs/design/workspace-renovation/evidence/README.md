@@ -19,6 +19,9 @@ the painting picker before and after removing its repeated selected preview,
 and records selected feedback, a no-results search, and the narrow drawer.
 The [Groups panel review](20261017-groups-panel/README.md) covers empty and
 populated states, the Minecraft and Dark themes, and the narrow drawer.
+The [Group Move panel review](20261017-group-move/README.md) covers empty and
+populated states at desktop and narrow widths, including a completed one-block
+move.
 The [Selection inspector hierarchy comparison](20261017-selection-inspector-hierarchy/README.md)
 checks its reading order in all four themes and in the narrow right drawer.
 The [active BlockState and Help review](20261017-selection-state-help/README.md)
