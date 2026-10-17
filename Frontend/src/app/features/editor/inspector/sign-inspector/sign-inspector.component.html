@@ -1,44 +1,59 @@
 @if (selected()) {
   <section class="sign-inspector">
     <h3>{{ i18n.t('signText') }}</h3>
-    <div class="sign-tabs ui-tab-strip" role="tablist">
+    <div class="sign-tabs ui-tab-strip" role="tablist" [attr.aria-label]="i18n.t('signText')">
       <button
         type="button"
         role="tab"
+        id="sign-front-tab"
+        aria-controls="sign-text-panel"
         [class.active]="side() === 'front'"
         [attr.aria-selected]="side() === 'front'"
+        [attr.tabindex]="side() === 'front' ? 0 : -1"
         (click)="selectSide('front')"
+        (keydown)="onTabKeydown($event, 'front')"
       >
         {{ i18n.t('signFront') }}
       </button>
       <button
         type="button"
         role="tab"
+        id="sign-back-tab"
+        aria-controls="sign-text-panel"
         [class.active]="side() === 'back'"
         [attr.aria-selected]="side() === 'back'"
+        [attr.tabindex]="side() === 'back' ? 0 : -1"
         (click)="selectSide('back')"
+        (keydown)="onTabKeydown($event, 'back')"
       >
         {{ i18n.t('signBack') }}
       </button>
     </div>
-    <p class="helper-text">{{ i18n.t('signTextHint') }}</p>
-    <div class="sign-lines">
-      @for (index of [0, 1, 2, 3]; track index) {
-        <label
-          ><span>{{ index + 1 }}</span
-          ><input
-            type="text"
-            [value]="line(index)"
-            (focus)="beginEdit()"
-            (input)="updateLine(index, $event)"
-            (blur)="commit()"
-            [attr.aria-label]="lineLabel(index)"
-        /></label>
+    <div
+      class="sign-text-panel"
+      id="sign-text-panel"
+      role="tabpanel"
+      [attr.aria-labelledby]="'sign-' + side() + '-tab'"
+    >
+      <p class="helper-text">{{ i18n.t('signTextHint') }}</p>
+      <div class="sign-lines">
+        @for (index of [0, 1, 2, 3]; track index) {
+          <label
+            ><span>{{ index + 1 }}</span
+            ><input
+              type="text"
+              [value]="line(index)"
+              (focus)="beginEdit()"
+              (input)="updateLine(index, $event)"
+              (blur)="commit()"
+              [attr.aria-label]="lineLabel(index)"
+          /></label>
+        }
+      </div>
+      @if (warning(); as warning) {
+        <small class="warning">{{ warning }}</small>
       }
     </div>
-    @if (warning(); as warning) {
-      <small class="warning">{{ warning }}</small>
-    }
     <section class="sign-section">
       <h4>{{ i18n.t('appearance') }}</h4>
       <label class="sign-control"

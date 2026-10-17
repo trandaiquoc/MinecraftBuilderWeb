@@ -98,6 +98,29 @@ export class SignInspectorComponent {
     this.commit();
     this.signTextSide.set(side);
   }
+  protected onTabKeydown(event: KeyboardEvent, current: 'front' | 'back'): void {
+    let next: 'front' | 'back';
+    switch (event.key) {
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        next = current === 'front' ? 'back' : 'front';
+        break;
+      case 'Home':
+        next = 'front';
+        break;
+      case 'End':
+        next = 'back';
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    this.selectSide(next);
+    const targetId = next === 'front' ? 'sign-front-tab' : 'sign-back-tab';
+    (event.currentTarget as HTMLElement).parentElement
+      ?.querySelector<HTMLButtonElement>(`#${targetId}`)
+      ?.focus();
+  }
   protected color(): string {
     return this.data()[this.side()].color;
   }

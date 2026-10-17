@@ -7,6 +7,11 @@
   border-top: 1px solid var(--border);
   font-family: var(--font-ui);
 }
+.sign-text-panel {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
 .sign-inspector h3,
 .sign-section h4 {
   margin: 0;
