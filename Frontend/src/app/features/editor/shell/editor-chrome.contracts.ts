@@ -15,6 +15,7 @@ export interface EditorChromeState {
   readonly hasSelection: boolean;
   readonly canFocusSelection: boolean;
   readonly deletingProject: boolean;
+  readonly projectName: string;
   readonly saveStatusLabel: string;
 }
 

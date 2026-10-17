@@ -103,17 +103,45 @@
   opacity: 0.55;
 }
 
-.chrome-project-status {
+.chrome-project-context {
   position: relative;
   z-index: 1;
+  display: flex;
   flex: 0 1 auto;
+  align-items: center;
+  gap: 0.5rem;
   min-width: 0;
   margin-left: auto;
-  padding-left: 0.75rem;
+  padding: 0.2rem 0.35rem 0.2rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--workspace-header-text) 22%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--workspace-header-text) 8%, var(--workspace-header-bg));
+  box-shadow: var(--workspace-shadow-control);
+}
+
+.chrome-project-name {
+  display: block;
+  max-width: min(25vw, 24rem);
+  min-width: 0;
   overflow: hidden;
-  color: color-mix(in srgb, var(--workspace-header-text) 80%, transparent);
-  font-size: 0.72rem;
+  color: var(--workspace-header-text);
+  font-size: 0.75rem;
+  font-weight: 650;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chrome-project-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 1.55rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--workspace-header-text) 22%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--workspace-header-text) 12%, var(--workspace-header-bg));
+  color: var(--workspace-header-text);
+  font-size: 0.72rem;
   white-space: nowrap;
 }
 
@@ -476,6 +504,14 @@
     white-space: nowrap;
   }
 
+  .chrome-project-context {
+    max-width: min(15rem, 36vw);
+  }
+
+  .chrome-project-name {
+    max-width: 100%;
+  }
+
   .camera-actions {
     margin-left: 0;
   }
@@ -493,6 +529,15 @@
 
   .brand-logo {
     width: 4rem;
+  }
+
+  .chrome-project-context {
+    max-width: min(12rem, 42vw);
+    padding-left: 0.4rem;
+  }
+
+  .chrome-project-name {
+    font-size: 0.68rem;
   }
 
   .app-menu-trigger {

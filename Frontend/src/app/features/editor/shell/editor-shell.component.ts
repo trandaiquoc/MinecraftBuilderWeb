@@ -161,6 +161,7 @@ export class EditorShellComponent implements OnDestroy {
     hasSelection: this.hasEditorSelection(),
     canFocusSelection: this.focusSelectionAvailable(),
     deletingProject: this.deletingProject(),
+    projectName: this.workspace.project()?.metadata.name ?? '',
     saveStatusLabel: this.saveStatusLabel(),
   }));
   protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');

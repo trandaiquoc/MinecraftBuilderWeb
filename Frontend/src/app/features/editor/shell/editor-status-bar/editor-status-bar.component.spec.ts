@@ -631,6 +631,24 @@ describe('EditorStatusBarComponent project coordinates', () => {
     return TestBed.createComponent(EditorStatusBarComponent);
   }
 
+  it('groups editing context, live state, and structure metrics', async () => {
+    const fixture = await createFixture();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(
+      [...root.querySelectorAll('.status-context-chip')].map((chip) => chip.textContent?.trim()),
+    ).toEqual(['3D Edit', 'Place']);
+    expect(root.querySelector('.status-save')?.textContent?.trim()).toBe('Saved');
+    expect(root.querySelector('.status-metrics .block-count-status')?.textContent).toContain(
+      'Total blocks: 2',
+    );
+    expect(root.querySelector('.status-metrics .project-size-status')?.textContent).toContain(
+      'X 8 · Y 6 · Z 4',
+    );
+    fixture.destroy();
+  });
+
   it('shows exact block count and dimensions without a coordinate when nothing is selected', async () => {
     const fixture = await createFixture();
     fixture.detectChanges();

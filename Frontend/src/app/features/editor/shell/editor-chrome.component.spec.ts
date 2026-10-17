@@ -27,6 +27,7 @@ const state: EditorChromeState = {
   hasSelection: true,
   canFocusSelection: true,
   deletingProject: false,
+  projectName: 'Workspace UI audit',
   saveStatusLabel: 'Saved',
 };
 
@@ -57,6 +58,26 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('keeps the active project name visible when the save status is in the footer', () => {
+    const fixture = TestBed.createComponent(EditorChromeComponent);
+    fixture.componentRef.setInput('state', state);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.chrome-project-name')?.textContent?.trim()).toBe(
+      'Workspace UI audit',
+    );
+    expect(
+      root.querySelector('.chrome-project-context .chrome-project-status')?.textContent?.trim(),
+    ).toBe('Saved');
+    expect(
+      root
+        .querySelector('.chrome-project-context .chrome-project-status')
+        ?.classList.contains('chrome-project-status--redundant'),
+    ).toBe(true);
+    fixture.destroy();
   });
 
   it('opens a menu from its trigger and moves focus through menu items', () => {

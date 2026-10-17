@@ -1,52 +1,66 @@
 <footer class="status-bar">
   <div class="status-left">
-    <span>{{ mode.mode() === '3d' ? i18n.t('mode3d') : i18n.t('modeYLayer') }}</span>
-    <span>{{ tool.active() === 'place' ? i18n.t('toolPlace') : i18n.t('toolSelect') }}</span>
-    @if (activePlacement(); as active) {
+    <div class="status-context">
+      <span class="status-context-chip">{{
+        mode.mode() === '3d' ? i18n.t('mode3d') : i18n.t('modeYLayer')
+      }}</span>
+      <span class="status-context-chip">{{
+        tool.active() === 'place' ? i18n.t('toolPlace') : i18n.t('toolSelect')
+      }}</span>
+    </div>
+    <div class="status-activity">
       <span
-        class="active-placement-status"
-        [attr.data-placement-kind]="active.kind"
-        [attr.title]="active.label"
-        ><span class="active-placement-label"
-          >{{ active.kind === 'block' ? i18n.t('activeBlock') : i18n.t('activeDecoration') }}:</span
+        class="status-save"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        [attr.data-status]="
+          autosave.status() === 'error'
+            ? 'invalid'
+            : autosave.status() === 'saved'
+              ? 'valid'
+              : 'warning'
+        "
+        [attr.title]="autosave.error()"
+        >{{ saveStatusLabel() }}</span
+      >
+      @if (activePlacement(); as active) {
+        <span
+          class="active-placement-status"
+          [attr.data-placement-kind]="active.kind"
+          [attr.title]="active.label"
+          ><span class="active-placement-label"
+            >{{
+              active.kind === 'block' ? i18n.t('activeBlock') : i18n.t('activeDecoration')
+            }}:</span
+          >
+          <span class="active-placement-value">{{ active.label }}</span></span
         >
-        <span class="active-placement-value">{{ active.label }}</span></span
-      >
-    }
-    <span
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      [attr.data-status]="
-        autosave.status() === 'error'
-          ? 'invalid'
-          : autosave.status() === 'saved'
-            ? 'valid'
-            : 'warning'
-      "
-      [attr.title]="autosave.error()"
-      >{{ saveStatusLabel() }}</span
-    >
-    @if (mode.mode() === 'y-layer') {
-      <span>{{ i18n.t('currentLayer') }}: {{ currentLayer() }}</span>
-    }
-    @if (selectionCount() > 1) {
-      <span>{{ selectionSummaryLabel() }}</span>
-    }
-    @if (statusCoordinate(); as coordinate) {
-      <span class="coordinate-status" [attr.title]="coordinateTitle()">{{
-        coordinateLabel()
-      }}</span>
-    }
+      }
+      @if (mode.mode() === 'y-layer') {
+        <span class="status-detail">{{ i18n.t('currentLayer') }}: {{ currentLayer() }}</span>
+      }
+      @if (selectionCount() > 1) {
+        <span class="status-detail">{{ selectionSummaryLabel() }}</span>
+      }
+      @if (statusCoordinate(); as coordinate) {
+        <span class="coordinate-status status-detail" [attr.title]="coordinateTitle()">{{
+          coordinateLabel()
+        }}</span>
+      }
+    </div>
     @if (workspace.project()) {
-      <span class="block-count-status"
-        >{{ i18n.t('totalBlocks') }}: {{ projectBlockCount().toLocaleString(i18n.locale()) }}</span
-      >
-    }
-    @if (workspace.project(); as project) {
-      <span class="project-size-status" [attr.aria-label]="projectSizeLabel()">{{
-        projectSizeLabel()
-      }}</span>
+      <div class="status-metrics">
+        <span class="block-count-status"
+          >{{ i18n.t('totalBlocks') }}:
+          {{ projectBlockCount().toLocaleString(i18n.locale()) }}</span
+        >
+        @if (workspace.project(); as project) {
+          <span class="project-size-status" [attr.aria-label]="projectSizeLabel()">{{
+            projectSizeLabel()
+          }}</span>
+        }
+      </div>
     }
   </div>
   <div class="status-right">
