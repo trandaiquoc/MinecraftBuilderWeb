@@ -2,6 +2,30 @@ import { TestBed } from '@angular/core/testing';
 import { SearchableDropdownComponent } from './searchable-dropdown.component';
 
 describe('SearchableDropdownComponent', () => {
+  it('names the current selection alongside the control context', async () => {
+    await TestBed.configureTestingModule({
+      imports: [SearchableDropdownComponent],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SearchableDropdownComponent);
+    fixture.componentRef.setInput('options', [
+      {
+        id: '1.21.1',
+        label: 'Java 1.21.1',
+        secondary: 'Verified support',
+      },
+    ]);
+    fixture.componentRef.setInput('selectedId', '1.21.1');
+    fixture.componentRef.setInput('ariaLabel', 'Minecraft version');
+    fixture.detectChanges();
+
+    const trigger = fixture.nativeElement.querySelector('.dropdown-trigger') as HTMLButtonElement;
+    expect(trigger.getAttribute('role')).toBe('combobox');
+    expect(trigger.getAttribute('aria-label')).toBe(
+      'Minecraft version, Java 1.21.1, Verified support',
+    );
+    fixture.destroy();
+  });
+
   it('opens, filters, selects, and closes with Escape', async () => {
     await TestBed.configureTestingModule({
       imports: [SearchableDropdownComponent],

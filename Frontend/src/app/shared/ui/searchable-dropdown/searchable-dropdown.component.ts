@@ -56,6 +56,12 @@ export class SearchableDropdownComponent {
     this.ensureOptionIndex();
     return this.optionById.get(this.selectedId);
   }
+  protected triggerAriaLabel(): string {
+    const selected = this.selected;
+    return [this.ariaLabel || this.placeholder, selected?.label, selected?.secondary]
+      .filter((part): part is string => Boolean(part))
+      .join(', ');
+  }
   protected filteredOptions(): readonly SearchableDropdownOption[] {
     this.ensureOptionIndex();
     return rankSearchResults(

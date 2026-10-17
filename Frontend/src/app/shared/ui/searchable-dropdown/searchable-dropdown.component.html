@@ -6,7 +6,7 @@
     class="dropdown-trigger"
     role="combobox"
     [disabled]="disabled"
-    [attr.aria-label]="ariaLabel || placeholder"
+    [attr.aria-label]="triggerAriaLabel()"
     [attr.aria-expanded]="open()"
     [attr.aria-controls]="listId"
     (click)="toggle()"
