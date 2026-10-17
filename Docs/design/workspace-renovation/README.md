@@ -47,6 +47,9 @@ version to the desktop header.
 The [Selection Inspector action surface review](evidence/20261017-inspector-action-surfaces/README.md)
 fixes the Dark theme Quick Actions card blending into its buttons and checks the
 same surface in all four themes. Full Workspace acceptance remains open.
+The [Project Diagnostics hierarchy review](evidence/20261017-diagnostics-hierarchy/README.md)
+uses a current unresolved-renderer warning to verify that the Asset Audit
+action appears before the long renderer metrics section.
 The [Workspace menu feedback review](evidence/20261017-menu-feedback/README.md)
 checks persistent checked states, hover, and press feedback in all four themes.
 The [Quick Bar review](evidence/20261017-quick-bar-responsive/README.md)

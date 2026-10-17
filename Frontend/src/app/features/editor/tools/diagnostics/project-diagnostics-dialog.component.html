@@ -187,6 +187,67 @@
       } @else {
         <p class="empty-diagnostics">{{ i18n.t('diagnosticsEmpty') }}</p>
       }
+      <section class="asset-audit-section">
+        <div class="audit-heading">
+          <h3>{{ i18n.t('auditSummary') }}</h3>
+          <div>
+            <button
+              type="button"
+              class="ui-button ui-button--primary ui-button--sm"
+              [disabled]="auditing() || assets.status() !== 'ready'"
+              (click)="runAudit()"
+            >
+              {{ auditing() ? i18n.t('auditRunning') : i18n.t('runAssetAudit') }}
+            </button>
+            @if (auditing()) {
+              <button
+                type="button"
+                class="ui-button ui-button--secondary ui-button--sm"
+                (click)="cancelAudit()"
+              >
+                {{ i18n.t('cancelAssetAudit') }}
+              </button>
+            }
+          </div>
+        </div>
+        @if (auditing()) {
+          <app-ui-progress [value]="auditProgress()" [max]="1" [label]="i18n.t('auditRunning')" />
+        }
+        @if (audit(); as report) {
+          <div class="audit-grid">
+            <span
+              >{{ i18n.t('auditEntries') }} <b>{{ report.summary.totalEntries }}</b></span
+            ><span
+              >{{ i18n.t('auditReal') }} <b>{{ report.summary.visual.real }}</b></span
+            ><span
+              >{{ i18n.t('auditPartial') }} <b>{{ report.summary.visual.partial }}</b></span
+            ><span
+              >{{ i18n.t('auditFallback') }} <b>{{ report.summary.visual.fallback }}</b></span
+            ><span
+              >{{ i18n.t('auditBehaviorFull') }} <b>{{ report.summary.behavior.full }}</b></span
+            ><span
+              >{{ i18n.t('auditBehaviorPartial') }}
+              <b>{{ report.summary.behavior.partial }}</b></span
+            ><span
+              >{{ i18n.t('auditBehaviorUnknown') }}
+              <b>{{ report.summary.behavior.unknown }}</b></span
+            ><span
+              >{{ i18n.t('auditThumbnails') }} <b>{{ report.summary.thumbnail.real }}</b></span
+            >
+          </div>
+          <div class="audit-records">
+            @for (record of report.records; track record.registryId) {
+              @if (recordMatches(record)) {
+                <div>
+                  <strong>{{ record.catalog.displayName }}</strong
+                  ><code>{{ record.registryId }}</code
+                  ><small>{{ record.render.renderMode }}</small>
+                </div>
+              }
+            }
+          </div>
+        }
+      </section>
       @if (rendererEvidence(); as renderer) {
         <section class="renderer-performance" aria-labelledby="renderer-performance-title">
           <div class="performance-heading">
@@ -344,67 +405,6 @@
           </div>
         </section>
       }
-      <section class="asset-audit-section">
-        <div class="audit-heading">
-          <h3>{{ i18n.t('auditSummary') }}</h3>
-          <div>
-            <button
-              type="button"
-              class="ui-button ui-button--primary ui-button--sm"
-              [disabled]="auditing() || assets.status() !== 'ready'"
-              (click)="runAudit()"
-            >
-              {{ auditing() ? i18n.t('auditRunning') : i18n.t('runAssetAudit') }}
-            </button>
-            @if (auditing()) {
-              <button
-                type="button"
-                class="ui-button ui-button--secondary ui-button--sm"
-                (click)="cancelAudit()"
-              >
-                {{ i18n.t('cancelAssetAudit') }}
-              </button>
-            }
-          </div>
-        </div>
-        @if (auditing()) {
-          <app-ui-progress [value]="auditProgress()" [max]="1" [label]="i18n.t('auditRunning')" />
-        }
-        @if (audit(); as report) {
-          <div class="audit-grid">
-            <span
-              >{{ i18n.t('auditEntries') }} <b>{{ report.summary.totalEntries }}</b></span
-            ><span
-              >{{ i18n.t('auditReal') }} <b>{{ report.summary.visual.real }}</b></span
-            ><span
-              >{{ i18n.t('auditPartial') }} <b>{{ report.summary.visual.partial }}</b></span
-            ><span
-              >{{ i18n.t('auditFallback') }} <b>{{ report.summary.visual.fallback }}</b></span
-            ><span
-              >{{ i18n.t('auditBehaviorFull') }} <b>{{ report.summary.behavior.full }}</b></span
-            ><span
-              >{{ i18n.t('auditBehaviorPartial') }}
-              <b>{{ report.summary.behavior.partial }}</b></span
-            ><span
-              >{{ i18n.t('auditBehaviorUnknown') }}
-              <b>{{ report.summary.behavior.unknown }}</b></span
-            ><span
-              >{{ i18n.t('auditThumbnails') }} <b>{{ report.summary.thumbnail.real }}</b></span
-            >
-          </div>
-          <div class="audit-records">
-            @for (record of report.records; track record.registryId) {
-              @if (recordMatches(record)) {
-                <div>
-                  <strong>{{ record.catalog.displayName }}</strong
-                  ><code>{{ record.registryId }}</code
-                  ><small>{{ record.render.renderMode }}</small>
-                </div>
-              }
-            }
-          </div>
-        }
-      </section>
     </div>
   </section>
 </div>

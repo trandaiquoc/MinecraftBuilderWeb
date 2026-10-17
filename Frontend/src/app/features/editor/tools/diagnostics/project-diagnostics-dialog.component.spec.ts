@@ -5,6 +5,7 @@ import { BlockLibraryService } from '../../../../core/blocks/catalog/block-libra
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { VanillaAssetProvider } from '../../../../core/assets/vanilla/vanilla-asset-provider';
 import type { ProjectDocument } from '../../../../core/domain/project.types';
+import type { ViewportPerformanceEvidence } from '../../../../core/renderer/engine/three-viewport-engine';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ProjectDiagnosticsDialogComponent } from './project-diagnostics-dialog.component';
@@ -126,6 +127,57 @@ describe('ProjectDiagnosticsDialogComponent', () => {
     expect(title.tabIndex).toBe(-1);
     expect(title.hasAttribute('cdkfocusinitial')).toBe(true);
     expect(close.hasAttribute('cdkfocusinitial')).toBe(false);
+  });
+
+  it('keeps the asset audit action above secondary renderer metrics', () => {
+    fixture.componentRef.setInput('rendererEvidence', {
+      renderableBlocks: 0,
+      interiorBlocksCulled: 0,
+      drawCalls: 0,
+      triangles: 0,
+      instanceBatches: 0,
+      instancedMeshCount: 0,
+      nonInstancedMeshCount: 0,
+      rawInstanceTemplateParts: 0,
+      mergedInstanceTemplateParts: 0,
+      templatePartsEliminated: 0,
+      renderCpuMs: 0,
+      frameDurationMs: 0,
+      hoverPickMs: 0,
+      hoverPickCount: 0,
+      hoverPickMaxMs: 0,
+      hoverRaycasts: 0,
+      hoverPointerMovesCoalesced: 0,
+      ddaVisitedVoxels: 0,
+      ddaFullCubeHits: 0,
+      precisePickFallbacks: 0,
+      placementPreviewMs: 0,
+      hydrationQueue: 0,
+      hydrationRunning: 0,
+      surfaceFastPathBlocks: 0,
+      exposedFaceInstances: 0,
+      neighborFacesCulled: 0,
+      surfaceFaceBatches: 0,
+      spatialIndexBuilds: 0,
+      spatialIndexLookups: 0,
+      ghostVisualRebuilds: 0,
+      ghostVisualReuses: 0,
+      renderInvalidations: 0,
+      renderInvalidationsCoalesced: 0,
+      actualSceneRenders: 0,
+    } as unknown as ViewportPerformanceEvidence);
+    fixture.detectChanges();
+
+    const auditSection = fixture.nativeElement.querySelector('.asset-audit-section') as HTMLElement;
+    const rendererSection = fixture.nativeElement.querySelector(
+      '.renderer-performance',
+    ) as HTMLElement;
+    expect(auditSection).not.toBeNull();
+    expect(rendererSection).not.toBeNull();
+    expect(
+      (auditSection.compareDocumentPosition(rendererSection) & Node.DOCUMENT_POSITION_FOLLOWING) !==
+        0,
+    ).toBe(true);
   });
 
   it('filters the collected project report without rescanning blocks for each query', () => {
