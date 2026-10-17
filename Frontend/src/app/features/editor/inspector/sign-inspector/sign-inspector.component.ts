@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, Input, computed, inject, signal } from '@angular/core';
 import {
   isSignDefinition,
   isSignId,
@@ -27,6 +27,7 @@ import {
   styleUrl: './sign-inspector.component.scss',
 })
 export class SignInspectorComponent {
+  @Input() locked = false;
   private readonly workspace = inject(WorkspaceStateService);
   private readonly selection = inject(SelectionService);
   private readonly editor = inject(StructureEditorService);
@@ -77,14 +78,20 @@ export class SignInspectorComponent {
       : undefined;
   }
   protected beginEdit(): void {
+    if (this.locked) return;
     this.draft.set(this.data()[this.side()].lines);
   }
   protected updateLine(index: number, event: Event): void {
+    if (this.locked) return;
     const current = [...(this.draft() ?? this.data()[this.side()].lines)] as [...SignSide['lines']];
     current[index] = (event.target as HTMLInputElement).value;
     this.draft.set(current);
   }
   protected commit(): void {
+    if (this.locked) {
+      this.draft.set(undefined);
+      return;
+    }
     const position = this.selected()?.position;
     const value = this.draft();
     if (position && value !== undefined)
@@ -131,6 +138,7 @@ export class SignInspectorComponent {
     return this.data().waxed;
   }
   protected updateColor(event: Event): void {
+    if (this.locked) return;
     const position = this.selected()?.position;
     if (position)
       this.editor.updateSignAppearance(position, this.side(), {
@@ -138,10 +146,12 @@ export class SignInspectorComponent {
       });
   }
   protected updateColorValue(value: string): void {
+    if (this.locked) return;
     const position = this.selected()?.position;
     if (position) this.editor.updateSignAppearance(position, this.side(), { color: value });
   }
   protected updateGlowing(event: Event): void {
+    if (this.locked) return;
     const position = this.selected()?.position;
     if (position)
       this.editor.updateSignAppearance(position, this.side(), {
@@ -149,15 +159,18 @@ export class SignInspectorComponent {
       });
   }
   protected updateWaxed(event: Event): void {
+    if (this.locked) return;
     const position = this.selected()?.position;
     if (position) this.editor.updateSignWaxed(position, (event.target as HTMLInputElement).checked);
   }
   protected updateState(property: string, event: Event): void {
+    if (this.locked) return;
     const position = this.selected()?.position;
     if (position)
       this.editor.updateBlockState(position, property, (event.target as HTMLSelectElement).value);
   }
   protected updateStateValue(property: string, value: string): void {
+    if (this.locked) return;
     const position = this.selected()?.position;
     if (position) this.editor.updateBlockState(position, property, value);
   }
@@ -172,6 +185,7 @@ export class SignInspectorComponent {
     return this.i18n.stateValue(value);
   }
   protected rotateSign(): void {
+    if (this.locked) return;
     const position = this.selected()?.position;
     if (position) this.editor.rotateBlock(position);
   }

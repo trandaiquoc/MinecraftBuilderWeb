@@ -185,12 +185,14 @@ export class SelectionInspectorComponent {
     return labels;
   }
   protected updateSelectedStateValue(property: string, value: string): void {
+    if (this.selectedBlockLocked()) return;
     const selected = this.selection.single();
     if (!selected || !this.editor.updateBlockState(selected, property, value))
       this.stateFeedback.set('stateEditUnsupported');
     else this.stateFeedback.set('');
   }
   protected rotateSelected(): void {
+    if (this.selectedBlockLocked()) return;
     const selected = this.selection.single();
     if (!selected || !this.editor.rotateBlock(selected))
       this.stateFeedback.set('rotationUnsupported');

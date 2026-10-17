@@ -1,15 +1,31 @@
 import { TestBed } from '@angular/core/testing';
-import { afterEach, describe, expect, it } from 'vitest';
+import { By } from '@angular/platform-browser';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
+import type { ProjectDocument, PlacedBlock } from '../../../../core/domain/project.types';
 import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { rendererBenchmarkProject } from '../../../../core/renderer/benchmark/renderer-benchmark-fixtures';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import type { ContentPropertyDescriptor } from '../../../../core/content/content-introspection';
+import { ItemStackPickerComponent } from '../../../../shared/ui/item-stack-picker/item-stack-picker.component';
+import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
+import { ItemDisplayInspectorComponent } from '../item-display-inspector/item-display-inspector.component';
 import { SelectionInspectorComponent } from './selection-inspector.component';
 
 describe('SelectionInspectorComponent', () => {
   afterEach(() => TestBed.resetTestingModule());
+
+  function lockedProject(block: PlacedBlock): ProjectDocument {
+    const base = rendererBenchmarkProject('small');
+    return {
+      ...base,
+      id: `locked-${block.id}`,
+      groups: [{ id: 'locked', name: 'Locked group', visible: true, locked: true }],
+      blocks: [{ ...block, groupIds: ['locked'] }],
+    };
+  }
 
   it('shows selected-set bounds and count instead of a synthetic drag volume', async () => {
     const base = rendererBenchmarkProject('small');
@@ -146,6 +162,143 @@ describe('SelectionInspectorComponent', () => {
       i18n.t('propertyBehavior'),
       i18n.t('propertyPlacement'),
     ]);
+    fixture.destroy();
+  });
+
+  it('disables state editing for locked blocks and restores it after unlocking the group', async () => {
+    const position = { x: 1, y: 1, z: 1 };
+    const project = lockedProject({
+      kind: 'resolved',
+      id: 'minecraft:lantern',
+      namespace: 'minecraft',
+      position,
+      state: { hanging: 'false', waterlogged: 'false' },
+    });
+    const runtimeIndex = new ProjectBlockRuntimeIndex();
+    runtimeIndex.ensure(project);
+    await TestBed.configureTestingModule({
+      imports: [SelectionInspectorComponent],
+      providers: [{ provide: ProjectBlockRuntimeIndex, useValue: runtimeIndex }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SelectionInspectorComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    const selection = TestBed.inject(SelectionService);
+    const i18n = TestBed.inject(I18nService);
+    workspace.publishProject(project);
+    selection.select(position);
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const stateControl = nativeElement.querySelector<HTMLButtonElement>(
+      '.state-editor app-themed-select button',
+    );
+    const rotateButton = nativeElement.querySelector<HTMLButtonElement>('.state-editor button');
+    if (!stateControl || !rotateButton) throw new Error('Locked block controls are missing.');
+    expect(stateControl.disabled).toBe(true);
+    expect(rotateButton.disabled).toBe(true);
+    expect(nativeElement.querySelector('.locked-block-hint')?.textContent).toContain(
+      i18n.t('lockedBlockEditHint'),
+    );
+
+    workspace.publishProject({
+      ...project,
+      groups: project.groups.map((group) => ({ ...group, locked: false })),
+    });
+    fixture.detectChanges();
+
+    expect(stateControl.disabled).toBe(false);
+    expect(rotateButton.disabled).toBe(false);
+    expect(nativeElement.querySelector('.locked-block-hint')).toBeNull();
+    fixture.destroy();
+  });
+
+  it('keeps sign text and appearance controls read-only while preserving side navigation', async () => {
+    const position = { x: 1, y: 1, z: 1 };
+    const project = lockedProject({
+      kind: 'resolved',
+      id: 'minecraft:oak_sign',
+      namespace: 'minecraft',
+      position,
+      state: { rotation: '0' },
+    });
+    const runtimeIndex = new ProjectBlockRuntimeIndex();
+    runtimeIndex.ensure(project);
+    await TestBed.configureTestingModule({
+      imports: [SelectionInspectorComponent],
+      providers: [{ provide: ProjectBlockRuntimeIndex, useValue: runtimeIndex }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SelectionInspectorComponent);
+    TestBed.inject(WorkspaceStateService).publishProject(project);
+    TestBed.inject(SelectionService).select(position);
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const signInputs = nativeElement.querySelectorAll<HTMLInputElement>('.sign-inspector input');
+    const signSelects = nativeElement.querySelectorAll<HTMLButtonElement>(
+      '.sign-inspector app-themed-select button',
+    );
+    const sideTabs = nativeElement.querySelectorAll<HTMLButtonElement>(
+      '.sign-inspector [role="tab"]',
+    );
+    expect(signInputs.length).toBeGreaterThan(0);
+    expect([...signInputs].every((input) => input.disabled)).toBe(true);
+    expect([...signSelects].every((button) => button.disabled)).toBe(true);
+    expect([...sideTabs].length).toBe(2);
+    expect([...sideTabs].every((button) => !button.disabled)).toBe(true);
+    fixture.destroy();
+  });
+
+  it('disables item-display picking for locked blocks and skips the edit callback', async () => {
+    const position = { x: 1, y: 1, z: 1 };
+    const setBlockItemSlot = vi.fn();
+    const runtimeIndex = new ProjectBlockRuntimeIndex();
+    await TestBed.configureTestingModule({
+      imports: [SelectionInspectorComponent],
+      providers: [
+        { provide: ProjectBlockRuntimeIndex, useValue: runtimeIndex },
+        { provide: StructureEditorService, useValue: { setBlockItemSlot } },
+      ],
+    }).compileComponents();
+    const library = TestBed.inject(BlockLibraryService);
+    library.replaceSource({
+      minecraftVersion: '1.21.1',
+      sourceId: 'locked-inspector-test',
+      sourceName: 'Locked inspector test',
+      blocks: [
+        {
+          id: 'example:display_case',
+          displayName: 'Display Case',
+          defaultState: {},
+          stateDefinitions: [],
+          resources: { textures: [] },
+          support: 'full',
+          capabilities: [{ kind: 'item-storage-display', slotCount: 1, evidence: 'verified' }],
+        },
+      ],
+    });
+    const project = lockedProject({
+      kind: 'resolved',
+      id: 'example:display_case',
+      namespace: 'example',
+      position,
+      state: {},
+    });
+    runtimeIndex.ensure(project);
+    const fixture = TestBed.createComponent(SelectionInspectorComponent);
+    TestBed.inject(WorkspaceStateService).publishProject(project);
+    TestBed.inject(SelectionService).select(position);
+    fixture.detectChanges();
+
+    const inspector = fixture.debugElement.query(By.directive(ItemDisplayInspectorComponent));
+    const picker = fixture.debugElement.query(By.directive(ItemStackPickerComponent));
+    expect(inspector.componentInstance.locked).toBe(true);
+    expect(picker.componentInstance.disabled).toBe(true);
+    const itemDisplay = inspector.componentInstance as ItemDisplayInspectorComponent;
+    (itemDisplay as unknown as { setSlot: (slot: number, stack: undefined) => void }).setSlot(
+      0,
+      undefined,
+    );
+    expect(setBlockItemSlot).not.toHaveBeenCalled();
     fixture.destroy();
   });
 });

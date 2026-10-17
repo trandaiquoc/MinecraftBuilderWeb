@@ -46,6 +46,7 @@
               (focus)="beginEdit()"
               (input)="updateLine(index, $event)"
               (blur)="commit()"
+              [disabled]="locked"
               [attr.aria-label]="lineLabel(index)"
               [attr.aria-invalid]="lineWarning(index) ? 'true' : null"
               [attr.aria-describedby]="lineWarning(index) ? 'sign-line-warning-' + index : null"
@@ -66,12 +67,16 @@
           [options]="colorOptions()"
           [selectedId]="color()"
           [ariaLabel]="i18n.t('signColor')"
+          [disabled]="locked"
           (selectionChange)="updateColorValue($any($event))"
       /></label>
       <label class="check-control"
-        ><input type="checkbox" [checked]="glowing()" (change)="updateGlowing($event)" /><span>{{
-          i18n.t('signGlowing')
-        }}</span></label
+        ><input
+          type="checkbox"
+          [checked]="glowing()"
+          [disabled]="locked"
+          (change)="updateGlowing($event)"
+        /><span>{{ i18n.t('signGlowing') }}</span></label
       >
       <small class="helper-text">{{ i18n.t('signGlowingHint') }}</small>
     </section>
@@ -85,19 +90,25 @@
               [options]="stateOptions(state)"
               [selectedId]="selected()?.state?.[state.name] ?? state.values[0]"
               [ariaLabel]="i18n.stateProperty(state.name)"
+              [disabled]="locked"
               (selectionChange)="updateStateValue(state.name, $any($event))"
           /></label>
         }
-        <button type="button" (click)="rotateSign()">{{ i18n.t('rotateSign') }}</button>
+        <button type="button" [disabled]="locked" (click)="rotateSign()">
+          {{ i18n.t('rotateSign') }}
+        </button>
       </div>
     </details>
     <details class="disclosure">
       <summary>{{ i18n.t('advanced') }}</summary>
       <div class="state-fields">
         <label class="check-control"
-          ><input type="checkbox" [checked]="waxed()" (change)="updateWaxed($event)" /><span>{{
-            i18n.t('signWaxed')
-          }}</span></label
+          ><input
+            type="checkbox"
+            [checked]="waxed()"
+            [disabled]="locked"
+            (change)="updateWaxed($event)"
+          /><span>{{ i18n.t('signWaxed') }}</span></label
         >
         <small class="helper-text">{{ i18n.t('signWaxedHint') }}</small>
         @for (state of advancedStates(); track state.name) {
@@ -107,6 +118,7 @@
               [options]="stateOptions(state)"
               [selectedId]="selected()?.state?.[state.name] ?? state.values[0]"
               [ariaLabel]="i18n.stateProperty(state.name)"
+              [disabled]="locked"
               (selectionChange)="updateStateValue(state.name, $any($event))"
           /></label>
           <small class="helper-text">{{

@@ -17,6 +17,7 @@
         [visualUnsupportedLabel]="i18n.t('itemVisualUnsupported')"
         [visualMissingLabel]="i18n.t('itemVisualMissing')"
         [visualLoadingLabel]="i18n.t('itemVisualLoading')"
+        [disabled]="locked"
         (stackChange)="setSlot(slot.slot, $event)"
       />
     </label>

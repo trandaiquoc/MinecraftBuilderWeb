@@ -23,6 +23,7 @@ export class ItemDisplayInspectorComponent {
   @Input({ required: true }) block!: PlacedBlock;
   @Input({ required: true }) position!: VoxelCoordinate;
   @Input({ required: true }) capability!: ItemHostCapability;
+  @Input() locked = false;
   protected readonly i18n = inject(I18nService);
   protected readonly catalog = inject(ItemCatalogService);
   private readonly editor = inject(StructureEditorService);
@@ -35,6 +36,7 @@ export class ItemDisplayInspectorComponent {
   }
 
   protected setSlot(slot: number, stack: ItemStackData | undefined): void {
+    if (this.locked) return;
     this.editor.setBlockItemSlot(this.position, slot, stack);
   }
 }
