@@ -42,6 +42,8 @@ checks its mobile layout and scroll behavior. The [Workspace interaction review]
 records JSON import/export, Structure NBT/Datapack export, Asset Manager, and
 Diagnostics states, including the import, Mod JAR entry, and narrow Tools-menu
 interaction fixes.
+The [Y-Layer compact controls review](20261017-y-layer-compact-controls/README.md)
+checks the reference-opacity row at 320 px and the 390 px breakpoint boundary.
 The [Quick Bar responsive review](20261017-quick-bar-responsive/README.md)
 records access to all ten slots and selection of the last slot at a 390 px
 viewport.

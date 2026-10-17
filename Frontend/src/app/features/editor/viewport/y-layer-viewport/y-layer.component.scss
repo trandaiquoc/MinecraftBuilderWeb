@@ -186,4 +186,13 @@
   .layer-control-group:nth-child(2) button {
     font-size: 0.68rem;
   }
+  .layer-display-controls label {
+    gap: 0.2rem;
+  }
+  .layer-display-controls input[type='range'] {
+    min-width: 3rem;
+  }
+  .layer-display-controls output {
+    min-width: 1.8rem;
+  }
 }

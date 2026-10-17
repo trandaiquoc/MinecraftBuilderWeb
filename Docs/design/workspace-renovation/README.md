@@ -24,7 +24,10 @@ widths. The [starter-card review](evidence/20261017-viewport-empty-starter/READM
 also checks both modes at a narrow viewport. Current browser review also covers the
 Settings dialog at a narrow viewport, JSON import/export, Structure NBT and
 Datapack export, Asset Manager, and Diagnostics. The
-[Workspace interaction review](evidence/20261017-workspace-interactions/README.md)
+[Y-Layer compact controls review](evidence/20261017-y-layer-compact-controls/README.md)
+checks that the reference-opacity value remains visible at 320 px without
+reducing the controls to multiple rows.
+The [Workspace interaction review](evidence/20261017-workspace-interactions/README.md)
 records those responsive states and the fixes found in the import and Mod JAR
 entry paths, plus the Tools-menu collision with the narrow project-name chip.
 The [shared alert dialog motion review](evidence/20261017-alert-dialog-motion/README.md)
