@@ -1,5 +1,6 @@
 import { Component, Input, OnChanges, SimpleChanges, inject, signal } from '@angular/core';
 import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
+import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 import type { ItemStackData } from '../../../../core/items/item-stack.types';
 import {
   itemContainerData,
@@ -10,20 +11,27 @@ import type { PlacedBlock, VoxelCoordinate } from '../../../../core/domain/proje
 import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ItemStackPickerComponent } from '../../../../shared/ui/item-stack-picker/item-stack-picker.component';
+import {
+  ThumbnailVisibilityDirective,
+  type VisibilityEvent,
+} from '../../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
 import { validateItemStack } from '../../../../core/items/item-stack-validation';
 
 @Component({
   selector: 'app-inventory-storage-inspector',
-  imports: [ItemStackPickerComponent],
+  imports: [ItemStackPickerComponent, ThumbnailVisibilityDirective],
   templateUrl: './inventory-storage-inspector.component.html',
   styleUrl: './inventory-storage-inspector.component.scss',
 })
 export class InventoryStorageInspectorComponent implements OnChanges {
   protected readonly i18n = inject(I18nService);
   protected readonly catalog = inject(ItemCatalogService);
+  private readonly visuals = inject(ItemVisualService);
+  protected readonly visualRevision = this.visuals.revision;
   private readonly editor = inject(StructureEditorService);
   protected readonly selectedSlot = signal(0);
   protected readonly countFeedback = signal('');
+  protected readonly itemVisualEpoch = signal(0);
   @Input({ required: true }) block!: PlacedBlock;
   @Input({ required: true }) position!: VoxelCoordinate;
   @Input({ required: true }) schema!: VerifiedInventoryContainerSchema;
@@ -31,6 +39,7 @@ export class InventoryStorageInspectorComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['block'] || changes['position'] || changes['schema']) {
+      this.itemVisualEpoch.update((value) => value + 1);
       const first = this.slots().find((entry) => entry.stack)?.slot ?? 0;
       this.selectedSlot.set(first);
       this.countFeedback.set('');
@@ -59,6 +68,22 @@ export class InventoryStorageInspectorComponent implements OnChanges {
   }
   protected displayName(stack: ItemStackData | undefined): string {
     return stack ? (this.catalog.get(stack.id)?.displayName ?? stack.id) : this.i18n.t('emptySlot');
+  }
+  protected thumbnailEpoch(): number {
+    return this.visualRevision() + this.itemVisualEpoch();
+  }
+  protected previewUrls(stack: ItemStackData | undefined): readonly string[] | undefined {
+    this.visualRevision();
+    if (!stack) return undefined;
+    const visual = this.visuals.state(stack);
+    return visual.status === 'available' && visual.info?.previewUrls.length
+      ? visual.info.previewUrls
+      : undefined;
+  }
+  protected requestThumbnail(slot: ItemSlotData, event: VisibilityEvent): void {
+    if (!slot.stack || event.priority !== 'visible') return;
+    if (this.visuals.state(slot.stack).status !== 'idle') return;
+    void this.visuals.request(slot.stack, 'normal').catch(() => undefined);
   }
   protected slotAriaLabel(slot: ItemSlotData): string {
     const label = `${this.i18n.t('inventorySlot')} ${slot.slot + 1}`;

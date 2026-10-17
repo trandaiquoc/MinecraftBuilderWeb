@@ -76,6 +76,10 @@ which need a real compatible fixture. Automated tests, keyboard checks, and
 contrast checks do not establish that the full interface matches the approved
 compositions.
 
+The [inventory item thumbnail review](evidence/20261017-inventory-item-thumbnails/README.md)
+shows real Diamond, Apple, and Oak Planks previews in the compact chest slot
+grid, with counts, slot numbers, and accessible item names preserved.
+
 The Project Screen now has current browser review for its four themed scenes,
 project selection, creation, import, and narrow layout. Its full concept
 acceptance remains tracked separately in the

@@ -32,6 +32,9 @@ checks the five-section prompt workspace at 390 and 320 px, including its
 Vietnamese tab labels.
 The [Selection inspector hierarchy comparison](20261017-selection-inspector-hierarchy/README.md)
 checks its reading order in all four themes and in the narrow right drawer.
+The [inventory item thumbnail review](20261017-inventory-item-thumbnails/README.md)
+checks real item imagery in populated storage slots without changing their
+labels or editor workflow.
 The [active BlockState and Help review](20261017-selection-state-help/README.md)
 checks state editing in all four themes, the narrow Selection drawer, and the
 Controls & Shortcuts dialog at desktop and narrow sizes.

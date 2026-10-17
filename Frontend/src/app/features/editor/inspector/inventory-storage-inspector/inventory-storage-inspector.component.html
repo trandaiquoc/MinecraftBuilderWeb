@@ -8,6 +8,9 @@
       <button
         type="button"
         class="inventory-slot"
+        thumbnailVisibility
+        [thumbnailVisibilityEpoch]="thumbnailEpoch()"
+        (thumbnailVisible)="requestThumbnail(slot, $event)"
         [class.selected]="slot.slot === selectedSlot()"
         [attr.aria-pressed]="slot.slot === selectedSlot()"
         [attr.aria-label]="slotAriaLabel(slot)"
@@ -18,8 +21,16 @@
       >
         <span class="slot-number">{{ slot.slot + 1 }}</span>
         @if (slot.stack) {
-          <span class="slot-item">{{ displayName(slot.stack) }}</span
-          ><strong class="slot-count">{{ slot.stack.count }}</strong>
+          @if (previewUrls(slot.stack); as previews) {
+            <span class="slot-thumbnail" aria-hidden="true">
+              @for (url of previews; track url) {
+                <img [src]="url" alt="" />
+              }
+            </span>
+          } @else {
+            <span class="slot-item">{{ displayName(slot.stack) }}</span>
+          }
+          <strong class="slot-count">{{ slot.stack.count }}</strong>
         } @else {
           <span class="slot-empty">·</span>
         }

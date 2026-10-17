@@ -25,6 +25,8 @@ h4 {
 }
 .inventory-slot {
   position: relative;
+  display: grid;
+  place-items: center;
   min-width: 0;
   min-height: 2.5rem;
   padding: 0.25rem;
@@ -59,6 +61,22 @@ h4 {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.65rem;
+}
+.slot-thumbnail {
+  position: relative;
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: 0.55rem;
+  image-rendering: pixelated;
+}
+.slot-thumbnail img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 .slot-empty {
   display: block;
