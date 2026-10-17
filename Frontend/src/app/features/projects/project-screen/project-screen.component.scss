@@ -36,15 +36,74 @@
   transform: translate(-50%, -50%);
 }
 
+.scene-illustration {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .scene-art {
   position: absolute;
-  z-index: -1;
+  z-index: 0;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: center;
+}
+
+.scene-mascots {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+}
+
+.scene-mascot {
+  position: absolute;
+  display: block;
+  height: auto;
+  max-width: none;
+  transform-origin: center bottom;
+  will-change: transform;
+}
+
+.scene-mascot--washer-helper {
+  bottom: 14%;
+  left: 13%;
+  width: 19%;
+  animation: washer-helper-idle 5.4s ease-in-out infinite;
+}
+
+.scene-mascot--map-reader {
+  right: 5.8%;
+  bottom: 8%;
+  width: 21.5%;
+  animation: map-reader-idle 6.2s ease-in-out -1.7s infinite;
+}
+
+@keyframes washer-helper-idle {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-0.6deg);
+  }
+
+  50% {
+    transform: translate3d(0, -1.5%, 0) rotate(0.45deg);
+  }
+}
+
+@keyframes map-reader-idle {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0.5deg);
+  }
+
+  50% {
+    transform: translate3d(0, -1.25%, 0) rotate(-0.65deg);
+  }
 }
 
 .outer-topbar {
@@ -988,6 +1047,16 @@
     transform: none;
   }
 
+  .scene-illustration {
+    position: relative;
+    grid-row: 1;
+    width: 100%;
+    aspect-ratio: 1672 / 941;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-control-raised);
+  }
+
   .scene-art {
     position: relative;
     z-index: 0;
@@ -996,9 +1065,18 @@
     height: auto;
     flex: 0 0 auto;
     aspect-ratio: 1672 / 941;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-control-raised);
+  }
+
+  .scene-mascot--washer-helper {
+    bottom: 14%;
+    left: 13%;
+    width: 19%;
+  }
+
+  .scene-mascot--map-reader {
+    right: 5.8%;
+    bottom: 8%;
+    width: 21.5%;
   }
 
   .outer-topbar {
@@ -1181,5 +1259,11 @@
 @media (prefers-reduced-motion: reduce) {
   .project-row {
     transition: none;
+  }
+
+  .scene-mascot {
+    animation: none;
+    transform: none;
+    will-change: auto;
   }
 }

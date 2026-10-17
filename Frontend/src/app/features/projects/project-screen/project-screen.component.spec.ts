@@ -32,6 +32,36 @@ describe('ProjectScreenComponent', () => {
     expect(template).toMatch(/<h2\s+cdkFocusInitial\s+tabindex="-1"/);
   });
 
+  it('renders both scene mascots as decorative image layers', () => {
+    const template = String(
+      readFileSync(
+        'src/app/features/projects/project-screen/project-screen.component.html',
+        'utf8',
+      ),
+    );
+
+    expect(template).toContain('<div class="scene-mascots" aria-hidden="true">');
+    expect(template).toContain('class="scene-mascot scene-mascot--washer-helper"');
+    expect(template).toContain('[ngSrc]="washerHelperAsset()"');
+    expect(template).toContain('class="scene-mascot scene-mascot--map-reader"');
+    expect(template).toContain('[ngSrc]="mapReaderAsset()"');
+  });
+
+  it('animates the scene mascots separately and honors reduced-motion preferences', () => {
+    const stylesheet = String(
+      readFileSync(
+        'src/app/features/projects/project-screen/project-screen.component.scss',
+        'utf8',
+      ),
+    );
+
+    expect(stylesheet).toMatch(/\.scene-mascot--washer-helper\s*\{[^}]*washer-helper-idle/);
+    expect(stylesheet).toMatch(/\.scene-mascot--map-reader\s*\{[^}]*map-reader-idle/);
+    expect(stylesheet).toMatch(
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.scene-mascot\s*\{[^}]*animation:\s*none/,
+    );
+  });
+
   it('delegates imported project activation to the screen workflow', async () => {
     const project = { id: 'imported' } as ProjectDocument;
     const createProject = vi.fn(async () => project);

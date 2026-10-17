@@ -15,15 +15,35 @@
     </header>
 
     <div class="scene-canvas">
-      <img
-        class="scene-art"
-        [ngSrc]="sceneAsset()"
-        width="1672"
-        height="941"
-        alt=""
-        aria-hidden="true"
-        priority
-      />
+      <div class="scene-illustration">
+        <img
+          class="scene-art"
+          [ngSrc]="sceneAsset()"
+          width="1672"
+          height="941"
+          alt=""
+          aria-hidden="true"
+          priority
+        />
+        <div class="scene-mascots" aria-hidden="true">
+          <img
+            class="scene-mascot scene-mascot--washer-helper"
+            [ngSrc]="washerHelperAsset()"
+            width="768"
+            height="702"
+            alt=""
+            priority
+          />
+          <img
+            class="scene-mascot scene-mascot--map-reader"
+            [ngSrc]="mapReaderAsset()"
+            width="768"
+            height="576"
+            alt=""
+            priority
+          />
+        </div>
+      </div>
       <section class="washer-project" [attr.aria-label]="i18n.t('projectActions')">
         @if (selectedProject(); as project) {
           <span class="washer-project-label">{{ i18n.t('openProject') }}</span>

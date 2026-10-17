@@ -8,7 +8,12 @@ creation dialog, and a narrow Vietnamese layout. Its browser workflow checks
 used only projects saved in an isolated profile.
 
 Project Screen visual acceptance is limited to the captured states in that
-review. Full application acceptance remains open.
+review and the subsequent focused reviews below. Full application acceptance
+remains open.
+
+The [independent mascot motion review](20261017-project-screen-mascots/README.md)
+checks the two separately animated raccoons, all four themes, a narrow
+Vietnamese layout, and reduced-motion behavior.
 
 The [project creation focus review](20261017-project-create-focus/README.md)
 checks the narrow Create Project dialog's initial focus target and responsive

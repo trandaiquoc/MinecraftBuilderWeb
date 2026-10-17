@@ -30,12 +30,16 @@ remaining scope; it is not a full application acceptance report.
 
 ## Art Assets
 
-The four 1672 x 941 JPEG scenes live under
+The four 1672 x 941 JPEG scene plates live under
 `Frontend/public/assets/project-screen/`. They were generated with the built-in
 image generation tool using the four approved references in this repository as
 composition and style guidance. They contain no UI text, project cards, app
 logo, or external stock assets. The Light, Raccoon, and Dark variants preserve
 the same scene layout; Dark uses the approved moonlit castle setting.
+The two raccoons are separate transparent image layers. Their idle animations
+use different timing and motion, and stop when reduced motion is requested.
+Dark uses cool-lit versions of the same characters so their lighting fits the
+moonlit scene.
 
 The project board reads lightweight summary records while full structure data
 stays in separate project records. No cached project-capture source exists, and
@@ -70,6 +74,10 @@ the project summary store has no cached capture, and rendering every full
 structure during board load would compromise initial performance. No preview is
 fabricated. Search/sort, project creation, and opening a saved project have
 also been exercised in the local browser profile.
+
+The [independent mascot motion review](evidence/20261017-project-screen-mascots/README.md)
+checks the two separate character layers across the four themes, at a narrow
+viewport, and with reduced motion enabled.
 
 ## Interaction Research
 

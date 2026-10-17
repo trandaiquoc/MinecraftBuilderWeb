@@ -72,7 +72,17 @@ export class ProjectScreenComponent {
   protected readonly theme = inject(ThemeService);
   protected readonly workflow = inject(ProjectScreenWorkflow);
   protected readonly sceneAsset = computed(
-    () => `assets/project-screen/laundromat-${this.theme.theme()}.jpg`,
+    () => `assets/project-screen/laundromat-${this.theme.theme()}-background.jpg`,
+  );
+  protected readonly washerHelperAsset = computed(() =>
+    this.theme.theme() === 'dark'
+      ? 'assets/project-screen/raccoon-washer-helper-dark.png'
+      : 'assets/project-screen/raccoon-washer-helper.png',
+  );
+  protected readonly mapReaderAsset = computed(() =>
+    this.theme.theme() === 'dark'
+      ? 'assets/project-screen/raccoon-map-reader-dark.png'
+      : 'assets/project-screen/raccoon-map-reader.png',
   );
   protected readonly selectedProjectId = signal<string | undefined>(undefined);
   protected readonly selectedProject = computed(() => {
