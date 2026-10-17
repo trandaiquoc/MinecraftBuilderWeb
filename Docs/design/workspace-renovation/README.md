@@ -44,6 +44,9 @@ compares the current shell against the approved frames in all four themes and
 checks the Settings menu at 320 px in English and Vietnamese. It fixed the
 clipped End-key focus target and added the active project's saved Minecraft
 version to the desktop header.
+The [Selection Inspector action surface review](evidence/20261017-inspector-action-surfaces/README.md)
+fixes the Dark theme Quick Actions card blending into its buttons and checks the
+same surface in all four themes. Full Workspace acceptance remains open.
 The [Workspace menu feedback review](evidence/20261017-menu-feedback/README.md)
 checks persistent checked states, hover, and press feedback in all four themes.
 The [Quick Bar review](evidence/20261017-quick-bar-responsive/README.md)

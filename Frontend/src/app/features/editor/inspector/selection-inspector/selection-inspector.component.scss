@@ -137,7 +137,9 @@
 }
 :host-context([data-theme='dark']) .overview-actions {
   border-color: var(--workspace-border);
-  background: var(--surface-muted);
+}
+:host-context([data-theme='dark']) .overview-action-grid button {
+  border: 1px solid var(--workspace-border);
 }
 
 @container (max-width: 245px) {
