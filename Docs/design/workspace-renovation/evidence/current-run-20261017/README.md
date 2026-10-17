@@ -783,8 +783,24 @@ semantic and layout check, not a full external-AI workflow verification.
 
 | Viewport | Screenshot |
 | --- | --- |
-| Dark, English, 1582 x 804 | [workspace-external-ai-content-limits-dark-en-1582x804-20261017.png](workspace-external-ai-content-limits-dark-en-1582x804-20261017.png) |
+| Dark, English, 1582 x 804, before the placeholder contrast fix | [workspace-external-ai-content-limits-dark-en-1582x804-20261017.png](workspace-external-ai-content-limits-dark-en-1582x804-20261017.png) |
 | Dark, English, 390 x 520, scrolled to candidates | [workspace-external-ai-content-limits-dark-en-390x520-20261017.png](workspace-external-ai-content-limits-dark-en-390x520-20261017.png) |
+
+#### Placeholder contrast across four themes
+
+The browser's default `Search content` placeholder fell to 2.35:1 in Craft,
+2.53:1 in Raccoon, and 3.93:1 in Dark. It now uses the theme's secondary-text
+token at full opacity. Chrome scanned 111 visible text runs per theme at
+1582 x 804, including the search placeholder. No pair was below 4.5:1; the
+minimum across the four themes was 5.50:1 in Craft. The existing Dark capture
+above records its pre-fix state.
+
+| Theme | Before | After |
+| --- | --- | --- |
+| Craft | [workspace-external-ai-content-limits-craft-en-1582x804-20261017.png](workspace-external-ai-content-limits-craft-en-1582x804-20261017.png) | [workspace-external-ai-content-limits-after-craft-en-1582x804-20261017.png](workspace-external-ai-content-limits-after-craft-en-1582x804-20261017.png) |
+| Raccoon | [workspace-external-ai-content-limits-raccoon-en-1582x804-20261017.png](workspace-external-ai-content-limits-raccoon-en-1582x804-20261017.png) | [workspace-external-ai-content-limits-after-raccoon-en-1582x804-20261017.png](workspace-external-ai-content-limits-after-raccoon-en-1582x804-20261017.png) |
+| Light | [workspace-external-ai-content-limits-light-en-1582x804-20261017.png](workspace-external-ai-content-limits-light-en-1582x804-20261017.png) | [workspace-external-ai-content-limits-after-light-en-1582x804-20261017.png](workspace-external-ai-content-limits-after-light-en-1582x804-20261017.png) |
+| Dark | Existing Dark capture above | [workspace-external-ai-content-limits-after-dark-en-1582x804-20261017.png](workspace-external-ai-content-limits-after-dark-en-1582x804-20261017.png) |
 
 ### Lucian Labs source review
 
@@ -1080,6 +1096,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 454 distinct PNG captures
-in this archive are linked to files in this folder (455 link occurrences, with
+animated-state and locale matrix remains open. All 461 distinct PNG captures
+in this archive are linked to files in this folder (462 link occurrences, with
 no missing targets or unlinked captures).
