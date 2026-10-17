@@ -850,6 +850,33 @@ locale were restored to Dark/English after the matrix.
 | Tab closes Facing popup and focuses the Half combobox                     | [workspace-inspector-select-tab-dark-en-1600x900-20261017.png](workspace-inspector-select-tab-dark-en-1600x900-20261017.png)                                               |
 | Escape closes Facing popup and preserves `facing=north`                    | [workspace-inspector-select-escape-dark-en-1600x900-20261017.png](workspace-inspector-select-escape-dark-en-1600x900-20261017.png)                                         |
 
+## Renderer background independence across UI themes
+
+The Workspace renderer background was checked independently from the
+application theme in all 24 combinations: three renderer backgrounds (Dark,
+Light, Reality), four application themes (Minecraft, Raccoon, Light, Dark),
+and English/Vietnamese. Each state was selected through Settings Appearance
+and captured at 1600×900. Runtime checks confirmed that the application theme
+remained selected while the renderer background preference and CSS color
+matched the requested mode: Dark `#0c1015`, Light `#e3e8ee`, and Reality
+`#8bc8e7`. Reality captures use the default Plains grass and Overworld day
+environment. No document-level horizontal overflow was found.
+
+| Application theme | Renderer background | English | Tiếng Việt |
+| --- | --- | --- | --- |
+| Minecraft | Dark | [EN](workspace-renderer-background-dark-craft-en-1600x900-20261017.png) | [VI](workspace-renderer-background-dark-craft-vi-1600x900-20261017.png) |
+| Minecraft | Light | [EN](workspace-renderer-background-light-craft-en-1600x900-20261017.png) | [VI](workspace-renderer-background-light-craft-vi-1600x900-20261017.png) |
+| Minecraft | Reality | [EN](workspace-renderer-background-reality-craft-en-1600x900-20261017.png) | [VI](workspace-renderer-background-reality-craft-vi-1600x900-20261017.png) |
+| Raccoon | Dark | [EN](workspace-renderer-background-dark-raccoon-en-1600x900-20261017.png) | [VI](workspace-renderer-background-dark-raccoon-vi-1600x900-20261017.png) |
+| Raccoon | Light | [EN](workspace-renderer-background-light-raccoon-en-1600x900-20261017.png) | [VI](workspace-renderer-background-light-raccoon-vi-1600x900-20261017.png) |
+| Raccoon | Reality | [EN](workspace-renderer-background-reality-raccoon-en-1600x900-20261017.png) | [VI](workspace-renderer-background-reality-raccoon-vi-1600x900-20261017.png) |
+| Light | Dark | [EN](workspace-renderer-background-dark-light-en-1600x900-20261017.png) | [VI](workspace-renderer-background-dark-light-vi-1600x900-20261017.png) |
+| Light | Light | [EN](workspace-renderer-background-light-light-en-1600x900-20261017.png) | [VI](workspace-renderer-background-light-light-vi-1600x900-20261017.png) |
+| Light | Reality | [EN](workspace-renderer-background-reality-light-en-1600x900-20261017.png) | [VI](workspace-renderer-background-reality-light-vi-1600x900-20261017.png) |
+| Dark | Dark | [EN](workspace-renderer-background-dark-dark-en-1600x900-20261017.png) | [VI](workspace-renderer-background-dark-dark-vi-1600x900-20261017.png) |
+| Dark | Light | [EN](workspace-renderer-background-light-dark-en-1600x900-20261017.png) | [VI](workspace-renderer-background-light-dark-vi-1600x900-20261017.png) |
+| Dark | Reality | [EN](workspace-renderer-background-reality-dark-en-1600x900-20261017.png) | [VI](workspace-renderer-background-reality-dark-vi-1600x900-20261017.png) |
+
 ## Changes verified in this pass
 
 - Resizing the viewport 1600→390→1600 kept saved sidebar preferences at
@@ -936,6 +963,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 247 distinct PNG captures
-in this archive are linked to files in this folder (248 link occurrences, with
+animated-state and locale matrix remains open. All 408 distinct PNG captures
+in this archive are linked to files in this folder (409 link occurrences, with
 no missing targets or unlinked captures).
