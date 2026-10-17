@@ -40,3 +40,8 @@ h4 {
   width: 100%;
   box-sizing: border-box;
 }
+.validation-feedback {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.7rem;
+}

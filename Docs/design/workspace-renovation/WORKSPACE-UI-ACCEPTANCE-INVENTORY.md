@@ -37,6 +37,12 @@ Project Screen and sign-inspector specs, Prettier, frontend encoding check, and
 `git diff --check` also passed during the current implementation checkpoint.
 These results are technical evidence only.
 
+After 211ac0cd, inventory-storage and decorated-pot count feedback received a
+follow-up check: both inspector specs passed (9 tests total), and the production
+build, Prettier, frontend encoding check, and `git diff --check` passed. These
+inspector states were not browser-reviewed, so the result is technical evidence
+only.
+
 ## Evidence rules
 
 - The [browser evidence index](evidence/README.md) lists both historical archives

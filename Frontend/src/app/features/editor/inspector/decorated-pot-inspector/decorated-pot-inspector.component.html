@@ -39,14 +39,23 @@
     <label class="count-field"
       ><span>{{ i18n.t('itemCount') }}</span
       ><input
+        id="pot-item-count"
         type="number"
         min="1"
         [attr.max]="maxStackSize()"
+        [attr.aria-invalid]="countFeedback() ? 'true' : null"
+        [attr.aria-describedby]="countFeedback() ? 'pot-item-count-feedback' : null"
         step="1"
         [value]="item.count"
         [disabled]="locked"
-        (change)="changeCount($event)" /></label
-    ><button type="button" [disabled]="locked" (click)="clearItem()">
+        (change)="changeCount($event)"
+    /></label>
+    @if (countFeedback()) {
+      <p id="pot-item-count-feedback" class="validation-feedback" aria-live="polite">
+        {{ countFeedbackText() }}
+      </p>
+    }
+    <button type="button" [disabled]="locked" (click)="clearItem()">
       {{ i18n.t('clearItem') }}
     </button>
   }
