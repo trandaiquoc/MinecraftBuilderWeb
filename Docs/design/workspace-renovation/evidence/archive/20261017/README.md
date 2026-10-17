@@ -11,25 +11,13 @@ This index keeps representative theme, responsive, keyboard, workflow, and rende
 - [workspace-final-light-en-1600x900-20261017.png](workspace-final-light-en-1600x900-20261017.png)
 - [workspace-final-dark-en-1600x900-20261017.png](workspace-final-dark-en-1600x900-20261017.png)
 
-## UI font and text-size examples
+## Extreme text-size behavior
 
-- [workspace-font-craft-comfortaa-en-1600x900-20261017.png](workspace-font-craft-comfortaa-en-1600x900-20261017.png)
-- [workspace-font-craft-chakra-petch-en-1600x900-20261017.png](workspace-font-craft-chakra-petch-en-1600x900-20261017.png)
-- [workspace-font-craft-pangolin-en-1600x900-20261017.png](workspace-font-craft-pangolin-en-1600x900-20261017.png)
-- [workspace-font-craft-pangolin-vi-1600x900-20261017.png](workspace-font-craft-pangolin-vi-1600x900-20261017.png)
-- [workspace-font-size-normal-comfortaa-craft-vi-320x520-20261017.png](workspace-font-size-normal-comfortaa-craft-vi-320x520-20261017.png)
-- [workspace-font-size-small-comfortaa-craft-vi-320x520-20261017.png](workspace-font-size-small-comfortaa-craft-vi-320x520-20261017.png)
-- [workspace-font-size-small-comfortaa-craft-vi-320x520-20261017-scrolled.png](workspace-font-size-small-comfortaa-craft-vi-320x520-20261017-scrolled.png)
-- [workspace-font-size-large-minecraft-vi-320x520-20261017.png](workspace-font-size-large-minecraft-vi-320x520-20261017.png)
-- [workspace-font-size-large-minecraft-vi-320x520-scrolled-20261017.png](workspace-font-size-large-minecraft-vi-320x520-scrolled-20261017.png)
+- [Large Minecraft text at a narrow, scrolled viewport](workspace-font-size-large-minecraft-vi-320x520-scrolled-20261017.png)
 
-## Compact viewport examples
+## Compact viewport example
 
-- [workspace-shell-compact-minecraft-en-780x437-20261017.png](workspace-shell-compact-minecraft-en-780x437-20261017.png)
-- [workspace-shell-compact-raccoon-en-780x437-20261017.png](workspace-shell-compact-raccoon-en-780x437-20261017.png)
-- [workspace-shell-compact-light-en-780x437-20261017.png](workspace-shell-compact-light-en-780x437-20261017.png)
-- [workspace-shell-compact-dark-en-780x437-20261017.png](workspace-shell-compact-dark-en-780x437-20261017.png)
-- [workspace-shell-compact-minecraft-vi-780x437-20261017.png](workspace-shell-compact-minecraft-vi-780x437-20261017.png)
+- [Minecraft shell with Vietnamese labels at a compact viewport](workspace-shell-compact-minecraft-vi-780x437-20261017.png)
 
 ## Menu keyboard navigation and focus
 
@@ -47,15 +35,8 @@ This index keeps representative theme, responsive, keyboard, workflow, and rende
 - [workspace-block-search-cleared-dark-en-1600x900-20261017.png](workspace-block-search-cleared-dark-en-1600x900-20261017.png)
 - [workspace-block-search-empty-raccoon-vi-390x520-20261017.png](workspace-block-search-empty-raccoon-vi-390x520-20261017.png)
 - [workspace-block-browser-keyboard-last-item-dark-en-1600x900-20261017-after-tooltip-fix.png](workspace-block-browser-keyboard-last-item-dark-en-1600x900-20261017-after-tooltip-fix.png)
-- [workspace-block-browser-no-assets-after-dark-en-1600x900-20261017.png](workspace-block-browser-no-assets-after-dark-en-1600x900-20261017.png)
-- [workspace-block-browser-no-assets-craft-en-1600x900-20261017.png](workspace-block-browser-no-assets-craft-en-1600x900-20261017.png)
-- [workspace-block-browser-no-assets-light-en-1600x900-20261017.png](workspace-block-browser-no-assets-light-en-1600x900-20261017.png)
-- [workspace-block-browser-no-assets-raccoon-vi-390x520-20261017.png](workspace-block-browser-no-assets-raccoon-vi-390x520-20261017.png)
-- [workspace-block-browser-touch-after-craft-en-390x520-20261017.png](workspace-block-browser-touch-after-craft-en-390x520-20261017.png)
-- [workspace-block-browser-touch-after-craft-vi-390x520-20261017.png](workspace-block-browser-touch-after-craft-vi-390x520-20261017.png)
-- [workspace-block-browser-touch-after-raccoon-en-390x520-20261017.png](workspace-block-browser-touch-after-raccoon-en-390x520-20261017.png)
-- [workspace-block-browser-touch-after-light-en-390x520-20261017.png](workspace-block-browser-touch-after-light-en-390x520-20261017.png)
-- [workspace-block-browser-touch-after-dark-en-390x520-20261017.png](workspace-block-browser-touch-after-dark-en-390x520-20261017.png)
+- [No-asset empty state in Dark theme](workspace-block-browser-no-assets-after-dark-en-1600x900-20261017.png)
+- [Touch Block Browser in Minecraft theme with Vietnamese labels](workspace-block-browser-touch-after-craft-vi-390x520-20261017.png)
 
 ## Settings and appearance controls
 
@@ -87,10 +68,7 @@ This index keeps representative theme, responsive, keyboard, workflow, and rende
 
 - [workspace-diagnostics-mixed-findings-dark-en-1600x900-20261017.png](workspace-diagnostics-mixed-findings-dark-en-1600x900-20261017.png)
 - [workspace-diagnostics-warning-raccoon-vi-390x520-20261017.png](workspace-diagnostics-warning-raccoon-vi-390x520-20261017.png)
-- [workspace-diagnostics-compatibility-expanded-craft-en-1600x900-20261017.png](workspace-diagnostics-compatibility-expanded-craft-en-1600x900-20261017.png)
-- [workspace-diagnostics-compatibility-expanded-raccoon-en-1600x900-20261017.png](workspace-diagnostics-compatibility-expanded-raccoon-en-1600x900-20261017.png)
-- [workspace-diagnostics-compatibility-expanded-light-en-1600x900-20261017.png](workspace-diagnostics-compatibility-expanded-light-en-1600x900-20261017.png)
-- [workspace-diagnostics-compatibility-expanded-dark-en-1600x900-20261017.png](workspace-diagnostics-compatibility-expanded-dark-en-1600x900-20261017.png)
+- [Expanded compatibility details in Dark theme](workspace-diagnostics-compatibility-expanded-dark-en-1600x900-20261017.png)
 - [workspace-diagnostics-title-focus-dark-en-390x520-20261017.png](workspace-diagnostics-title-focus-dark-en-390x520-20261017.png)
 
 ## Asset Manager
@@ -115,17 +93,11 @@ This index keeps representative theme, responsive, keyboard, workflow, and rende
 - [workspace-sidebar-resizer-keyboard-dark-en-1600x900-20261017.png](workspace-sidebar-resizer-keyboard-dark-en-1600x900-20261017.png)
 - [workspace-quickbar-collapsed-dark-en-390x520-20261017.png](workspace-quickbar-collapsed-dark-en-390x520-20261017.png)
 
-## Renderer background examples
+## Renderer background modes
 
-- [workspace-renderer-background-dark-craft-en-1600x900-20261017.png](workspace-renderer-background-dark-craft-en-1600x900-20261017.png)
-- [workspace-renderer-background-light-craft-en-1600x900-20261017.png](workspace-renderer-background-light-craft-en-1600x900-20261017.png)
-- [workspace-renderer-background-reality-craft-en-1600x900-20261017.png](workspace-renderer-background-reality-craft-en-1600x900-20261017.png)
-- [workspace-renderer-background-dark-raccoon-en-1600x900-20261017.png](workspace-renderer-background-dark-raccoon-en-1600x900-20261017.png)
-- [workspace-renderer-background-light-raccoon-en-1600x900-20261017.png](workspace-renderer-background-light-raccoon-en-1600x900-20261017.png)
-- [workspace-renderer-background-reality-raccoon-en-1600x900-20261017.png](workspace-renderer-background-reality-raccoon-en-1600x900-20261017.png)
-- [workspace-renderer-background-dark-light-en-1600x900-20261017.png](workspace-renderer-background-dark-light-en-1600x900-20261017.png)
-- [workspace-renderer-background-light-light-en-1600x900-20261017.png](workspace-renderer-background-light-light-en-1600x900-20261017.png)
-- [workspace-renderer-background-reality-light-en-1600x900-20261017.png](workspace-renderer-background-reality-light-en-1600x900-20261017.png)
-- [workspace-renderer-background-dark-dark-en-1600x900-20261017.png](workspace-renderer-background-dark-dark-en-1600x900-20261017.png)
-- [workspace-renderer-background-light-dark-en-1600x900-20261017.png](workspace-renderer-background-light-dark-en-1600x900-20261017.png)
-- [workspace-renderer-background-reality-dark-en-1600x900-20261017.png](workspace-renderer-background-reality-dark-en-1600x900-20261017.png)
+These three captures show the independent renderer background preference in
+one Workspace theme; the UI theme does not change that preference.
+
+- [Dark renderer background in Minecraft theme](workspace-renderer-background-dark-craft-en-1600x900-20261017.png)
+- [Light renderer background in Minecraft theme](workspace-renderer-background-light-craft-en-1600x900-20261017.png)
+- [Reality renderer background in Minecraft theme](workspace-renderer-background-reality-craft-en-1600x900-20261017.png)
