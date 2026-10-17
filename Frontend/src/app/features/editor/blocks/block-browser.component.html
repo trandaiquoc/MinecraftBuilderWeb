@@ -60,7 +60,7 @@
                 class="block-select-action"
                 (click)="select(block)"
                 [attr.aria-pressed]="isActive(block)"
-                [attr.aria-label]="block.displayName"
+                [attr.aria-label]="block.displayName + ', ' + block.displayBlockId"
               >
                 <span
                   class="preview"
@@ -74,9 +74,8 @@
                   }</span
                 ><span class="block-copy"
                   ><strong>{{ block.displayName }}</strong
-                  ><small>{{
-                    block.modName ||
-                      (block.namespace === 'minecraft' ? 'Minecraft' : block.namespace)
+                  ><small class="block-copy-id" [attr.title]="block.displayBlockId">{{
+                    block.displayBlockId
                   }}</small></span
                 >
                 @if (isActive(block)) {

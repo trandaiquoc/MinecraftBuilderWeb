@@ -530,6 +530,32 @@ started. The component spec verifies the real no-assets branch and alert role.
 This visual pass does not simulate a network failure or verify Retry's
 download result.
 
+## Block Browser touch quick-add and registry identity
+
+The approved Workspace compositions show each content card's registry ID and
+an add-to-Quick-Bar action. In the current 390 × 520 touch drawer, the IDs were
+missing and the quick-add controls were invisible (`opacity: 0`; 21.6 × 21.6
+px). Cards now show the canonical `displayBlockId` as technical text and
+include it in the selection button's accessible name. Touch/coarse-pointer
+input keeps the quick-add control visible, with a 24 × 24 px target. The
+two-column drawer stayed within 390 px in Minecraft, Raccoon, Light, and Dark,
+in both English and Vietnamese; no placed blocks or saved project data changed.
+
+| Theme | English | Vietnamese |
+| --- | --- | --- |
+| Minecraft | [390 × 520 touch drawer](workspace-block-browser-touch-after-craft-en-390x520-20261017.png) | [390 × 520 touch drawer](workspace-block-browser-touch-after-craft-vi-390x520-20261017.png) |
+| Raccoon | [390 × 520 touch drawer](workspace-block-browser-touch-after-raccoon-en-390x520-20261017.png) | [390 × 520 touch drawer](workspace-block-browser-touch-after-raccoon-vi-390x520-20261017.png) |
+| Light | [390 × 520 touch drawer](workspace-block-browser-touch-after-light-en-390x520-20261017.png) | [390 × 520 touch drawer](workspace-block-browser-touch-after-light-vi-390x520-20261017.png) |
+| Dark | [390 × 520 touch drawer](workspace-block-browser-touch-after-dark-en-390x520-20261017.png) | [390 × 520 touch drawer](workspace-block-browser-touch-after-dark-vi-390x520-20261017.png) |
+
+| Before / flow step | Screenshot |
+| --- | --- |
+| Mobile Workspace before opening Blocks | [390 × 520 shell](workspace-block-browser-audit-before-dark-en-390x520-20261017.png) |
+| Before: touch drawer, hidden quick-add controls and no registry IDs | [390 × 520 drawer](workspace-block-browser-audit-before-dark-en-390x520-drawer-20261017.png) |
+
+The empty Quick Bar prompt still uses the desktop wording “Hover a block and
+press +”; updating that localized prompt remains a separate follow-up.
+
 ## Workspace panels and responsive shell
 
 | State / viewport                                   | Capture                                                                                                                                                                |
@@ -912,6 +938,23 @@ size to their contents; larger lists retain their own scroll region. These
 checks do not validate Minecraft placement rules: Project Diagnostics reports
 content, asset, visual, and behavior-coverage findings and has no
 placement-validity finding in its current contract.
+
+### Project Diagnostics narrow dialog audit
+
+A current follow-up opened Tools and Project Diagnostics on the same two-block
+project. At 390 × 520, the dialog measured 374 × 504 px at x=8/y=8; its body
+measured 447 px high with a 1,528 px scroll height, and the page did not
+overflow horizontally. Escape closed the dialog, restored focus to Tools, and
+left the project at two blocks. No new issue was confirmed in the empty-report
+state; populated findings remain represented by the mixed-report captures
+above.
+
+| Flow step / viewport | Current capture |
+| --- | --- |
+| Workspace before the Tools menu, 1582 × 804 | [Workspace shell](workspace-diagnostics-audit-01-shell-dark-en-1582x804-20261017.png) |
+| Tools menu, 1582 × 804 | [Tools menu](workspace-diagnostics-audit-02-tools-menu-dark-en-1582x804-20261017.png) |
+| Empty Project Diagnostics, 1582 × 804 | [Desktop dialog](workspace-diagnostics-audit-03-dialog-dark-en-1582x804-20261017.png) |
+| Empty Project Diagnostics, 390 × 520 | [Narrow dialog](workspace-diagnostics-audit-04-dialog-dark-en-390x520-20261017.png) |
 
 | State / theme / viewport                         | Screenshot                                                                                                                                                   |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |

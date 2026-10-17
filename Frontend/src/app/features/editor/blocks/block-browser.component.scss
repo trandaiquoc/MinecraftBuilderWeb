@@ -185,6 +185,8 @@
   place-items: center;
   width: 1.35rem;
   height: 1.35rem;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -260,6 +262,15 @@
 .block-copy small {
   color: var(--text-muted);
   font-size: 0.68rem;
+}
+.block-copy .block-copy-id {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.6rem;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 :host-context([data-theme='craft']) .block-item {
@@ -378,6 +389,9 @@
   font-size: 0.62rem;
   line-height: 1.05;
 }
+.catalog-grid-host.compact .block-copy .block-copy-id {
+  font-size: 0.6rem;
+}
 
 .catalog-grid-host.compact .quick-add-wrapper {
   position: absolute;
@@ -395,4 +409,11 @@
 
 .catalog-grid-host.compact .quick-add-action:not(:disabled) {
   opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .quick-add-wrapper,
+  .quick-add-action {
+    opacity: 1;
+  }
 }
