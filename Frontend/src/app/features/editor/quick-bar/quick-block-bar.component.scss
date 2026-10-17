@@ -249,5 +249,29 @@
 @media (max-width: 620px) {
   .slots {
     gap: 0.25rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-color: color-mix(
+        in srgb,
+        var(--workspace-toolbar-text) 42%,
+        var(--workspace-toolbar-bg)
+      )
+      color-mix(in srgb, var(--workspace-toolbar-text) 8%, var(--workspace-toolbar-bg));
+    scrollbar-width: thin;
+  }
+  .slots::-webkit-scrollbar {
+    height: 0.3rem;
+  }
+  .slots::-webkit-scrollbar-track {
+    background: color-mix(in srgb, var(--workspace-toolbar-text) 8%, var(--workspace-toolbar-bg));
+  }
+  .slots::-webkit-scrollbar-thumb {
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--workspace-toolbar-text) 42%, var(--workspace-toolbar-bg));
+  }
+  .slot {
+    scroll-snap-align: start;
   }
 }

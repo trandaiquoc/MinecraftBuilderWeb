@@ -25,6 +25,9 @@ viewport. The [Settings dialog responsive review](20261017-settings-responsive/R
 checks its mobile layout and scroll behavior. The [Workspace interaction review](20261017-workspace-interactions/README.md)
 records JSON import/export, Structure NBT/Datapack export, Asset Manager, and
 Diagnostics states, including two interaction fixes.
+The [Quick Bar responsive review](20261017-quick-bar-responsive/README.md)
+records access to all ten slots and selection of the last slot at a 390 px
+viewport.
 Full Workspace visual acceptance across surfaces, responsive states, and
 workflows remains open in the
 [Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md). The

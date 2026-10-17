@@ -11,7 +11,9 @@ Settings dialog at a narrow viewport, JSON import/export, Structure NBT and
 Datapack export, Asset Manager, and Diagnostics. The
 [Workspace interaction review](evidence/20261017-workspace-interactions/README.md)
 records those responsive states and the fixes found in the import and Mod JAR
-entry paths. The [active BlockState and Help review](evidence/20261017-selection-state-help/README.md)
+entry paths. The [Quick Bar review](evidence/20261017-quick-bar-responsive/README.md)
+confirms all ten slots remain reachable at a narrow viewport. The
+[active BlockState and Help review](evidence/20261017-selection-state-help/README.md)
 checks state editing in all four themes, the narrow Selection drawer, and the
 Controls & Shortcuts dialog. Full Workspace acceptance remains open. A concrete
 remaining checkpoint is the Mod JAR import preflight and progress/error states,
