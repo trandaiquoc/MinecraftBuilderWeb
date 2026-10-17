@@ -49,6 +49,7 @@ export class ExternalAiWorkspaceComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly destroyRef = inject(DestroyRef);
   private copyFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
+  private copyFeedbackScrollFrame: number | undefined;
   protected readonly i18n = inject(I18nService);
   private readonly itemCatalog = inject(ItemCatalogService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
@@ -62,6 +63,11 @@ export class ExternalAiWorkspaceComponent {
   constructor() {
     this.destroyRef.onDestroy(() => {
       if (this.copyFeedbackTimer !== undefined) clearTimeout(this.copyFeedbackTimer);
+      if (this.copyFeedbackScrollFrame !== undefined) {
+        this.host.nativeElement.ownerDocument.defaultView?.cancelAnimationFrame(
+          this.copyFeedbackScrollFrame,
+        );
+      }
     });
   }
 
@@ -466,6 +472,7 @@ export class ExternalAiWorkspaceComponent {
     if (!this.aiDescription().trim()) {
       this.aiDescriptionInvalid.set(true);
       this.aiCopyStatus.set('idle');
+      this.scrollActionFeedbackIntoView();
       return;
     }
     this.aiDescriptionInvalid.set(false);
@@ -496,12 +503,27 @@ export class ExternalAiWorkspaceComponent {
     if (this.copyFeedbackTimer !== undefined) clearTimeout(this.copyFeedbackTimer);
     this.aiCopyStatus.set(status);
     this.aiCopyTarget.set(target);
+    this.scrollActionFeedbackIntoView();
     this.copyFeedbackTimer = setTimeout(() => {
       this.copyFeedbackTimer = undefined;
       if (this.destroyRef.destroyed) return;
       this.aiCopyStatus.set('idle');
       this.aiCopyTarget.set(undefined);
     }, 1400);
+  }
+
+  private scrollActionFeedbackIntoView(): void {
+    const view = this.host.nativeElement.ownerDocument.defaultView;
+    if (this.copyFeedbackScrollFrame !== undefined) {
+      view?.cancelAnimationFrame(this.copyFeedbackScrollFrame);
+    }
+    this.copyFeedbackScrollFrame = view?.requestAnimationFrame(() => {
+      this.copyFeedbackScrollFrame = undefined;
+      if (this.destroyRef.destroyed) return;
+      (this.host.nativeElement as HTMLElement)
+        .querySelector<HTMLElement>('.ai-actions [role="status"], .ai-actions [role="alert"]')
+        ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
   }
 }
 

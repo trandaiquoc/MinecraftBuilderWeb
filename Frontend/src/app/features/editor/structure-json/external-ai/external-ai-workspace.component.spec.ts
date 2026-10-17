@@ -16,12 +16,14 @@ import { ExternalAiWorkspaceComponent } from './external-ai-workspace.component'
 describe('ExternalAiWorkspaceComponent copy feedback', () => {
   let injector: EnvironmentInjector;
   let component: ExternalAiWorkspaceComponent;
+  let hostElement: HTMLDivElement;
 
   beforeEach(() => {
     vi.useFakeTimers();
+    hostElement = document.createElement('div');
     injector = createEnvironmentInjector(
       [
-        { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) },
+        { provide: ElementRef, useValue: new ElementRef(hostElement) },
         { provide: ExternalAiPromptContextService, useValue: {} },
         { provide: I18nService, useValue: {} },
         { provide: ItemCatalogService, useValue: {} },
@@ -73,6 +75,61 @@ describe('ExternalAiWorkspaceComponent copy feedback', () => {
     state.showCopyFeedback('failed', 'prompt');
     expect(state.aiCopyStatus()).toBe('copied');
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('scrolls copy feedback and empty-description validation into view', async () => {
+    const state = component as unknown as {
+      showCopyFeedback: (status: 'copied' | 'failed', target: 'prompt' | 'example') => void;
+      copyAiPrompt: () => Promise<void>;
+    };
+    const actions = document.createElement('div');
+    actions.className = 'ai-actions';
+    const status = document.createElement('span');
+    status.setAttribute('role', 'status');
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(status, 'scrollIntoView', { value: scrollIntoView });
+    actions.append(status);
+    hostElement.append(actions);
+
+    const view = hostElement.ownerDocument.defaultView!;
+    const originalRequestAnimationFrame = Object.getOwnPropertyDescriptor(
+      view,
+      'requestAnimationFrame',
+    );
+    let renderFeedback: FrameRequestCallback | undefined;
+    Object.defineProperty(view, 'requestAnimationFrame', {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => {
+        renderFeedback = callback;
+        return 1;
+      },
+    });
+
+    try {
+      state.showCopyFeedback('failed', 'prompt');
+
+      expect(renderFeedback).toBeDefined();
+      renderFeedback?.(0);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+
+      const alert = document.createElement('span');
+      alert.setAttribute('role', 'alert');
+      const scrollAlertIntoView = vi.fn();
+      Object.defineProperty(alert, 'scrollIntoView', { value: scrollAlertIntoView });
+      actions.replaceChildren(alert);
+
+      await state.copyAiPrompt();
+
+      expect(renderFeedback).toBeDefined();
+      renderFeedback?.(0);
+      expect(scrollAlertIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+    } finally {
+      if (originalRequestAnimationFrame) {
+        Object.defineProperty(view, 'requestAnimationFrame', originalRequestAnimationFrame);
+      } else {
+        Reflect.deleteProperty(view, 'requestAnimationFrame');
+      }
+    }
   });
 
   it('keeps one tab stop and moves selection and focus with tab navigation keys', () => {

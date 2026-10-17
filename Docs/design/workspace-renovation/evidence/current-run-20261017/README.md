@@ -748,6 +748,29 @@ scrolling at 320 px; Vietnamese does not.
 | Small, Comfortaa/Dark/English, 320 x 520 | [workspace-external-ai-matrix-comfortaa-dark-en-small-320x520-20261017.png](workspace-external-ai-matrix-comfortaa-dark-en-small-320x520-20261017.png) |
 | Large, Comfortaa/Dark/English, 320 x 520 | [workspace-external-ai-matrix-comfortaa-dark-en-large-320x520-20261017.png](workspace-external-ai-matrix-comfortaa-dark-en-large-320x520-20261017.png) |
 
+### Copy feedback at 320 px
+
+A simulated clipboard rejection showed the two-line copy error extending below
+the External AI component's visible scrollport. Copy success, copy failure,
+and the empty-description alert now schedule the feedback message to scroll
+into view after rendering. A pending scroll frame is canceled if newer feedback
+replaces it or the component is destroyed.
+
+In Chrome at 320 x 520, the error message now fits above the fixed dialog
+footer. The message bottom measured at y=449, aligned with the component
+scrollport bottom; the document stayed 305 px wide in the 320 px viewport. The
+copy-confirm icon animation computed to 220 ms with normal motion and 1 ms with
+reduced motion. Clipboard `writeText` was stubbed to resolve or reject for
+these UI checks; no prompt was written to the system clipboard or sent to an AI
+service.
+
+| State | Screenshot |
+| --- | --- |
+| Before, simulated clipboard error clipped at 320 x 520 | [workspace-external-ai-copy-error-dark-en-320x520-20261017.png](workspace-external-ai-copy-error-dark-en-320x520-20261017.png) |
+| After, simulated clipboard error visible at 320 x 520 | [workspace-external-ai-copy-error-after-dark-en-320x520-20261017.png](workspace-external-ai-copy-error-after-dark-en-320x520-20261017.png) |
+| Simulated copy success, normal motion, 320 x 520 | [workspace-external-ai-copy-success-normal-motion-dark-en-320x520-20261017.png](workspace-external-ai-copy-success-normal-motion-dark-en-320x520-20261017.png) |
+| Simulated copy success, reduced motion, 320 x 520 | [workspace-external-ai-copy-success-reduced-motion-dark-en-320x520-20261017.png](workspace-external-ai-copy-success-reduced-motion-dark-en-320x520-20261017.png) |
+
 ### Lucian Labs source review
 
 The source review used Lucian Labs repository commit
@@ -971,6 +994,9 @@ environment. No document-level horizontal overflow was found.
 - External AI tab labels no longer overlap at 320 x 520; the 24-state Normal
   theme/font/locale matrix and Comfortaa Small/Large checks keep text readable,
   focus visible, and horizontal scrolling inside the tab strip.
+- External AI copy success, failure, and empty-description feedback scroll into
+  view at narrow widths; the copy icon animation clamps from 220 ms to 1 ms
+  under reduced motion.
 - Diagnostics starts focus at its heading, uses a neutral close control, and
   labels its render interval as smoothed with idle time included.
 - Diagnostics distinguishes missing and unresolved content errors from the
@@ -1039,6 +1065,6 @@ check, and Prettier. Chrome verified that the Projects route's row transition
 changes from 120 ms to 1 ms under reduced motion; the shared menu's enter
 animation changes from 150 ms to 1 ms and its trigger transitions from 120 ms
 to 1 ms. This covers representative Projects and Workspace elements; the full
-animated-state and locale matrix remains open. All 448 distinct PNG captures
-in this archive are linked to files in this folder (449 link occurrences, with
+animated-state and locale matrix remains open. All 452 distinct PNG captures
+in this archive are linked to files in this folder (453 link occurrences, with
 no missing targets or unlinked captures).
