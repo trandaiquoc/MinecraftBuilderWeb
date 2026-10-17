@@ -1,24 +1,22 @@
-# Workspace browser evidence archive
+# Workspace Browser Evidence
 
-Use this folder for screenshots captured from the running Workspace in Chrome.
-The approved Stitch frames are stored separately under
-[`../references/`](../references/).
+The screenshots in this directory are dated historical browser evidence. They
+do not establish visual acceptance for changes made after commit ed7b1a5.
 
-## Current run — 2026-10-17
+## Capture locations
 
-- [Screenshots, test notes, and browser measurements](current-run-20261017/README.md)
-- [Workspace UI acceptance inventory](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md)
-- [Earlier root-level browser captures and theme comparisons](../README.md)
+- Earlier captures are stored directly in this directory.
+- [2026-10-17 browser capture notes and screenshots](current-run-20261017/README.md)
 
-## Updating the archive
+## Current acceptance
 
-For a later audit, create a new `current-run-YYYYMMDD/` directory, keep that
-run's PNG captures beside its README, and add a link to the new run above and
-in the acceptance inventory. Keep earlier runs intact so before/after evidence
-remains available. Link every retained PNG from its run README and remove only
-temporary debug artifacts that are not evidence.
+The latest viewport starter card and Project Screen controls have no after
+screenshots in these browser captures. Their visual acceptance remains open in the
+[Workspace acceptance status](../WORKSPACE-UI-ACCEPTANCE-INVENTORY.md) and
+[Homepage/Project Screen notes](../../homepage-renovation/README.md).
 
-Capture filenames should identify the Workspace area, state, theme, locale,
-viewport, and date. Each run README should say which browser state was used and
-what was checked; browser captures are evidence of the application, not design
-references or proof of untested behavior.
+## Retention policy
+
+Keep approved design sources under ../references/ separate from browser
+captures. Identify historical captures by date and state; do not present them as
+current acceptance or turn old follow-up notes into active work.

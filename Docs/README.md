@@ -1,52 +1,52 @@
 # Documentation Map
 
-This directory separates current contracts from history, generated audit output,
-and product planning.
+This directory separates current product contracts, active design acceptance,
+historical evidence, and reproducible local audit output.
 
 ## Current source of truth
 
-- `design-foundation-branding.md` — current product brand, approved visual
-  direction, supplied references, and explicit implementation boundaries.
-- `design/workspace-color-palette.md` — canonical four-theme Workspace palette,
-  CSS token mapping, Project Screen boundary, and accessibility contract.
-- `MinecraftBuilder_Requirements_VI.docx` — version 0.2 product and technical
-  requirement baseline for the local-first MVP. It records intended scope, not
-  implementation status; it does not replace the more specific current
-  technical contracts below.
-- `minecraft-assets.md` — asset sources, versioned cache policy, provider
-  boundaries, supported resource formats, and audit procedure.
-- `vanilla-behavior-golden-1.21.1.md` — verified Java 1.21.1 behavior matrix
-  and editor-policy deviations for supported block families.
-- `minecraft-structure-nbt-1.21.1.md` — Structure NBT, exporter, semantic
-  entity, and datapack packaging contract.
-- `structure-json.md` — public Structure JSON shape, validation, and import
-  semantics.
-- `renderer-baseline.md` — retained viewport lifecycle, diagnostics, and
-  benchmark contract.
+- [Design foundation](design-foundation-branding.md) — brand, approved visual
+  direction, references, and implementation boundaries.
+- [Workspace color palette](design/workspace-color-palette.md) — canonical
+  four-theme Workspace tokens and accessibility contract.
+- [Workspace renovation status](design/workspace-renovation/README.md) and
+  [active acceptance inventory](design/workspace-renovation/WORKSPACE-UI-ACCEPTANCE-INVENTORY.md)
+  — current status and only unresolved visual acceptance gaps.
+- [Homepage and Project Screen status](design/homepage-renovation/README.md) —
+  implemented local controls, approved concept scope, and visual acceptance.
+- [Requirements baseline](MinecraftBuilder_Requirements_VI.docx) — version 0.2
+  local-first MVP requirements; this is intended scope, not implementation
+  status.
+- [Minecraft assets](minecraft-assets.md) — asset sources, cache policy,
+  provider boundaries, supported formats, and audit procedure.
+- [Verified vanilla behavior](vanilla-behavior-golden-1.21.1.md) — Java 1.21.1
+  behavior matrix and editor-policy deviations.
+- [Structure NBT contract](minecraft-structure-nbt-1.21.1.md) — exporter,
+  entities, and datapack packaging.
+- [Structure JSON contract](structure-json.md) — public shape, validation,
+  and import semantics.
+- [Renderer baseline](renderer-baseline.md) — viewport lifecycle, diagnostics,
+  and benchmark contract.
 
-## Planning and history
+## Historical records
 
-- `MinecraftBuilder_Codex_Gemini_Prompt_Roadmap_VI.docx` is the original prompt
-  roadmap. It is retained as planning history, not as a claim that every old
-  prompt or checklist still describes the current implementation.
-- `history/changed.md` is the chronological decision log. It is useful for
-  historical context only; current facts must be updated in the canonical
-  document responsible for them.
+- [Original prompt roadmap](MinecraftBuilder_Codex_Gemini_Prompt_Roadmap_VI.docx)
+  is retained as planning history. Its old prompts are not an active task list.
+- [Change history](history/changed.md) is a chronological decision log; current
+  facts belong in the canonical documents above.
+- [Workspace visual QA snapshot](history/workspace-design-qa-2026-10-16.md)
+  records a dated, superseded assessment. It does not define current status.
+- [Workspace browser evidence](design/workspace-renovation/evidence/README.md)
+  is historical and does not establish visual acceptance for changes after
+  commit ed7b1a5.
 
 ## Generated and local-only output
 
-Vanilla coverage reports are reproducible audit output. The audit command writes
-them to the ignored local directory:
+Vanilla coverage reports are reproducible audit output under the ignored local
+directory .artifacts/vanilla-asset-coverage/. Temporary audit specs are
+created under .artifacts/vanilla-asset-audit/ and removed by the command.
+They are not canonical source or documentation.
 
-```text
-.artifacts/vanilla-asset-coverage/
-```
-
-Temporary audit specs are created under `.artifacts/vanilla-asset-audit/` and
-are removed when the command finishes. They are not part of `src/` or canonical
-documentation.
-
-The repository keeps only fixtures that provide independent compatibility
-evidence or protect a contract that cannot be regenerated from the code under
-test. Exporter smoke tests generate their own NBT/ZIP bytes at test runtime;
-their generated binaries are intentionally not tracked.
+Only fixtures that provide independent compatibility evidence or protect a
+contract that cannot be regenerated from the code under test are tracked.
+Exporter smoke tests generate their NBT/ZIP bytes at test time.

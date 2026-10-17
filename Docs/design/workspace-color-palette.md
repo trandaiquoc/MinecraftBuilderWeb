@@ -73,6 +73,6 @@ All 25 roles in the table are exact palette values. Additional toolbar, pixel-pa
 
 ## References and verification
 
-The four approved Workspace compositions are preserved separately from browser captures under `Docs/design/workspace-renovation/references/`. The similarly named images in `Docs/design/references/` are not these Workspace compositions and must not be used as their substitutes. Browser captures of the current implementation are kept in `Docs/design/workspace-renovation/evidence/`. The 45 original feature-reference screenshots were reviewed as historical input; only the approved Workspace compositions and current browser captures are retained as canonical visual evidence. Their HTML/Tailwind exports are design artifacts, not application source.
+The four approved Workspace compositions are preserved separately from browser captures under `Docs/design/workspace-renovation/references/`. The similarly named images in `Docs/design/references/` are the four Homepage concepts, not Workspace substitutes. Historical browser captures remain under `Docs/design/workspace-renovation/evidence/`, including the dated `current-run-20261017/` set. They predate commit `ed7b1a5` and do not establish current visual acceptance.
 
 `Frontend/src/app/core/ui/theme/theme.service.spec.ts` verifies that the 25 canonical values match this table, checks text and control contrast, and verifies that generic aliases remain scoped to the active Workspace. Visual review must include Minecraft, Light, Raccoon, and Dark, with both EN and VI where text is visible.
