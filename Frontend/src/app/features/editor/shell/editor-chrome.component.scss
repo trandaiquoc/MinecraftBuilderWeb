@@ -627,6 +627,11 @@
 }
 
 @media (max-width: 380px) {
+  .app-menus {
+    display: grid;
+    grid-template-columns: repeat(3, max-content);
+  }
+
   .chrome-project-version {
     position: absolute;
     box-sizing: border-box;

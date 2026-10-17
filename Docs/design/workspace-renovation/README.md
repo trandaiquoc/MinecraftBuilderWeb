@@ -53,6 +53,9 @@ compares the current shell against the approved frames in all four themes and
 checks the Settings menu at 320 px in English and Vietnamese. It fixed the
 clipped End-key focus target and added the active project's saved Minecraft
 version to the desktop header.
+The [compact translated menu review](evidence/20261018-workspace-menu-compact/README.md)
+places all six Workspace menus in two balanced rows at 320 px, avoiding the
+single-item Vietnamese Help row while keeping the project context visible.
 The [Selection Inspector action surface review](evidence/20261017-inspector-action-surfaces/README.md)
 fixes the Dark theme Quick Actions card blending into its buttons and checks the
 same surface in all four themes. Full Workspace acceptance remains open.
