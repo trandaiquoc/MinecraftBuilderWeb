@@ -1,243 +1,127 @@
 <main class="project-page">
-  <header class="outer-topbar">
-    <div class="outer-brand">
-      <img
-        class="outer-brand-logo"
-        ngSrc="assets/brand/the-block-laundromat-logo.svg"
-        width="1774"
-        height="887"
-        [alt]="i18n.t('appName')"
-        priority
-      />
-    </div>
-    <app-project-screen-controls (settingsRequested)="openSettingsDialog()" />
-  </header>
-
-  <div class="project-page-content">
-    <header class="project-intro">
-      <p class="eyebrow">{{ i18n.t('appName') }}</p>
-      <h1>{{ i18n.t('projectTitle') }}</h1>
-      <p>{{ i18n.t('projectSubtitle') }}</p>
+  <div class="scene-stage">
+    <header class="outer-topbar">
+      <div class="outer-brand">
+        <img
+          class="outer-brand-logo"
+          ngSrc="assets/brand/the-block-laundromat-logo.svg"
+          width="1774"
+          height="887"
+          [alt]="i18n.t('appName')"
+          priority
+        />
+      </div>
+      <app-project-screen-controls (settingsRequested)="openSettingsDialog()" />
     </header>
 
-    <section class="project-grid" [attr.aria-label]="i18n.t('projectActions')">
-      <form class="project-form" (submit)="$event.preventDefault(); createProject()">
-        <div class="form-section form-section--identity">
-          <h2>{{ i18n.t('newProject') }}</h2>
-          <label class="field-label"
-            >{{ i18n.t('projectName')
-            }}<input
-              class="project-text-input"
-              [value]="name()"
-              (input)="updateName($any($event.target).value)"
-              required
-          /></label>
-          <label class="field-label"
-            >{{ i18n.t('minecraftVersion')
-            }}<app-searchable-dropdown
-              [options]="versionOptions()"
-              [selectedId]="minecraftVersion()"
-              [placeholder]="i18n.t('searchMinecraftVersions')"
-              [emptyLabel]="i18n.t('minecraftVersionUnavailable')"
-              [noResults]="i18n.t('noMinecraftVersions')"
-              [ariaLabel]="i18n.t('minecraftVersion')"
-              (selectionChange)="setMinecraftVersion($any($event))"
-          /></label>
-          <p class="version-support">
-            <strong>{{ versionSupportLabel() }}</strong>
-            @if (minecraftVersion() !== '1.21.1') {
-              <span>{{ i18n.t('behaviorMayBeIncomplete') }}</span>
-            }
-          </p>
-        </div>
-        <div class="size-heading">
-          <span>{{ i18n.t('structureSize') }}</span
-          ><button
-            type="button"
-            class="size-shortcut ui-button ui-button--ghost ui-button--sm"
-            (click)="setVanillaMax()"
+    <div class="scene-canvas">
+      <img
+        class="scene-art"
+        [ngSrc]="sceneAsset()"
+        width="1672"
+        height="941"
+        alt=""
+        aria-hidden="true"
+        priority
+      />
+      <section class="washer-project" [attr.aria-label]="i18n.t('projectActions')">
+        @if (selectedProject(); as project) {
+          <span class="washer-project-label">{{ i18n.t('openProject') }}</span>
+          <h2>{{ project.name }}</h2>
+          <p>{{ i18n.t('minecraftJavaVersion').replace('{version}', project.minecraftVersion) }}</p>
+          <p>{{ summaryModeFullLabel(project.structureMode) }}</p>
+          <span
+            class="project-size-badge"
+            [class.project-size-badge--huge]="project.structureMode === 'huge-structure-blocks'"
+            [attr.aria-label]="summarySizeBadgeAriaLabel(project)"
+            [attr.title]="summarySizeBadgeAriaLabel(project)"
+            >{{ summarySizeLabel(project) }}</span
           >
-            {{ i18n.t('vanillaMax') }}
-          </button>
-        </div>
-        <div
-          class="size-grid"
-          [class.size-warning]="sizePolicy().exceedsVanilla"
-          [class.size-error]="!sizePolicy().fitsHugeStructureBlocks"
-        >
-          <label
-            class="field-label"
-            [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('x')"
-            >{{ i18n.t('sizeX')
-            }}<input
-              class="size-input"
-              type="number"
-              min="1"
-              [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'"
-              [value]="sizeX()"
-              (input)="updateSize('x', $any($event.target).value)"
-          /></label>
-          <label
-            class="field-label"
-            [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('y')"
-            >{{ i18n.t('sizeY')
-            }}<input
-              class="size-input"
-              type="number"
-              min="1"
-              [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'"
-              [value]="sizeY()"
-              (input)="updateSize('y', $any($event.target).value)"
-          /></label>
-          <label
-            class="field-label"
-            [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('z')"
-            >{{ i18n.t('sizeZ')
-            }}<input
-              class="size-input"
-              type="number"
-              min="1"
-              [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'"
-              [value]="sizeZ()"
-              (input)="updateSize('z', $any($event.target).value)"
-          /></label>
-        </div>
-        @if (!sizePolicy().dimensionsValid) {
-          <p id="size-feedback" class="size-feedback size-feedback--error" role="alert">
-            {{ i18n.t('invalidProjectSize') }}
-          </p>
-        } @else if (!sizePolicy().fitsHugeStructureBlocks) {
-          <p id="size-feedback" class="size-feedback size-feedback--error" role="alert">
-            {{ i18n.t('hugeStructureBlocksLimitExceeded') }}
-          </p>
-        }
-        @if (sizePolicy().fitsVanilla) {
-          <p class="size-compatibility" role="status">{{ i18n.t('vanillaCompatible') }}</p>
-        } @else if (sizePolicy().fitsHugeStructureBlocks) {
-          <aside
-            class="huge-recommendation"
-            [class.huge-recommendation--active]="
-              effectiveStructureMode() === 'huge-structure-blocks'
-            "
-            aria-live="polite"
-          >
-            <div class="huge-recommendation-copy">
-              <strong>{{ i18n.t('hugeStructureBlocksRecommendationTitle') }}</strong>
-              @if (effectiveStructureMode() === 'huge-structure-blocks') {
-                <p>{{ i18n.t('hugeStructureBlocksActive') }}</p>
-              } @else {
-                <p>{{ i18n.t('hugeStructureBlocksRecommendationText') }}</p>
-              }
-              <details>
-                <summary>{{ i18n.t('hugeStructureBlocksHowToUse') }}</summary>
-                <ol>
-                  <li>
-                    {{
-                      i18n
-                        .t('hugeStructureBlocksStepInstall')
-                        .replace('{version}', minecraftVersion())
-                    }}
-                  </li>
-                  <li>{{ i18n.t('hugeStructureBlocksStepLaunch') }}</li>
-                  <li>{{ i18n.t('hugeStructureBlocksStepUse') }}</li>
-                </ol>
-              </details>
-              <div
-                class="huge-recommendation-links"
-                [attr.aria-label]="i18n.t('hugeStructureBlocksResources')"
-              >
-                <a
-                  class="huge-resource-link"
-                  href="https://modrinth.com/mod/huge-structure-blocks"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  ><span>{{ i18n.t('hugeStructureBlocks') }}</span
-                  ><small>{{ i18n.t('hugeStructureBlocksModrinth') }} ↗</small></a
-                >
-                <a
-                  class="huge-resource-link"
-                  href="https://www.curseforge.com/minecraft/mc-mods/huge-structure-blocks"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  ><span>{{ i18n.t('hugeStructureBlocks') }}</span
-                  ><small>{{ i18n.t('hugeStructureBlocksCurseForge') }} ↗</small></a
-                >
-              </div>
-            </div>
-            @if (effectiveStructureMode() !== 'huge-structure-blocks') {
-              <button
-                type="button"
-                class="ui-button ui-button--secondary size-action"
-                (click)="useHugeStructureBlocks()"
-              >
-                {{ i18n.t('useHugeStructureBlocks') }}
-              </button>
-            }
-          </aside>
-        }
-        <div class="project-actions">
           <button
-            type="submit"
-            class="ui-button ui-button--primary create-action"
-            [disabled]="creating() || !!openingId() || !canCreateProject()"
-          >
-            {{ creating() ? i18n.t('creatingProject') : i18n.t('create') }}
-          </button>
-          <input
-            #structureJsonFile
-            type="file"
-            accept="application/json,.json"
-            hidden
-            (change)="selectStructureJson($event)"
-          />
-          <button
+            class="ui-button ui-button--primary washer-open-action"
             type="button"
-            class="ui-button ui-button--secondary structure-json-create-action"
-            [disabled]="creating() || !!openingId()"
-            (click)="openStructureJsonPicker(structureJsonFile)"
+            [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)"
+            (click)="openProject(project.id)"
           >
-            <svg lucideFileUp aria-hidden="true"></svg
-            ><span>{{ i18n.t('createFromStructureJson') }}</span>
+            {{ openingId() === project.id ? i18n.t('openingProject') : i18n.t('open') }}
           </button>
-        </div>
-        @if (error()) {
-          <p class="error" role="alert">{{ error() }}</p>
-        }
-      </form>
-
-      <section class="recent-projects">
-        <h2>{{ i18n.t('recent') }}</h2>
-        @if (loadStatus() === 'loading') {
-          <p class="muted" aria-live="polite">{{ i18n.t('loadingProjects') }}</p>
-        } @else if (loadStatus() === 'error') {
-          <p class="error" role="alert">{{ i18n.t('projectListError') }}</p>
-          <button class="ui-button ui-button--secondary" type="button" (click)="retryLoad()">
-            {{ i18n.t('retry') }}
-          </button>
-        } @else if (projects().length === 0) {
-          <p class="project-list-empty muted">{{ i18n.t('noProjects') }}</p>
         } @else {
-          @for (project of projects(); track project.id) {
-            <div
-              class="project-row"
-              [class.opening]="openingId() === project.id"
-              [class.deleting]="deletingProjectIds().has(project.id)"
+          <span class="washer-project-label">{{ i18n.t('newProject') }}</span>
+          <button
+            class="ui-button ui-button--primary washer-open-action"
+            type="button"
+            (click)="openCreateDialog()"
+          >
+            {{ i18n.t('create') }}
+          </button>
+        }
+      </section>
+
+      <section class="project-board" aria-labelledby="project-board-title">
+        <header class="board-header">
+          <div class="board-heading">
+            <p class="eyebrow">{{ i18n.t('projectTitle') }}</p>
+            <h1 id="project-board-title">{{ i18n.t('recent') }}</h1>
+          </div>
+          <div class="board-actions">
+            <button
+              class="ui-button ui-button--primary ui-button--sm"
+              type="button"
+              [disabled]="creating() || !!openingId()"
+              (click)="openCreateDialog()"
             >
-              <button
-                class="project-open-action"
-                type="button"
-                [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)"
-                (click)="openProject(project.id)"
+              {{ i18n.t('create') }}
+            </button>
+            <input
+              #structureJsonFile
+              type="file"
+              accept="application/json,.json"
+              hidden
+              (change)="selectStructureJson($event)"
+            />
+            <button
+              class="ui-button ui-button--secondary ui-button--sm structure-json-create-action"
+              type="button"
+              [disabled]="creating() || !!openingId()"
+              (click)="openStructureJsonPicker(structureJsonFile)"
+            >
+              <svg lucideFileUp aria-hidden="true"></svg>
+              <span>{{ i18n.t('createFromStructureJson') }}</span>
+            </button>
+          </div>
+        </header>
+
+        <div class="project-list" aria-live="polite">
+          @if (loadStatus() === 'loading') {
+            <p class="muted board-message">{{ i18n.t('loadingProjects') }}</p>
+          } @else if (loadStatus() === 'error') {
+            <p class="error board-message" role="alert">{{ i18n.t('projectListError') }}</p>
+            <button class="ui-button ui-button--secondary" type="button" (click)="retryLoad()">
+              {{ i18n.t('retry') }}
+            </button>
+          } @else if (projects().length === 0) {
+            <p class="project-list-empty muted">{{ i18n.t('noProjects') }}</p>
+          } @else {
+            @for (project of projects(); track project.id) {
+              <article
+                class="project-row"
+                [class.selected]="selectedProject()?.id === project.id"
+                [class.opening]="openingId() === project.id"
+                [class.deleting]="deletingProjectIds().has(project.id)"
               >
-                <span class="project-row-copy"
-                  ><strong>{{
-                    openingId() === project.id ? i18n.t('openingProject') : project.name
-                  }}</strong
-                  ><span class="project-row-meta"
-                    ><small>{{
+                <button
+                  class="project-select-action"
+                  type="button"
+                  [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)"
+                  [attr.aria-pressed]="selectedProject()?.id === project.id"
+                  (click)="selectProject(project.id)"
+                >
+                  <strong>{{ project.name }}</strong>
+                  <span class="project-row-meta">
+                    <small>{{
                       i18n.t('minecraftJavaVersion').replace('{version}', project.minecraftVersion)
-                    }}</small
-                    ><span
+                    }}</small>
+                    <span
                       class="project-size-badge"
                       [class.project-size-badge--huge]="
                         project.structureMode === 'huge-structure-blocks'
@@ -245,48 +129,261 @@
                       [attr.aria-label]="summarySizeBadgeAriaLabel(project)"
                       [attr.title]="summarySizeBadgeAriaLabel(project)"
                       >{{ summarySizeLabel(project) }}</span
-                    ><small class="project-updated"
+                    >
+                    <small>{{ summaryModeFullLabel(project.structureMode) }}</small>
+                    <small class="project-updated"
                       >{{ i18n.t('recentProjectUpdated') }}
                       {{ project.updatedAt | date: 'short' }}</small
-                    ></span
-                  ></span
-                ><span class="project-row-cta">{{
-                  openingId() === project.id ? i18n.t('openingProject') : i18n.t('open')
-                }}</span>
-              </button>
-              <button
-                class="project-delete-action ui-button ui-button--danger ui-button--icon"
-                type="button"
-                uiTooltip="{{ i18n.t('deleteProjectAriaLabel').replace('{name}', project.name) }}"
-                [disabled]="deletingProjectIds().has(project.id)"
-                [attr.aria-label]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)"
-                [attr.title]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)"
-                (click)="deleteProject(project, $event)"
-              >
-                <svg lucideTrash2 aria-hidden="true"></svg>
-              </button>
-            </div>
+                    >
+                  </span>
+                </button>
+                <div class="project-row-actions">
+                  <button
+                    class="ui-button ui-button--secondary ui-button--sm project-row-open"
+                    type="button"
+                    [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)"
+                    (click)="openProject(project.id)"
+                  >
+                    {{ openingId() === project.id ? i18n.t('openingProject') : i18n.t('open') }}
+                  </button>
+                  <button
+                    class="project-delete-action ui-button ui-button--danger ui-button--icon ui-tooltip-align-end"
+                    type="button"
+                    uiTooltip="{{
+                      i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)
+                    }}"
+                    [disabled]="deletingProjectIds().has(project.id)"
+                    [attr.aria-label]="
+                      i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)
+                    "
+                    [attr.title]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)"
+                    (click)="deleteProject(project, $event)"
+                  >
+                    <svg lucideTrash2 aria-hidden="true"></svg>
+                  </button>
+                </div>
+              </article>
+            }
           }
-        }
+        </div>
         @if (deleteError()) {
           <p class="error recent-project-error" role="alert">{{ deleteError() }}</p>
         }
+        @if (error()) {
+          <p class="error board-error" role="alert">{{ error() }}</p>
+        }
       </section>
-    </section>
+    </div>
+
+    <footer class="project-page-footer">
+      <aside class="local-account-status" [attr.aria-label]="i18n.t('localAccountStatus')">
+        <span class="local-account-icon" aria-hidden="true">
+          <svg lucideHardDrive></svg>
+        </span>
+        <span class="local-account-copy">
+          <strong>{{ i18n.t('localGuestMode') }}</strong>
+          <span>{{ i18n.t('localProjectsDescription') }}</span>
+        </span>
+        <span class="local-account-unavailable">{{ i18n.t('accountSignInUnavailable') }}</span>
+      </aside>
+    </footer>
   </div>
 
-  <footer class="project-page-footer">
-    <aside class="local-account-status" [attr.aria-label]="i18n.t('localAccountStatus')">
-      <span class="local-account-icon" aria-hidden="true">
-        <svg lucideHardDrive></svg>
-      </span>
-      <span class="local-account-copy">
-        <strong>{{ i18n.t('localGuestMode') }}</strong>
-        <span>{{ i18n.t('localProjectsDescription') }}</span>
-      </span>
-      <span class="local-account-unavailable">{{ i18n.t('accountSignInUnavailable') }}</span>
-    </aside>
-  </footer>
+  @if (createDialogOpen()) {
+    <div class="project-create-backdrop" role="presentation" (click)="closeCreateDialog()">
+      <section
+        class="project-create-dialog"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="project-create-dialog-title"
+        tabindex="-1"
+        (click)="$event.stopPropagation()"
+        (keydown.escape)="closeCreateDialog()"
+      >
+        <header class="project-create-header">
+          <h2 id="project-create-dialog-title">{{ i18n.t('newProject') }}</h2>
+          <button
+            class="ui-button ui-button--ghost ui-button--icon"
+            type="button"
+            [disabled]="creating()"
+            [attr.aria-label]="i18n.t('cancel')"
+            (click)="closeCreateDialog()"
+          >
+            <svg lucideX aria-hidden="true"></svg>
+          </button>
+        </header>
+        <form class="project-form" (submit)="$event.preventDefault(); createProject()">
+          <div class="form-section form-section--identity">
+            <label class="field-label"
+              >{{ i18n.t('projectName')
+              }}<input
+                class="project-text-input"
+                [value]="name()"
+                (input)="updateName($any($event.target).value)"
+                required
+            /></label>
+            <label class="field-label"
+              >{{ i18n.t('minecraftVersion')
+              }}<app-searchable-dropdown
+                [options]="versionOptions()"
+                [selectedId]="minecraftVersion()"
+                [placeholder]="i18n.t('searchMinecraftVersions')"
+                [emptyLabel]="i18n.t('minecraftVersionUnavailable')"
+                [noResults]="i18n.t('noMinecraftVersions')"
+                [ariaLabel]="i18n.t('minecraftVersion')"
+                (selectionChange)="setMinecraftVersion($any($event))"
+            /></label>
+            <p class="version-support">
+              <strong>{{ versionSupportLabel() }}</strong>
+              @if (minecraftVersion() !== '1.21.1') {
+                <span>{{ i18n.t('behaviorMayBeIncomplete') }}</span>
+              }
+            </p>
+          </div>
+          <div class="size-heading">
+            <span>{{ i18n.t('structureSize') }}</span
+            ><button
+              type="button"
+              class="size-shortcut ui-button ui-button--ghost ui-button--sm"
+              (click)="setVanillaMax()"
+            >
+              {{ i18n.t('vanillaMax') }}
+            </button>
+          </div>
+          <div
+            class="size-grid"
+            [class.size-warning]="sizePolicy().exceedsVanilla"
+            [class.size-error]="!sizePolicy().fitsHugeStructureBlocks"
+          >
+            <label
+              class="field-label"
+              [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('x')"
+              >{{ i18n.t('sizeX')
+              }}<input
+                class="size-input"
+                type="number"
+                min="1"
+                [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'"
+                [value]="sizeX()"
+                (input)="updateSize('x', $any($event.target).value)"
+            /></label>
+            <label
+              class="field-label"
+              [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('y')"
+              >{{ i18n.t('sizeY')
+              }}<input
+                class="size-input"
+                type="number"
+                min="1"
+                [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'"
+                [value]="sizeY()"
+                (input)="updateSize('y', $any($event.target).value)"
+            /></label>
+            <label
+              class="field-label"
+              [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('z')"
+              >{{ i18n.t('sizeZ')
+              }}<input
+                class="size-input"
+                type="number"
+                min="1"
+                [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'"
+                [value]="sizeZ()"
+                (input)="updateSize('z', $any($event.target).value)"
+            /></label>
+          </div>
+          @if (!sizePolicy().dimensionsValid) {
+            <p id="size-feedback" class="size-feedback size-feedback--error" role="alert">
+              {{ i18n.t('invalidProjectSize') }}
+            </p>
+          } @else if (!sizePolicy().fitsHugeStructureBlocks) {
+            <p id="size-feedback" class="size-feedback size-feedback--error" role="alert">
+              {{ i18n.t('hugeStructureBlocksLimitExceeded') }}
+            </p>
+          }
+          @if (sizePolicy().fitsVanilla) {
+            <p class="size-compatibility" role="status">{{ i18n.t('vanillaCompatible') }}</p>
+          } @else if (sizePolicy().fitsHugeStructureBlocks) {
+            <aside
+              class="huge-recommendation"
+              [class.huge-recommendation--active]="
+                effectiveStructureMode() === 'huge-structure-blocks'
+              "
+              aria-live="polite"
+            >
+              <div class="huge-recommendation-copy">
+                <strong>{{ i18n.t('hugeStructureBlocksRecommendationTitle') }}</strong>
+                @if (effectiveStructureMode() === 'huge-structure-blocks') {
+                  <p>{{ i18n.t('hugeStructureBlocksActive') }}</p>
+                } @else {
+                  <p>{{ i18n.t('hugeStructureBlocksRecommendationText') }}</p>
+                }
+                <details>
+                  <summary>{{ i18n.t('hugeStructureBlocksHowToUse') }}</summary>
+                  <ol>
+                    <li>
+                      {{
+                        i18n
+                          .t('hugeStructureBlocksStepInstall')
+                          .replace('{version}', minecraftVersion())
+                      }}
+                    </li>
+                    <li>{{ i18n.t('hugeStructureBlocksStepLaunch') }}</li>
+                    <li>{{ i18n.t('hugeStructureBlocksStepUse') }}</li>
+                  </ol>
+                </details>
+                <div
+                  class="huge-recommendation-links"
+                  [attr.aria-label]="i18n.t('hugeStructureBlocksResources')"
+                >
+                  <a
+                    class="huge-resource-link"
+                    href="https://modrinth.com/mod/huge-structure-blocks"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    ><span>{{ i18n.t('hugeStructureBlocks') }}</span
+                    ><small>{{ i18n.t('hugeStructureBlocksModrinth') }} ↗</small></a
+                  >
+                  <a
+                    class="huge-resource-link"
+                    href="https://www.curseforge.com/minecraft/mc-mods/huge-structure-blocks"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    ><span>{{ i18n.t('hugeStructureBlocks') }}</span
+                    ><small>{{ i18n.t('hugeStructureBlocksCurseForge') }} ↗</small></a
+                  >
+                </div>
+              </div>
+              @if (effectiveStructureMode() !== 'huge-structure-blocks') {
+                <button
+                  type="button"
+                  class="ui-button ui-button--secondary size-action"
+                  (click)="useHugeStructureBlocks()"
+                >
+                  {{ i18n.t('useHugeStructureBlocks') }}
+                </button>
+              }
+            </aside>
+          }
+          <div class="project-actions">
+            <button
+              type="submit"
+              class="ui-button ui-button--primary create-action"
+              [disabled]="creating() || !!openingId() || !canCreateProject()"
+            >
+              {{ creating() ? i18n.t('creatingProject') : i18n.t('create') }}
+            </button>
+          </div>
+          @if (error()) {
+            <p class="error" role="alert">{{ error() }}</p>
+          }
+        </form>
+      </section>
+    </div>
+  }
+
   @if (structureJsonImport.open()) {
     <div class="project-import-backdrop" role="presentation">
       <section

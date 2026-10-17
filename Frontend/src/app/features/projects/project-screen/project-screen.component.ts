@@ -15,6 +15,7 @@ import {
 } from '../../../core/domain/structure-size-policy';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
+import { ThemeService } from '../../../core/ui/theme/theme.service';
 import { LucideFileUp, LucideHardDrive, LucideTrash2, LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import {
@@ -56,7 +57,19 @@ import { ProjectScreenControlsComponent } from './project-screen-controls.compon
 export class ProjectScreenComponent {
   protected readonly i18n = inject(I18nService);
   private readonly preferences = inject(UiPreferencesService);
+  protected readonly theme = inject(ThemeService);
   protected readonly workflow = inject(ProjectScreenWorkflow);
+  protected readonly sceneAsset = computed(
+    () => `assets/project-screen/laundromat-${this.theme.theme()}.jpg`,
+  );
+  protected readonly selectedProjectId = signal<string | undefined>(undefined);
+  protected readonly selectedProject = computed(() => {
+    const projects = this.projects();
+    return (
+      projects.find((project) => project.id === this.selectedProjectId()) ?? projects[0] ?? null
+    );
+  });
+  protected readonly createDialogOpen = signal(false);
   protected readonly name = signal(this.i18n.t('untitledStructure'));
   protected readonly defaultMinecraftVersion = DEFAULT_MINECRAFT_VERSION;
   protected readonly sizeX = signal('16');
@@ -154,6 +167,15 @@ export class ProjectScreenComponent {
   protected closeSettingsDialog(): void {
     this.settingsDialogOpen.set(false);
   }
+  protected openCreateDialog(): void {
+    this.createDialogOpen.set(true);
+  }
+  protected closeCreateDialog(): void {
+    if (!this.creating()) this.createDialogOpen.set(false);
+  }
+  protected selectProject(id: string): void {
+    this.selectedProjectId.set(id);
+  }
   protected openStructureJsonPicker(input: HTMLInputElement): void {
     if (!this.structureJsonImport.creating()) input.click();
   }
@@ -226,6 +248,7 @@ export class ProjectScreenComponent {
   }
 
   protected async openProject(id: string): Promise<void> {
+    this.selectProject(id);
     await this.workflow.openProject(id);
   }
 
