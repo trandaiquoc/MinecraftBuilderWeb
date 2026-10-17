@@ -565,10 +565,34 @@
   }
 
   .camera-actions {
-    flex: 1 1 100%;
-    flex-wrap: wrap;
-    max-width: 100%;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    max-width: none;
     box-sizing: border-box;
+  }
+
+  .ui-button--toolbar .toolbar-button-label {
+    display: none;
+  }
+
+  .history-actions .ui-button--toolbar .toolbar-button-label {
+    display: inline;
+  }
+
+  .history-actions .ui-button--toolbar,
+  .camera-actions .ui-button--toolbar {
+    justify-content: center;
+    min-width: 2.2rem;
+    padding-inline: 0.45rem;
+  }
+
+  .camera-actions-menu .ui-button--toolbar {
+    gap: 0.2rem;
+  }
+
+  .camera-actions-menu .ui-button--toolbar svg:last-child {
+    width: 0.68rem;
+    height: 0.68rem;
   }
 }
 

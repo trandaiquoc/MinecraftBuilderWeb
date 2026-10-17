@@ -80,6 +80,30 @@ describe('EditorChromeComponent menu keyboard navigation', () => {
     fixture.destroy();
   });
 
+  it('keeps narrow toolbar actions named when their visible labels are compacted', () => {
+    const fixture = TestBed.createComponent(EditorChromeComponent);
+    fixture.componentRef.setInput('state', state);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const controls = [...root.querySelectorAll<HTMLButtonElement>('.ui-button--toolbar')];
+    expect(controls.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'undo',
+      'redo',
+      'fitStructure',
+      'focusSelection',
+      'camera',
+    ]);
+    expect(controls[0].title).toBe('undo (Ctrl+Z)');
+    expect(controls[2].title).toBe('fitStructure');
+    expect(controls[4].title).toBe('camera');
+    expect(controls[2].querySelector('.toolbar-button-label')?.textContent?.trim()).toBe(
+      'fitStructure',
+    );
+
+    fixture.destroy();
+  });
+
   it('opens a menu from its trigger and moves focus through menu items', () => {
     const fixture = TestBed.createComponent(EditorChromeComponent);
     fixture.componentRef.setInput('state', state);

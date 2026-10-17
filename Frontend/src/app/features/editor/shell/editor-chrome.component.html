@@ -699,48 +699,61 @@
         <button
           type="button"
           class="ui-button ui-button--toolbar"
+          [attr.aria-label]="i18n.t('undo')"
           [attr.title]="shortcutTitle('undo')"
           [disabled]="!state().canUndo"
           (click)="emit({ type: 'undo' })"
         >
-          <svg lucideUndo2 aria-hidden="true"></svg>{{ i18n.t('undo') }}
+          <svg lucideUndo2 aria-hidden="true"></svg>
+          <span class="toolbar-button-label">{{ i18n.t('undo') }}</span>
         </button>
         <button
           type="button"
           class="ui-button ui-button--toolbar"
+          [attr.aria-label]="i18n.t('redo')"
           [attr.title]="shortcutTitle('redo')"
           [disabled]="!state().canRedo"
           (click)="emit({ type: 'redo' })"
         >
-          <svg lucideRedo2 aria-hidden="true"></svg>{{ i18n.t('redo') }}
+          <svg lucideRedo2 aria-hidden="true"></svg>
+          <span class="toolbar-button-label">{{ i18n.t('redo') }}</span>
         </button>
       </div>
       <div class="toolbar-group camera-actions">
         <button
           type="button"
           class="ui-button ui-button--toolbar"
+          [attr.aria-label]="i18n.t('fitStructure')"
+          [attr.title]="i18n.t('fitStructure')"
           (click)="emit({ type: 'fit-structure' })"
         >
-          <svg lucideMaximize2 aria-hidden="true"></svg>{{ i18n.t('fitStructure') }}
+          <svg lucideMaximize2 aria-hidden="true"></svg>
+          <span class="toolbar-button-label">{{ i18n.t('fitStructure') }}</span>
         </button>
         <button
           type="button"
           class="ui-button ui-button--toolbar"
+          [attr.aria-label]="i18n.t('focusSelection')"
+          [attr.title]="i18n.t('focusSelection')"
           [disabled]="!state().canFocusSelection"
           (click)="emit({ type: 'focus-selection' })"
         >
-          <svg lucideFocus aria-hidden="true"></svg>{{ i18n.t('focusSelection') }}
+          <svg lucideFocus aria-hidden="true"></svg>
+          <span class="toolbar-button-label">{{ i18n.t('focusSelection') }}</span>
         </button>
         <div class="menu-entry camera-actions-menu">
           <button
             type="button"
             class="ui-button ui-button--toolbar menu-trigger"
+            [attr.aria-label]="i18n.t('camera')"
+            [attr.title]="i18n.t('camera')"
             aria-haspopup="menu"
             [attr.aria-expanded]="activeMenu() === 'camera'"
             [class.active]="activeMenu() === 'camera'"
             (click)="toggleMenu('camera', $event)"
           >
-            <svg lucideCamera aria-hidden="true"></svg>{{ i18n.t('camera') }}
+            <svg lucideCamera aria-hidden="true"></svg>
+            <span class="toolbar-button-label">{{ i18n.t('camera') }}</span>
             <svg lucideChevronDown aria-hidden="true"></svg>
           </button>
           @if (activeMenu() === 'camera') {

@@ -12,6 +12,9 @@ records the empty state, a selected two-block group in Dark and Minecraft, and
 the narrow Dark drawer. The [Group Move panel review](evidence/20261017-group-move/README.md)
 covers its empty and populated states at desktop and narrow widths, including a
 saved move in the isolated browser project. The
+[compact toolbar review](evidence/20261017-compact-toolbar/README.md) checks
+the 390 px two-row layout and a 320 px viewport, keeping actions named while
+reducing toolbar height. The
 [starter-card review](evidence/20261017-viewport-empty-starter/README.md) also
 checks both modes at a narrow viewport. Current browser review also covers the
 Settings dialog at a narrow viewport, JSON import/export, Structure NBT and
